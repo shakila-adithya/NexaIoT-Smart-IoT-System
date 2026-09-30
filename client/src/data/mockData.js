@@ -1,3 +1,16 @@
+export const demoUser = {
+  id: "usr-001",
+  name: "John Doe",
+  email: "admin@nexaiot.com",
+  role: "Administrator",
+  avatarInitials: "JD",
+};
+
+export const DEMO_CREDENTIALS = {
+  email: "admin@nexaiot.com",
+  password: "admin123",
+};
+
 export const solutions = [
   { key: "buildings", title: "Smart Buildings", blurb: "Monitor temperature, humidity, lighting, and energy across every floor.", metrics: ["Temperature", "Humidity", "Lighting", "Energy"] },
   { key: "agriculture", title: "Smart Agriculture", blurb: "Track soil and environmental conditions to optimize irrigation.", metrics: ["Soil Moisture", "Temperature", "Humidity", "Irrigation"] },

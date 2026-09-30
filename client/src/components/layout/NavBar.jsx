@@ -41,10 +41,10 @@ export default function Navbar() {
         </div>
 
         <div className="hidden lg:flex items-center gap-3">
-          <Button variant="ghost" size="sm">
+          <Button as={Link} to="/login" variant="ghost" size="sm">
             Login
           </Button>
-          <Button size="sm">
+          <Button as={Link} to="/register" size="sm">
             Get Started
           </Button>
         </div>
@@ -85,11 +85,11 @@ export default function Navbar() {
               ))}
             </div>
             <div className="mt-6 flex flex-col gap-3">
-              <Button as={Link} to="/features" variant="secondary" onClick={() => setOpen(false)}>
-                Features
+              <Button as={Link} to="/login" variant="secondary" onClick={() => setOpen(false)}>
+                Login
               </Button>
-              <Button as={Link} to="/contact" onClick={() => setOpen(false)}>
-                Contact Us
+              <Button as={Link} to="/register" onClick={() => setOpen(false)}>
+                Get Started
               </Button>
             </div>
           </div>
