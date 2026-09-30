@@ -1,0 +1,33 @@
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.auth-page-motion,
+.app-page-motion {
+  animation: app-page-enter 440ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.app-page-motion > [class*="space-y-"] > * {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: app-section-enter 460ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.app-page-motion > [class*="space-y-"] > :nth-child(1) { animation-delay: 80ms; }
+.app-page-motion > [class*="space-y-"] > :nth-child(2) { animation-delay: 150ms; }
+.app-page-motion > [class*="space-y-"] > :nth-child(3) { animation-delay: 220ms; }
+.app-page-motion > [class*="space-y-"] > :nth-child(4) { animation-delay: 290ms; }
+.app-page-motion > [class*="space-y-"] > :nth-child(5) { animation-delay: 360ms; }
+
+.dashboard-stat-card > div > span {
+  box-shadow: 0 0 18px rgba(37, 99, 235, 0.11);
+}
+
+.iot-app-surface {
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.025) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
