@@ -1,6 +1,4 @@
-// Central API client. Once a real backend exists, set VITE_API_URL and
-// remove the mock fallbacks inside each api/*.js module.
-export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 function getToken() {
   return localStorage.getItem("nexaiot_token") || sessionStorage.getItem("nexaiot_token");
@@ -36,8 +34,6 @@ export const apiClient = {
   delete: (path, opts) => request(path, { ...opts, method: "DELETE" }),
 };
 
-// Small helper so pages can attempt a real API call and gracefully fall
-// back to mock data while the backend doesn't exist yet.
 export async function withMockFallback(apiCall, mockValue, delay = 400) {
   try {
     return await apiCall();
