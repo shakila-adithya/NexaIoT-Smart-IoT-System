@@ -1,18 +1,16 @@
 import { useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Satellite, Mail, Lock, Thermometer, Radio, Bell, BarChart3 } from "lucide-react";
 import Input from "../../components/ui/Input.jsx";
 import Button from "../../components/ui/Button.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import { validateLogin } from "../../utils/validation.js";
 import { useToast } from "../../context/ToastContext.jsx";
-import { DEMO_CREDENTIALS } from "../../data/mockData.js";
 
 export default function Login() {
   const { login } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const location = useLocation();
   const [form, setForm] = useState({ email: "", password: "", remember: true });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -30,8 +28,8 @@ export default function Login() {
       await login(form.email, form.password, form.remember);
       showToast("Welcome back!");
       navigate("/", { replace: true });
-    } catch {
-      setFormError("Invalid email or password. Try the demo credentials below.");
+    } catch (err) {
+      setFormError(err?.message || "Invalid email or password.");
     } finally {
       setSubmitting(false);
     }
@@ -130,10 +128,6 @@ export default function Login() {
               {submitting ? "Signing in..." : "Login"}
             </Button>
           </form>
-
-          <p className="mt-5 text-xs text-muted bg-subtle rounded-xl px-3.5 py-2.5">
-            Demo credentials — {DEMO_CREDENTIALS.email} / {DEMO_CREDENTIALS.password}
-          </p>
 
           <p className="mt-6 text-center text-sm text-muted">
             Don't have an account?{" "}

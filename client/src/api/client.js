@@ -6,6 +6,7 @@ function getToken() {
 
 async function request(path, { method = "GET", body, headers = {} } = {}) {
   const token = getToken();
+
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers: {
@@ -16,14 +17,35 @@ async function request(path, { method = "GET", body, headers = {} } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
+  const contentType = res.headers.get("content-type") || "";
+
+  let responseData;
+
+  if (contentType.includes("application/json")) {
+    responseData = await res.json();
+  } else {
+    responseData = await res.text();
+  }
+
   if (!res.ok) {
-    const error = new Error(`Request failed with status ${res.status}`);
+    let message = `Request failed with status ${res.status}`;
+
+    if (responseData?.message) {
+      message = responseData.message;
+    } else if (responseData && typeof responseData === "object") {
+      message = Object.values(responseData)[0] || message;
+    } else if (typeof responseData === "string" && responseData.trim()) {
+      message = responseData;
+    }
+
+    const error = new Error(message);
     error.status = res.status;
+    error.data = responseData;
+
     throw error;
   }
 
-  const contentType = res.headers.get("content-type") || "";
-  return contentType.includes("application/json") ? res.json() : res.text();
+  return responseData;
 }
 
 export const apiClient = {
@@ -34,10 +56,3 @@ export const apiClient = {
   delete: (path, opts) => request(path, { ...opts, method: "DELETE" }),
 };
 
-export async function withMockFallback(apiCall, mockValue, delay = 400) {
-  try {
-    return await apiCall();
-  } catch {
-    return new Promise((resolve) => setTimeout(() => resolve(mockValue), delay));
-  }
-}
