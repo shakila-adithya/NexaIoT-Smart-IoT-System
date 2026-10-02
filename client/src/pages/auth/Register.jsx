@@ -43,7 +43,7 @@ export default function Register() {
 
       showToast("Account created successfully");
 
-      navigate("/", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setFormError(
         err?.message || "Unable to create account. Please try again."

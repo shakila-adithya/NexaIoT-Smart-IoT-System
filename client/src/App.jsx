@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import PublicLayout from "./components/layout/PublicLayout.jsx";
+import ProtectedRoute from "./components/auth/ProtectedRoute.jsx";
+
 import Home from "./pages/public/Home.jsx";
 import Features from "./pages/public/Features.jsx";
 import Solutions from "./pages/public/Solutions.jsx";
@@ -10,6 +12,9 @@ import Privacy from "./pages/public/Privacy.jsx";
 import Terms from "./pages/public/Terms.jsx";
 import Login from "./pages/auth/Login.jsx";
 import Register from "./pages/auth/Register.jsx";
+
+import Dashboard from "./pages/app/Dashboard.jsx";
+import AppLayout from "./components/layout/AppLayout.jsx";
 
 export default function App() {
   const { pathname } = useLocation();
@@ -27,7 +32,14 @@ export default function App() {
       </Route>
       <Route path="/login" element={<div className="auth-page-motion"><Login /></div>} />
       <Route path="/register" element={<div className="auth-page-motion"><Register /></div>} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppLayout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Route>
+      </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
+

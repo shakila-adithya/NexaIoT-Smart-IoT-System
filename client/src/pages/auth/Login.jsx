@@ -27,7 +27,7 @@ export default function Login() {
     try {
       await login(form.email, form.password, form.remember);
       showToast("Welcome back!");
-      navigate("/", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setFormError(err?.message || "Invalid email or password.");
     } finally {
