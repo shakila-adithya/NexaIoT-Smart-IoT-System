@@ -1,7 +1,10 @@
 export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 function getToken() {
-  return localStorage.getItem("nexaiot_token") || sessionStorage.getItem("nexaiot_token");
+  return (
+    sessionStorage.getItem("nexaiot_token") ||
+    localStorage.getItem("nexaiot_token")
+  );
 }
 
 async function request(path, { method = "GET", body, headers = {} } = {}) {
