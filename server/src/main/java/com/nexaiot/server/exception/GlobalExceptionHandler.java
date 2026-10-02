@@ -1,5 +1,7 @@
 package com.nexaiot.server.exception;
 
+import com.nexaiot.server.device.DeviceNotFoundException;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -51,5 +53,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(response);
+    }
+
+    @ExceptionHandler(DeviceNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleDeviceNotFound(
+            DeviceNotFoundException ex
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(Map.of("message", ex.getMessage()));
     }
 }
