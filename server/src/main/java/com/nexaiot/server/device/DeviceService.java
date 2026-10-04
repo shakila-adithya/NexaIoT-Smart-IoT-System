@@ -14,6 +14,7 @@ import com.nexaiot.server.device.dto.UpdateDeviceRequest;
 public class DeviceService {
 
     private final DeviceRepository deviceRepository;
+    private static final long ONLINE_TIMEOUT_SECONDS = 5;
 
     public DeviceService(DeviceRepository deviceRepository) {
         this.deviceRepository = deviceRepository;
@@ -129,16 +130,38 @@ public class DeviceService {
     }
 
     private DeviceResponse toResponse(Device device) {
+        String effectiveStatus = getEffectiveStatus(device);
+
         return new DeviceResponse(
                 device.getId(),
                 device.getDeviceKey(),
                 device.getName(),
                 device.getType(),
                 device.getLocation(),
-                device.getStatus(),
+                effectiveStatus,
                 device.isPowerOn(),
                 device.getCreatedAt(),
-                device.getUpdatedAt()
+                device.getUpdatedAt(),
+                device.getLastSeenAt()
         );
+    }
+
+    private String getEffectiveStatus(Device device) {
+        if ("MAINTENANCE".equalsIgnoreCase(device.getStatus())) {
+            return "MAINTENANCE";
+        }
+
+        Instant lastSeenAt = device.getLastSeenAt();
+
+        if (lastSeenAt == null) {
+            return "OFFLINE";
+        }
+
+        Instant onlineThreshold =
+                Instant.now().minusSeconds(ONLINE_TIMEOUT_SECONDS);
+
+        return lastSeenAt.isAfter(onlineThreshold)
+                ? "ONLINE"
+                : "OFFLINE";
     }
 }

@@ -26,6 +26,7 @@ public class Device {
 
     private Instant createdAt;
     private Instant updatedAt;
+    private Instant lastSeenAt;
 
     public Device() {
     }
@@ -108,5 +109,13 @@ public class Device {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+    
+    public Instant getLastSeenAt() {
+        return lastSeenAt;
+    }
+
+    public void setLastSeenAt(Instant lastSeenAt) {
+        this.lastSeenAt = lastSeenAt;
     }
 }

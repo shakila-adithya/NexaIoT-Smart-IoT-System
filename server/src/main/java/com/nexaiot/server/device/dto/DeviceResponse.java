@@ -13,6 +13,7 @@ public class DeviceResponse {
     private boolean powerOn;
     private Instant createdAt;
     private Instant updatedAt;
+    private Instant lastSeenAt;
 
     public DeviceResponse() {
     }
@@ -26,7 +27,8 @@ public class DeviceResponse {
             String status,
             boolean powerOn,
             Instant createdAt,
-            Instant updatedAt
+            Instant updatedAt,
+            Instant lastSeenAt
     ) {
         this.id = id;
         this.deviceKey = deviceKey;
@@ -37,6 +39,7 @@ public class DeviceResponse {
         this.powerOn = powerOn;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.lastSeenAt = lastSeenAt;
     }
 
     public String getId() {
@@ -73,5 +76,9 @@ public class DeviceResponse {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public Instant getLastSeenAt() {
+        return lastSeenAt;
     }
 }

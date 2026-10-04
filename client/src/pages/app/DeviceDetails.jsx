@@ -48,6 +48,7 @@ function TelemetryCard({
   note,
   tone = "cyan",
   active = false,
+  iconColor,
 }) {
   const tones = {
     cyan: {
@@ -78,7 +79,10 @@ function TelemetryCard({
         <div
           className={`flex h-9 w-9 items-center justify-center rounded-[10px] ${selected.bg}`}
         >
-          <Icon size={17} className={selected.text} />
+          <Icon
+            size={17}
+            className={iconColor || selected.text}
+          />
         </div>
         <span
           className={`h-1.5 w-1.5 rounded-full ${
@@ -118,91 +122,155 @@ function DisabledToggle({ enabled = false }) {
 export default function DeviceDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+
   const [device, setDevice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   const [latestReading, setLatestReading] = useState(null);
   const [readings, setReadings] = useState([]);
+
   const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
+
   const [editForm, setEditForm] = useState({
     name: "",
     type: "",
     location: "",
   });
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
   useEffect(() => {
-    async function loadDevice() {
+    let cancelled = false;
+
+    async function loadDevice(showLoading = false) {
       try {
-        setLoading(true);
+        if (showLoading) {
+          setLoading(true);
+        }
+
         setError("");
+
         const data = await getDeviceById(id);
-        setDevice(data);
+
+        if (!cancelled) {
+          setDevice(data);
+        }
       } catch (err) {
-        setError(err.message || "Unable to load device.");
+        if (!cancelled) {
+          setError(err.message || "Unable to load device.");
+        }
       } finally {
-        setLoading(false);
-      }
-    }
-    loadDevice();
-  }, [id]);
-    useEffect(() => {
-      async function loadLatestReading() {
-        try {
-          const data = await getLatestDeviceReading(id);
-          setLatestReading(data);
-        } catch (err) {
-          console.error("Unable to load latest telemetry:", err);
+        if (showLoading && !cancelled) {
+          setLoading(false);
         }
       }
+    }
+
+    loadDevice(true);
+
+    const interval = setInterval(() => {
+      loadDevice();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLatestReading() {
+      try {
+        const data = await getLatestDeviceReading(id);
+
+        if (!cancelled) {
+          setLatestReading(data);
+        }
+      } catch (err) {
+        console.error("Unable to load latest telemetry:", err);
+      }
+    }
+
+    loadLatestReading();
+
+    const interval = setInterval(() => {
       loadLatestReading();
-      const interval = setInterval(() => {
-        loadLatestReading();
-      }, 5000);
-      return () => clearInterval(interval);
-    }, [id]);
-    useEffect(() => {
-      async function loadReadings() {
-        try {
-          const data = await getDeviceReadings(id);
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadReadings() {
+      try {
+        const data = await getDeviceReadings(id);
+
+        if (!cancelled) {
           setReadings(Array.isArray(data) ? data : []);
-        } catch (err) {
-          console.error("Unable to load telemetry history:", err);
+        }
+      } catch (err) {
+        console.error("Unable to load telemetry history:", err);
+
+        if (!cancelled) {
           setReadings([]);
         }
       }
+    }
+
+    loadReadings();
+
+    const interval = setInterval(() => {
       loadReadings();
-      const interval = setInterval(() => {
-        loadReadings();
-      }, 5000);
-      return () => clearInterval(interval);
-}, [id]);
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [id]);
+
   const openEditModal = () => {
     setEditForm({
-      name: device.name || "",
-      type: device.type || "",
-      location: device.location || "",
+      name: device?.name || "",
+      type: device?.type || "",
+      location: device?.location || "",
     });
+
     setEditError("");
     setShowEditModal(true);
   };
+
   const closeEditModal = () => {
     if (saving) return;
+
     setShowEditModal(false);
     setEditError("");
   };
+
   const handleEditChange = (event) => {
     const { name, value } = event.target;
+
     setEditForm((current) => ({
       ...current,
       [name]: value,
     }));
   };
+
   const handleUpdate = async (event) => {
     event.preventDefault();
+
     if (
       !editForm.name.trim() ||
       !editForm.type.trim() ||
@@ -211,14 +279,17 @@ export default function DeviceDetails() {
       setEditError("Device name, type and location are required.");
       return;
     }
+
     try {
       setSaving(true);
       setEditError("");
+
       const updatedDevice = await updateDevice(device.id, {
         name: editForm.name.trim(),
         type: editForm.type.trim(),
         location: editForm.location.trim(),
       });
+
       setDevice(updatedDevice);
       setShowEditModal(false);
     } catch (err) {
@@ -227,19 +298,24 @@ export default function DeviceDetails() {
       setSaving(false);
     }
   };
+
   const handleDelete = async () => {
     try {
       setDeleting(true);
       setDeleteError("");
+
       await deleteDevice(device.id);
+
       navigate("/devices");
     } catch (err) {
       setDeleteError(err.message || "Unable to delete device.");
       setDeleting(false);
     }
   };
+
   const closeDeleteModal = () => {
     if (deleting) return;
+
     setShowDeleteConfirm(false);
     setDeleteError("");
   };
@@ -472,6 +548,11 @@ export default function DeviceDetails() {
             }
             tone="green"
             active={isOnline}
+            iconColor={
+              isOnline
+                ? "text-[#16a57a]"
+                : "text-red-500"
+            }
           />
           <TelemetryCard
             icon={BatteryMedium}

@@ -79,6 +79,11 @@ public class SensorReadingService {
         Device device,
         CreateSensorReadingRequest request
     ) {
+        Instant now = Instant.now();
+
+        device.setLastSeenAt(now);
+        deviceRepository.save(device);
+
         SensorReading reading = new SensorReading();
 
         reading.setDeviceId(device.getId());
@@ -87,7 +92,7 @@ public class SensorReadingService {
         reading.setBattery(request.battery());
         reading.setRssi(request.rssi());
         reading.setDeviceTimestamp(request.timestamp());
-        reading.setReceivedAt(Instant.now());
+        reading.setReceivedAt(now);
 
         SensorReading saved =
             sensorReadingRepository.save(reading);

@@ -44,24 +44,44 @@ export default function Devices() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    async function loadDevices() {
+    let cancelled = false;
+
+    async function loadDevices(showLoading = false) {
       try {
-        setLoading(true);
+        if (showLoading) {
+          setLoading(true);
+        }
+
         setError("");
 
         const data = await getDevices();
 
-        setDevices(Array.isArray(data) ? data : []);
+        if (!cancelled) {
+          setDevices(Array.isArray(data) ? data : []);
+        }
       } catch (err) {
-        setError(err.message || "Unable to load devices.");
+        if (!cancelled) {
+          setError(err.message || "Unable to load devices.");
+        }
       } finally {
-        setLoading(false);
+        if (showLoading && !cancelled) {
+          setLoading(false);
+        }
       }
     }
 
-    loadDevices();
-  }, []);
+    loadDevices(true);
 
+    const interval = setInterval(() => {
+      loadDevices();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+  
   const summary = useMemo(
     () => ({
       all: devices.length,
