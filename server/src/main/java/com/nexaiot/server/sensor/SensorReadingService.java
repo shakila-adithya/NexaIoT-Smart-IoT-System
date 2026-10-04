@@ -32,18 +32,22 @@ public class SensorReadingService {
     ) {
         Device device = getOwnedDevice(deviceId, ownerEmail);
 
-        SensorReading reading = new SensorReading();
-        reading.setDeviceId(device.getId());
-        reading.setDeviceKey(device.getDeviceKey());
-        reading.setMetrics(request.metrics());
-        reading.setBattery(request.battery());
-        reading.setRssi(request.rssi());
-        reading.setDeviceTimestamp(request.timestamp());
-        reading.setReceivedAt(Instant.now());
+        return saveReading(device, request);
+    }
 
-        SensorReading saved = sensorReadingRepository.save(reading);
+    public SensorReadingResponse createReadingFromDeviceKey(
+        String deviceKey,
+        CreateSensorReadingRequest request
+    ) {
+        Device device = deviceRepository
+            .findByDeviceKey(deviceKey)
+            .orElseThrow(
+                () -> new DeviceNotFoundException(
+                    "Device not found for key: " + deviceKey
+                )
+            );
 
-        return toResponse(saved);
+        return saveReading(device, request);
     }
 
     public SensorReadingResponse getLatestReading(
@@ -71,6 +75,26 @@ public class SensorReadingService {
             .toList();
     }
 
+    private SensorReadingResponse saveReading(
+        Device device,
+        CreateSensorReadingRequest request
+    ) {
+        SensorReading reading = new SensorReading();
+
+        reading.setDeviceId(device.getId());
+        reading.setDeviceKey(device.getDeviceKey());
+        reading.setMetrics(request.metrics());
+        reading.setBattery(request.battery());
+        reading.setRssi(request.rssi());
+        reading.setDeviceTimestamp(request.timestamp());
+        reading.setReceivedAt(Instant.now());
+
+        SensorReading saved =
+            sensorReadingRepository.save(reading);
+
+        return toResponse(saved);
+    }
+
     private Device getOwnedDevice(
         String deviceId,
         String ownerEmail
@@ -78,7 +102,9 @@ public class SensorReadingService {
         return deviceRepository
             .findByIdAndOwnerEmail(deviceId, ownerEmail)
             .orElseThrow(
-                () -> new DeviceNotFoundException("Device not found.")
+                () -> new DeviceNotFoundException(
+                    "Device not found."
+                )
             );
     }
 
