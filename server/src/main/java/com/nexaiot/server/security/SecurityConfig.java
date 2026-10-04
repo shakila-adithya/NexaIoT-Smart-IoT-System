@@ -3,6 +3,8 @@ package com.nexaiot.server.security;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -28,6 +30,8 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
+                .cors(Customizer.withDefaults())
+
                 .csrf(csrf -> csrf.disable())
 
                 .sessionManagement(session ->
@@ -45,6 +49,7 @@ public class SecurityConfig {
                 )
 
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/api/health",
                                 "/api/auth/**",

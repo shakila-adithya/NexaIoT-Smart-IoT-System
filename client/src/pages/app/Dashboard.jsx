@@ -1,6 +1,6 @@
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Bell,
   ChartNoAxesCombined,
   Cpu,
   Plus,
@@ -8,40 +8,110 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
+
 import DashboardStatCard from "../../components/dashboard/DashboardStatCard.jsx";
-import DeviceStatusCard from "../../components/dashboard/DeviceStatusCard.jsx";
-import LatestAlerts from "../../components/dashboard/LatestAlerts.jsx";
 import QuickActions from "../../components/dashboard/QuickActions.jsx";
-import RecentActivity from "../../components/dashboard/RecentActivity.jsx";
-import TemperatureChart from "../../components/charts/TemperatureChart.jsx";
-import { temperatureSeries } from "../../data/dashboardMockData.js";
+import PageHero from "../../components/common/PageHero.jsx";
+import { getDevices } from "../../api/devicesApi.js";
 import { useAuth } from "../../hooks/useAuth.js";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const firstName =
-    user?.fullName?.trim()?.split(/\s+/)?.[0] || "Ethan";
+    user?.fullName?.trim()?.split(/\s+/)?.[0] || "User";
+
+  const hour = new Date().getHours();
+
+  const greeting =
+    hour < 12
+      ? "Good morning"
+      : hour < 18
+        ? "Good afternoon"
+        : "Good evening";
+
+  useEffect(() => {
+    async function loadDevices() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const data = await getDevices();
+
+        setDevices(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setError(err.message || "Unable to load dashboard data.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadDevices();
+  }, []);
+
+  const stats = useMemo(() => {
+    const total = devices.length;
+
+    const online = devices.filter(
+      (device) => device.status === "ONLINE",
+    ).length;
+
+    const offline = devices.filter(
+      (device) => device.status === "OFFLINE",
+    ).length;
+
+    const maintenance = devices.filter(
+      (device) => device.status === "MAINTENANCE",
+    ).length;
+
+    const onlinePercentage =
+      total > 0 ? Math.round((online / total) * 100) : 0;
+
+    return {
+      total,
+      online,
+      offline,
+      maintenance,
+      onlinePercentage,
+    };
+  }, [devices]);
+
+  const networkTitle =
+    stats.total === 0
+      ? "Start building your IoT network."
+      : stats.offline === 0 && stats.maintenance === 0
+        ? "Your registered devices are online."
+        : "Your IoT network needs attention.";
+
+  const networkDescription =
+    stats.total === 0
+      ? "Register your first IoT device to begin monitoring your connected environment."
+      : `${stats.total} devices registered · ${stats.online} online · ${stats.offline} offline · ${stats.maintenance} maintenance`;
 
   return (
-    <div className="px-4 pb-9 pt-[26px] md:px-[30px]">
+    <div className="w-full px-4 pb-9 pt-[26px] md:px-[30px]">
       <div className="mx-auto w-full max-w-[1144px]">
         <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-[26px] font-normal leading-tight text-[#102a3a]">
-              Good morning, {firstName}
+              {greeting}, {firstName}
             </h1>
+
             <p className="mt-[5px] text-[12px] text-[#6b8290]">
-              Here’s what’s happening across your IoT network today.
+              Here&apos;s what&apos;s happening across your IoT network today.
             </p>
           </div>
 
           <div className="flex gap-2.5">
             <button
               type="button"
-              onClick={() => navigate("/devices")}
-              className="flex h-10 items-center justify-center gap-2 rounded-[10px] border border-[#08a9c4] bg-[#08a9c4] px-4 text-[12px] font-medium text-white transition hover:bg-[#0799b2]"
+              onClick={() => navigate("/devices/register")}
+              className="flex h-10 items-center justify-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[12px] font-medium text-white transition hover:bg-[#0799b2]"
             >
               <Plus size={15} />
               Add device
@@ -58,106 +128,229 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="relative mt-6 min-h-[142px] overflow-hidden rounded-[18px] bg-gradient-to-r from-[#0a91ad] to-[#08b9cd]">
-          <div className="relative z-10 max-w-[620px] px-6 py-[30px] text-white">
-            <div className="flex items-center gap-2 text-[12px] font-semibold">
-              <span className="h-2 w-2 rounded-full bg-[#89f0ce]" />
-              Live network overview
-            </div>
+        <div className="mt-6">
+          <PageHero
+            eyebrow="Network overview"
+            title={
+              loading
+                ? "Loading your IoT network..."
+                : networkTitle
+            }
+            description={
+              loading
+                ? "Checking your registered devices..."
+                : error
+                  ? "Unable to load your current device information."
+                  : networkDescription
+            }
+            image="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1400&q=85"
+            imageAlt="Connected IoT network infrastructure"
+          >
+            <button
+              type="button"
+              onClick={() => navigate("/devices")}
+              className="flex h-9 items-center rounded-[9px] border border-white/30 bg-white/15 px-4 text-[11px] font-medium text-white transition hover:bg-white/25"
+            >
+              View devices
+            </button>
+          </PageHero>
+        </div>
 
-            <h2 className="mt-2.5 text-[18px] font-semibold">
-              Your connected operations are running smoothly.
-            </h2>
-
-            <p className="mt-2 max-w-[570px] text-[11px] leading-5 text-white/85">
-              46 of 48 devices are online. Network health improved 3.2% this
-              week with no critical outages.
-            </p>
+        {error ? (
+          <div className="mt-6 rounded-[14px] border border-red-200 bg-red-50 p-4 text-[12px] text-red-600">
+            {error}
           </div>
-
-          <img
-            src="/images/nexaiot-dashboard-iot.png"
-            alt="Connected IoT monitoring illustration"
-            className="absolute right-2 top-1/2 hidden h-[130px] w-[360px] -translate-y-1/2 rounded-[14px] object-cover object-center opacity-95 lg:block"
-          />
-        </section>
+        ) : null}
 
         <section className="mt-6 grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
           <DashboardStatCard
             icon={Cpu}
-            value="48"
+            value={loading ? "—" : stats.total}
             label="Total devices"
-            trend="+4 this month"
+            trend={
+              loading
+                ? "Checking..."
+                : stats.total === 1
+                  ? "1 registered device"
+                  : `${stats.total} registered devices`
+            }
             tone="cyan"
           />
 
           <DashboardStatCard
             icon={Wifi}
-            value="46"
+            value={loading ? "—" : stats.online}
             label="Online devices"
-            trend="95.8% healthy"
+            trend={
+              loading
+                ? "Checking..."
+                : `${stats.onlinePercentage}% online`
+            }
             tone="green"
           />
 
           <DashboardStatCard
             icon={WifiOff}
-            value="2"
+            value={loading ? "—" : stats.offline}
             label="Offline devices"
-            trend="Needs attention"
+            trend={
+              loading
+                ? "Checking..."
+                : stats.offline > 0
+                  ? "Needs attention"
+                  : "No offline devices"
+            }
             tone="amber"
           />
 
           <DashboardStatCard
             icon={TriangleAlert}
-            value="7"
-            label="Active alerts"
-            trend="2 critical"
+            value={loading ? "—" : stats.maintenance}
+            label="Maintenance"
+            trend={
+              loading
+                ? "Checking..."
+                : stats.maintenance > 0
+                  ? "Maintenance required"
+                  : "No maintenance devices"
+            }
             tone="red"
           />
         </section>
 
         <section className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,760px)_minmax(300px,368px)]">
           <div className="rounded-[14px] border border-[#dce8ee] bg-white p-5 shadow-[0_6px_20px_rgba(10,48,72,0.07)]">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-[15px] font-semibold text-[#102a3a]">
-                  Real-time temperature
+                  Real-time sensor monitoring
                 </h2>
+
                 <p className="mt-1 text-[11px] text-[#6b8290]">
-                  Average across 24 environmental sensors
+                  Live sensor readings from your connected devices.
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 text-[10px]">
-                <span className="inline-flex h-[22px] items-center gap-1.5 rounded-full bg-[#e8f7f2] px-2 text-[#16a57a]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#16a57a]" />
-                  Live
-                </span>
-                <span className="text-[#8397a2]">Last 6 hours</span>
-              </div>
+              <span className="rounded-full bg-[#edf4f6] px-2.5 py-1 text-[9px] font-medium text-[#6b8290]">
+                Not connected
+              </span>
             </div>
 
-            <div className="mt-3 flex items-end gap-4">
-              <div className="text-[30px] font-medium leading-none text-[#102a3a]">
-                23.8°C
-              </div>
-              <div className="pb-1 text-[10px] font-medium text-[#16a57a]">
-                ↓ 1.2°C vs previous period
-              </div>
-            </div>
+            <div className="mt-5 flex min-h-[180px] items-center justify-center rounded-[12px] border border-dashed border-[#dce8ee] bg-[#f8fbfd]">
+              <div className="max-w-[300px] text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#eef9fb]">
+                  <Wifi
+                    size={23}
+                    className="text-[#08a9c4]"
+                  />
+                </div>
 
-            <div className="mt-2">
-              <TemperatureChart data={temperatureSeries} />
+                <p className="mt-3 text-[12px] font-semibold text-[#102a3a]">
+                  Waiting for sensor data
+                </p>
+
+                <p className="mt-1 text-[10px] leading-4 text-[#6b8290]">
+                  MQTT and live sensor readings will appear here after
+                  hardware integration is completed.
+                </p>
+              </div>
             </div>
           </div>
 
           <QuickActions />
         </section>
 
-        <section className="mt-6 grid items-start gap-4 lg:grid-cols-[360px_372px_minmax(0,380px)]">
-          <DeviceStatusCard />
-          <RecentActivity />
-          <LatestAlerts />
+        <section className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className="rounded-[14px] border border-[#dce8ee] bg-white p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[14px] font-semibold text-[#102a3a]">
+                Device status
+              </h2>
+
+              <button
+                type="button"
+                onClick={() => navigate("/devices")}
+                className="text-[10px] font-medium text-[#08a9c4] hover:text-[#0799b2]"
+              >
+                View all
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4 text-[11px]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[#16a57a]" />
+                  <span className="text-[#6b8290]">
+                    Online
+                  </span>
+                </div>
+
+                <span className="font-semibold text-[#16a57a]">
+                  {loading ? "—" : stats.online}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[#e24e5a]" />
+                  <span className="text-[#6b8290]">
+                    Offline
+                  </span>
+                </div>
+
+                <span className="font-semibold text-[#e24e5a]">
+                  {loading ? "—" : stats.offline}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[#d49a24]" />
+                  <span className="text-[#6b8290]">
+                    Maintenance
+                  </span>
+                </div>
+
+                <span className="font-semibold text-[#d49a24]">
+                  {loading ? "—" : stats.maintenance}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[14px] border border-[#dce8ee] bg-white p-5">
+            <h2 className="text-[14px] font-semibold text-[#102a3a]">
+              Recent activity
+            </h2>
+
+            <div className="mt-4 rounded-[10px] bg-[#f8fbfd] p-4">
+              <p className="text-[11px] font-medium text-[#102a3a]">
+                No activity data yet
+              </p>
+
+              <p className="mt-1 text-[10px] leading-4 text-[#6b8290]">
+                Device events and activity history will appear here after
+                event logging is implemented.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-[14px] border border-[#dce8ee] bg-white p-5">
+            <h2 className="text-[14px] font-semibold text-[#102a3a]">
+              Latest alerts
+            </h2>
+
+            <div className="mt-4 rounded-[10px] bg-[#f8fbfd] p-4">
+              <p className="text-[11px] font-medium text-[#102a3a]">
+                No alert data yet
+              </p>
+
+              <p className="mt-1 text-[10px] leading-4 text-[#6b8290]">
+                Real device alerts will appear here after the alert system
+                is implemented.
+              </p>
+            </div>
+          </div>
         </section>
       </div>
     </div>

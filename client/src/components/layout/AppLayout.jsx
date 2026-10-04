@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Bell,
   ChartNoAxesCombined,
@@ -8,7 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  RadioTower,
+  Satellite,
   Search,
   Settings,
   TriangleAlert,
@@ -28,25 +28,17 @@ function SidebarContent({ onNavigate }) {
   return (
     <>
       <div className="px-[18px] pt-7">
-        <div className="flex items-center gap-3 px-2.5">
-          <div className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-[#08a9c4] text-white">
-            <RadioTower size={22} strokeWidth={2} />
-          </div>
+        <Link
+        to="/dashboard"
+        onClick={onNavigate}
+        className="flex items-center gap-2 px-2.5 font-bold text-lg text-white"
+        >
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
+            <Satellite size={18} />
+        </span>
 
-          <div className="leading-none">
-            <div className="text-[20px] font-normal text-white">NexaIoT</div>
-            <div className="mt-1 text-[10px] font-medium tracking-[0.01em] text-[#8fb0c1]">
-              Connect. Monitor. Control.
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 flex items-center gap-2 rounded-md bg-[#123548] px-3 py-[9px]">
-          <span className="h-[7px] w-[7px] rounded-full bg-[#16a57a]" />
-          <span className="text-[11px] font-semibold text-[#8fb0c1]">
-            North Plant · Live
-          </span>
-        </div>
+        NexaIoT
+        </Link>
 
         <nav className="mt-6">
           <div className="px-3 pb-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#668b9e]">

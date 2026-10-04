@@ -14,7 +14,10 @@ import Login from "./pages/auth/Login.jsx";
 import Register from "./pages/auth/Register.jsx";
 
 import Dashboard from "./pages/app/Dashboard.jsx";
+import Devices from "./pages/app/Devices.jsx";
+import RegisterDevice from "./pages/app/RegisterDevice.jsx";
 import AppLayout from "./components/layout/AppLayout.jsx";
+import DeviceDetails from "./pages/app/DeviceDetails.jsx";
 
 export default function App() {
   const { pathname } = useLocation();
@@ -35,6 +38,9 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/devices" element={<Devices />} />
+          <Route path="/devices/register" element={<RegisterDevice />} />
+          <Route path="/devices/:id" element={<DeviceDetails />} />
         </Route>
       </Route>
 
