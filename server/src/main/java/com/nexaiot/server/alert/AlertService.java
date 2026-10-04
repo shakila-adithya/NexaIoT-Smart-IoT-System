@@ -64,6 +64,15 @@ public class AlertService {
         return toResponse(alert);
     }
 
+    public void deleteAlert(
+            String alertId,
+            String ownerEmail
+    ) {
+        Alert alert = findOwnedAlert(alertId, ownerEmail);
+
+        alertRepository.delete(alert);
+    }
+
     private Alert findOwnedAlert(
             String alertId,
             String ownerEmail

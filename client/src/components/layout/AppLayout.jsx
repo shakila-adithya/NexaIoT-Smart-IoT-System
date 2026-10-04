@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -15,16 +15,17 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth.js";
+import { getAlerts } from "../../api/alertsApi.js";
 
 const navigation = [
   { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { name: "Devices", path: "/devices", icon: Cpu },
-  { name: "Alerts", path: "/alerts", icon: TriangleAlert, badge: 4 },
+  { name: "Alerts", path: "/alerts", icon: TriangleAlert },
   { name: "Reports", path: "/reports", icon: ChartNoAxesCombined },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 
-function SidebarContent({ onNavigate }) {
+function SidebarContent({ onNavigate, unresolvedAlertCount }) {
   return (
     <>
       <div className="px-[18px] pt-7">
@@ -66,9 +67,9 @@ function SidebarContent({ onNavigate }) {
 
                   <span>{item.name}</span>
 
-                  {item.badge ? (
+                  {item.path === "/alerts" && unresolvedAlertCount > 0 ? (
                     <span className="ml-auto flex h-5 min-w-[22px] items-center justify-center rounded-full bg-[#e24e5a] px-1.5 text-[10px] font-bold text-white">
-                      {item.badge}
+                      {unresolvedAlertCount}
                     </span>
                   ) : null}
                 </NavLink>
@@ -102,6 +103,43 @@ export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [unresolvedAlertCount, setUnresolvedAlertCount] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadAlertCount() {
+      try {
+        const alerts = await getAlerts();
+
+        if (!mounted) return;
+
+        setUnresolvedAlertCount(
+          Array.isArray(alerts)
+            ? alerts.filter(
+                (alert) =>
+                  alert.status === "ACTIVE" ||
+                  alert.status === "ACKNOWLEDGED",
+              ).length
+            : 0,
+        );
+      } catch (error) {
+        if (!mounted) return;
+
+        setUnresolvedAlertCount(0);
+        console.error("Unable to load alert count:", error);
+      }
+    }
+
+    loadAlertCount();
+
+    const intervalId = window.setInterval(loadAlertCount, 5000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -123,7 +161,7 @@ export default function AppLayout() {
       }}
     >
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[236px] flex-col bg-[#0b2535] lg:flex">
-        <SidebarContent />
+        <SidebarContent unresolvedAlertCount={unresolvedAlertCount} />
       </aside>
 
       {mobileOpen ? (
@@ -142,7 +180,10 @@ export default function AppLayout() {
             >
               <X size={18} />
             </button>
-            <SidebarContent onNavigate={() => setMobileOpen(false)} />
+            <SidebarContent
+              onNavigate={() => setMobileOpen(false)}
+              unresolvedAlertCount={unresolvedAlertCount}
+            />
           </aside>
         </div>
       ) : null}

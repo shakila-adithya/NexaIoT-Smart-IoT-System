@@ -7,7 +7,10 @@ function getToken() {
   );
 }
 
-async function request(path, { method = "GET", body, headers = {} } = {}) {
+async function request(
+  path,
+  { method = "GET", body, headers = {}, cache } = {},
+) {
   const token = getToken();
 
   const res = await fetch(`${API_URL}${path}`, {
@@ -17,6 +20,7 @@ async function request(path, { method = "GET", body, headers = {} } = {}) {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
+    ...(cache ? { cache } : {}),
     body: body ? JSON.stringify(body) : undefined,
   });
 
