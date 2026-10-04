@@ -10,6 +10,11 @@ public interface AlertRepository extends MongoRepository<Alert, String> {
 
     List<Alert> findByOwnerEmailOrderByCreatedAtDesc(String ownerEmail);
 
+    Optional<Alert> findByIdAndOwnerEmail(
+            String id,
+            String ownerEmail
+    );
+
     List<Alert> findByDeviceIdAndOwnerEmailOrderByCreatedAtDesc(
             String deviceId,
             String ownerEmail
