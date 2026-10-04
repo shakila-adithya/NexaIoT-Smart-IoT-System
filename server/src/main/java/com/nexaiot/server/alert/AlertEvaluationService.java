@@ -20,6 +20,7 @@ public class AlertEvaluationService {
 
     private final AlertRepository alertRepository;
     private final double temperatureHighThreshold;
+    private final double temperatureLowThreshold;
     private final double batteryLowThreshold;
     private final double humidityHighThreshold;
     private final double humidityLowThreshold;
@@ -29,6 +30,8 @@ public class AlertEvaluationService {
             AlertRepository alertRepository,
             @Value("${alerts.temperature-high-threshold}")
             double temperatureHighThreshold,
+            @Value("${alerts.temperature-low-threshold}")
+            double temperatureLowThreshold,
             @Value("${alerts.battery-low-threshold}")
             double batteryLowThreshold,
             @Value("${alerts.humidity-high-threshold}")
@@ -40,6 +43,7 @@ public class AlertEvaluationService {
     ) {
         this.alertRepository = alertRepository;
         this.temperatureHighThreshold = temperatureHighThreshold;
+        this.temperatureLowThreshold = temperatureLowThreshold;
         this.batteryLowThreshold = batteryLowThreshold;
         this.humidityHighThreshold = humidityHighThreshold;
         this.humidityLowThreshold = humidityLowThreshold;
@@ -61,6 +65,16 @@ public class AlertEvaluationService {
                         temperature,
                         temperatureHighThreshold,
                         temperature > temperatureHighThreshold
+                );
+
+                evaluateThresholdAlert(
+                        device,
+                        AlertType.TEMPERATURE_LOW,
+                        AlertSeverity.WARNING,
+                        "Temperature is below the configured threshold.",
+                        temperature,
+                        temperatureLowThreshold,
+                        temperature < temperatureLowThreshold
                 );
             }
 
