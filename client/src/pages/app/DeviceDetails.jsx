@@ -26,6 +26,7 @@ import {
 import {
   deleteDevice,
   getDeviceById,
+  getLatestDeviceReading,
   updateDevice,
 } from "../../api/devicesApi.js";
 
@@ -116,6 +117,7 @@ export default function DeviceDetails() {
   const [device, setDevice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [latestReading, setLatestReading] = useState(null);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -149,6 +151,25 @@ export default function DeviceDetails() {
     loadDevice();
   }, [id]);
 
+    useEffect(() => {
+      async function loadLatestReading() {
+        try {
+          const data = await getLatestDeviceReading(id);
+          setLatestReading(data);
+        } catch (err) {
+          console.error("Unable to load latest telemetry:", err);
+        }
+      }
+
+      loadLatestReading();
+
+      const interval = setInterval(() => {
+        loadLatestReading();
+      }, 5000);
+
+      return () => clearInterval(interval);
+    }, [id]);
+    
   const openEditModal = () => {
     setEditForm({
       name: device.name || "",
@@ -420,17 +441,25 @@ export default function DeviceDetails() {
         <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <TelemetryCard
             icon={Thermometer}
-            value="—"
+            value={
+              latestReading?.metrics?.temperature != null
+                ? `${latestReading.metrics.temperature} °C`
+                : "—"
+            }
             label="Temperature"
-            note="Waiting for telemetry"
+            note={latestReading ? "Latest MQTT reading" : "Waiting for telemetry"}
             tone="cyan"
           />
 
           <TelemetryCard
             icon={Droplets}
-            value="—"
+            value={
+              latestReading?.metrics?.humidity != null
+                ? `${latestReading.metrics.humidity} %`
+                : "—"
+            }
             label="Humidity"
-            note="Waiting for telemetry"
+            note={latestReading ? "Latest MQTT reading" : "Waiting for telemetry"}
             tone="blue"
           />
 
@@ -458,9 +487,13 @@ export default function DeviceDetails() {
 
           <TelemetryCard
             icon={BatteryMedium}
-            value="—"
+            value={
+              latestReading?.battery != null
+                ? `${latestReading.battery} %`
+                : "—"
+            }
             label="Battery"
-            note="Waiting for telemetry"
+            note={latestReading ? "Latest MQTT reading" : "Waiting for telemetry"}
             tone="violet"
           />
         </section>
@@ -510,7 +543,9 @@ export default function DeviceDetails() {
                 </span>
 
                 <span className="text-[9px] font-semibold text-[#102a3a]">
-                  —
+                  {latestReading?.metrics?.temperature != null
+                    ? `${latestReading.metrics.temperature} °C`
+                    : "—"}
                 </span>
               </div>
 
@@ -522,7 +557,9 @@ export default function DeviceDetails() {
                 </span>
 
                 <span className="text-[9px] font-semibold text-[#102a3a]">
-                  —
+                  {latestReading?.metrics?.humidity != null
+                    ? `${latestReading.metrics.humidity} %`
+                    : "—"}
                 </span>
               </div>
 

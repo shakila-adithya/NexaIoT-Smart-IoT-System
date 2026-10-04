@@ -19,3 +19,7 @@ export function updateDevice(id, device) {
 export function deleteDevice(id) {
   return apiClient.delete(`/api/devices/${id}`);
 }
+
+export function getLatestDeviceReading(id) {
+  return apiClient.get(`/api/devices/${id}/readings/latest`);
+}

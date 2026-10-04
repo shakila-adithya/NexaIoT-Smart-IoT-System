@@ -1,6 +1,7 @@
 import json
 import random
 import time
+import os
 from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
@@ -9,7 +10,10 @@ import paho.mqtt.client as mqtt
 BROKER_HOST = "localhost"
 BROKER_PORT = 1883
 
-DEVICE_KEY = "NEXA-5802182413C5"
+DEVICE_KEY = os.getenv(
+    "NEXAIOT_DEVICE_KEY",
+    "NEXA-5802182413C5"
+)
 
 TOPIC = f"nexaiot/devices/{DEVICE_KEY}/telemetry"
 
