@@ -15,7 +15,13 @@ DEVICE_KEY = os.getenv(
     "NEXA-5802182413C5"
 )
 
-TOPIC = f"nexaiot/devices/{DEVICE_KEY}/telemetry"
+TELEMETRY_TOPIC = f"nexaiot/devices/{DEVICE_KEY}/telemetry"
+COMMAND_TOPIC = f"nexaiot/devices/{DEVICE_KEY}/commands"
+STATE_TOPIC = f"nexaiot/devices/{DEVICE_KEY}/state"
+
+device_state = {
+    "power": False
+}
 
 
 def create_telemetry():
@@ -30,29 +36,86 @@ def create_telemetry():
     }
 
 
+def on_connect(client, userdata, flags, reason_code, properties):
+    print(f"Connected to MQTT broker: {reason_code}")
+
+    client.subscribe(
+        COMMAND_TOPIC,
+        qos=1
+    )
+
+    print(f"Listening for commands: {COMMAND_TOPIC}")
+
+
+def on_message(client, userdata, message):
+    try:
+        payload = json.loads(
+            message.payload.decode("utf-8")
+        )
+
+        if "power" in payload:
+            device_state["power"] = bool(payload["power"])
+
+            state_text = (
+                "ON"
+                if device_state["power"]
+                else "OFF"
+            )
+
+            print(f"\nDEVICE POWER → {state_text}")
+
+            state_payload = json.dumps({
+                "power": device_state["power"]
+            })
+
+            result = client.publish(
+                STATE_TOPIC,
+                state_payload,
+                qos=1
+            )
+
+            print(
+                f"State confirmed → {state_payload}"
+            )
+
+    except Exception as error:
+        print(f"Invalid command: {error}")
+
+
 client = mqtt.Client(
     callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
     client_id=f"simulator-{DEVICE_KEY}"
 )
 
-print("Connecting to MQTT broker...")
+client.on_connect = on_connect
+client.on_message = on_message
 
-client.connect(BROKER_HOST, BROKER_PORT, 60)
+client.connect(
+    BROKER_HOST,
+    BROKER_PORT,
+    60
+)
+
 client.loop_start()
 
-print("Connected.")
-print(f"Device: {DEVICE_KEY}")
-print(f"Topic: {TOPIC}")
-print("Sending telemetry every 5 seconds...")
-print("Press Ctrl+C to stop.\n")
+time.sleep(1)
+
+result, message_id = client.subscribe(
+    COMMAND_TOPIC,
+    qos=1
+)
+
+print(f"Listening for commands: {COMMAND_TOPIC}")
+print(f"Subscribe result: {result}")
 
 try:
     while True:
         telemetry = create_telemetry()
+
         payload = json.dumps(telemetry)
 
         result = client.publish(
-            TOPIC,
+            TELEMETRY_TOPIC,
             payload,
             qos=1
         )
@@ -60,11 +123,10 @@ try:
         result.wait_for_publish()
 
         print(
-            f"Published | "
+            f"Telemetry sent | "
             f"Temperature: {telemetry['metrics']['temperature']} °C | "
             f"Humidity: {telemetry['metrics']['humidity']} % | "
-            f"Battery: {telemetry['battery']} % | "
-            f"RSSI: {telemetry['rssi']} dBm"
+            f"Power: {'ON' if device_state['power'] else 'OFF'}"
         )
 
         time.sleep(5)

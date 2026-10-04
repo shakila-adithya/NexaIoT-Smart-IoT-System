@@ -1,6 +1,7 @@
 package com.nexaiot.server.device;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,9 +15,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.nexaiot.server.device.dto.ControlDeviceRequest;
 import com.nexaiot.server.device.dto.CreateDeviceRequest;
 import com.nexaiot.server.device.dto.DeviceResponse;
 import com.nexaiot.server.device.dto.UpdateDeviceRequest;
+import com.nexaiot.server.mqtt.MqttCommandPublisher;
 
 import jakarta.validation.Valid;
 
@@ -25,9 +28,14 @@ import jakarta.validation.Valid;
 public class DeviceController {
 
     private final DeviceService deviceService;
+    private final MqttCommandPublisher mqttCommandPublisher;
 
-    public DeviceController(DeviceService deviceService) {
+    public DeviceController(
+            DeviceService deviceService,
+            MqttCommandPublisher mqttCommandPublisher
+    ) {
         this.deviceService = deviceService;
+        this.mqttCommandPublisher = mqttCommandPublisher;
     }
 
     @PostMapping
@@ -93,5 +101,34 @@ public class DeviceController {
         );
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/control")
+    public ResponseEntity<Map<String, Object>> controlDevice(
+            @PathVariable String id,
+            @Valid @RequestBody ControlDeviceRequest request,
+            Authentication authentication
+    ) {
+        DeviceResponse device = deviceService.getDevice(
+                id,
+                authentication.getName()
+        );
+
+        String payload =
+                "{\"power\":" + request.power() + "}";
+
+        mqttCommandPublisher.publishCommand(
+                device.getDeviceKey(),
+                payload
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.ACCEPTED)
+                .body(Map.of(
+                        "message", "Device command published",
+                        "deviceId", device.getId(),
+                        "deviceKey", device.getDeviceKey(),
+                        "power", request.power()
+                ));
     }
 }

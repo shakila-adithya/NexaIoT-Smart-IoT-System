@@ -27,3 +27,9 @@ export function getLatestDeviceReading(id) {
 export function getDeviceReadings(id) {
   return apiClient.get(`/api/devices/${id}/readings`);
 }
+
+export function controlDevice(id, power) {
+  return apiClient.post(`/api/devices/${id}/control`, {
+    power,
+  });
+}

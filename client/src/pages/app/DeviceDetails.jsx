@@ -39,6 +39,7 @@ import {
   getDeviceReadings,
   getLatestDeviceReading,
   updateDevice,
+  controlDevice,
 } from "../../api/devicesApi.js";
 
 function TelemetryCard({
@@ -129,6 +130,8 @@ export default function DeviceDetails() {
 
   const [latestReading, setLatestReading] = useState(null);
   const [readings, setReadings] = useState([]);
+  const [controlLoading, setControlLoading] = useState(false);
+  const [controlError, setControlError] = useState("");
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -319,6 +322,31 @@ export default function DeviceDetails() {
     setShowDeleteConfirm(false);
     setDeleteError("");
   };
+async function handlePowerToggle() {
+    if (!device || controlLoading || !isOnline) {
+      return;
+    }
+    const targetPower = !device.powerOn;
+    try {
+      setControlLoading(true);
+      setControlError("");
+      await controlDevice(id, targetPower);
+      for (let attempt = 0; attempt < 8; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const updatedDevice = await getDeviceById(id);
+        setDevice(updatedDevice);
+        if (updatedDevice.powerOn === targetPower) {
+          break;
+        }
+      }
+    } catch (err) {
+      setControlError(
+        err.message || "Unable to send device command."
+      );
+    } finally {
+      setControlLoading(false);
+    }
+  }
   if (loading) {
     return (
       <div className="w-full px-4 pb-10 pt-6 md:px-6 lg:px-[30px]">
@@ -745,8 +773,14 @@ export default function DeviceDetails() {
                   Remote actuator configuration
                 </p>
               </div>
-              <span className="rounded-full bg-[#fff5df] px-2.5 py-1 text-[8px] font-medium text-[#d08a11]">
-                MQTT required
+              <span
+                className={`rounded-full px-2.5 py-1 text-[8px] font-medium ${
+                  isOnline
+                    ? "bg-[#eaf8f3] text-[#16a57a]"
+                    : "bg-red-50 text-red-500"
+                }`}
+              >
+                {isOnline ? "MQTT connected" : "Device offline"}
               </span>
             </div>
             <div className="mt-4 rounded-[11px] border border-[#edf2f4] bg-[#f8fbfd] p-4 opacity-70">
@@ -801,24 +835,57 @@ export default function DeviceDetails() {
                     Device output
                   </p>
                   <p className="mt-1 text-[8px] leading-3 text-[#8da1ac]">
-                    Current backend power state
+                    {controlLoading
+                      ? "Sending MQTT command..."
+                      : "Confirmed device power state"}
                   </p>
                 </div>
-                <DisabledToggle enabled={device.powerOn} />
+                <button
+                  type="button"
+                  onClick={handlePowerToggle}
+                  disabled={controlLoading || !isOnline}
+                  className={`relative h-[22px] w-[38px] shrink-0 rounded-full transition ${
+                    device.powerOn ? "bg-[#08a9c4]" : "bg-[#dce8ee]"
+                  } ${
+                    controlLoading || !isOnline
+                      ? "cursor-not-allowed opacity-50"
+                      : "cursor-pointer"
+                  }`}
+                  title={
+                    !isOnline
+                      ? "Device must be online"
+                      : controlLoading
+                        ? "Sending command..."
+                        : device.powerOn
+                          ? "Turn device off"
+                          : "Turn device on"
+                  }
+                  aria-label={device.powerOn ? "Turn device off" : "Turn device on"}
+                >
+                  <span
+                    className={`absolute top-[3px] h-4 w-4 rounded-full bg-white shadow-sm transition-all ${
+                      device.powerOn ? "left-[19px]" : "left-[3px]"
+                    }`}
+                  />
+                </button>
               </div>
             </div>
-            <button
-              type="button"
-              disabled
-              title="Device control will be enabled after MQTT actuator integration"
-              className="mt-4 flex h-10 w-full cursor-not-allowed items-center justify-center gap-2 rounded-[9px] bg-[#08a9c4] text-[11px] font-medium text-white opacity-50"
-            >
-              <CheckCircle2 size={14} />
-              Apply controls
-            </button>
+            {controlError ? (
+              <div className="mt-4 rounded-[9px] border border-red-200 bg-red-50 px-3 py-2.5 text-[9px] text-red-600">
+                {controlError}
+              </div>
+            ) : null}
+            <div className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-[9px] border border-[#dce8ee] bg-[#f8fbfd] text-[10px] font-medium text-[#526b79]">
+              <CheckCircle2 size={14} className={isOnline ? "text-[#16a57a]" : "text-[#9aadb6]"} />
+              {controlLoading
+                ? "Sending power command..."
+                : isOnline
+                  ? "Manual power control ready"
+                  : "Connect device to enable control"}
+            </div>
             <p className="mt-2 text-center text-[8px] leading-4 text-[#9aadb6]">
-              Controls are locked until secure MQTT actuator communication is
-              configured.
+              Power commands are sent through MQTT and the UI reflects the
+              confirmed device state. Auto mode and Eco schedule remain disabled.
             </p>
           </div>
         </section>
@@ -1287,4 +1354,5 @@ export default function DeviceDetails() {
       ) : null}
     </div>
   );
+
 }
