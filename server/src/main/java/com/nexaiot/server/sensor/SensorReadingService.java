@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.nexaiot.server.alert.AlertEvaluationService;
 import com.nexaiot.server.device.Device;
 import com.nexaiot.server.device.DeviceNotFoundException;
 import com.nexaiot.server.device.DeviceRepository;
@@ -16,13 +17,16 @@ public class SensorReadingService {
 
     private final SensorReadingRepository sensorReadingRepository;
     private final DeviceRepository deviceRepository;
+    private final AlertEvaluationService alertEvaluationService;
 
     public SensorReadingService(
         SensorReadingRepository sensorReadingRepository,
-        DeviceRepository deviceRepository
+        DeviceRepository deviceRepository,
+        AlertEvaluationService alertEvaluationService
     ) {
         this.sensorReadingRepository = sensorReadingRepository;
         this.deviceRepository = deviceRepository;
+        this.alertEvaluationService = alertEvaluationService;
     }
 
     public SensorReadingResponse createReading(
@@ -96,6 +100,8 @@ public class SensorReadingService {
 
         SensorReading saved =
             sensorReadingRepository.save(reading);
+
+        alertEvaluationService.evaluate(device, saved);
 
         return toResponse(saved);
     }
