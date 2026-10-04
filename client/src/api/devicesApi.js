@@ -23,3 +23,7 @@ export function deleteDevice(id) {
 export function getLatestDeviceReading(id) {
   return apiClient.get(`/api/devices/${id}/readings/latest`);
 }
+
+export function getDeviceReadings(id) {
+  return apiClient.get(`/api/devices/${id}/readings`);
+}
