@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Activity,
@@ -41,6 +41,50 @@ import {
   updateDevice,
   controlDevice,
 } from "../../api/devicesApi.js";
+import { getAlerts } from "../../api/alertsApi.js";
+
+const alertSeverityStyles = {
+  CRITICAL: "bg-[#fdecee] text-[#d83f4d]",
+  WARNING: "bg-[#fff1d7] text-[#c67b08]",
+  INFO: "bg-[#e8f8fb] text-[#087f98]",
+};
+
+const alertStatusStyles = {
+  ACTIVE: {
+    container: "border-red-200 bg-red-50/60",
+    text: "text-red-600",
+  },
+  ACKNOWLEDGED: {
+    container: "border-blue-200 bg-blue-50/60",
+    text: "text-blue-600",
+  },
+  RESOLVED: {
+    container: "border-emerald-200 bg-emerald-50/60",
+    text: "text-emerald-600",
+  },
+};
+
+function formatAlertType(type) {
+  return (type || "Alert")
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function formatAlertTime(value) {
+  if (!value) return "Unknown time";
+
+  const elapsedSeconds = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(value).getTime()) / 1000),
+  );
+
+  if (elapsedSeconds < 60) return "Just now";
+  if (elapsedSeconds < 3600) return `${Math.floor(elapsedSeconds / 60)} min ago`;
+  if (elapsedSeconds < 86400) return `${Math.floor(elapsedSeconds / 3600)} hr ago`;
+  return `${Math.floor(elapsedSeconds / 86400)} day${Math.floor(elapsedSeconds / 86400) === 1 ? "" : "s"} ago`;
+}
 
 function TelemetryCard({
   icon: Icon,
@@ -127,6 +171,10 @@ export default function DeviceDetails() {
   const [device, setDevice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deviceAlerts, setDeviceAlerts] = useState([]);
+  const [deviceAlertsLoading, setDeviceAlertsLoading] = useState(true);
+  const [deviceAlertsError, setDeviceAlertsError] = useState("");
+  const alertsPollingInFlight = useRef(false);
 
   const [latestReading, setLatestReading] = useState(null);
   const [readings, setReadings] = useState([]);
@@ -183,6 +231,53 @@ export default function DeviceDetails() {
     return () => {
       cancelled = true;
       clearInterval(interval);
+    };
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDeviceAlerts({ initial = false } = {}) {
+      if (alertsPollingInFlight.current) return;
+
+      alertsPollingInFlight.current = true;
+
+      try {
+        const data = await getAlerts();
+
+        if (!cancelled) {
+          setDeviceAlerts(
+            (Array.isArray(data) ? data : [])
+              .filter((alert) => alert.deviceId === id)
+              .sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt))
+              .slice(0, 3),
+          );
+          setDeviceAlertsError("");
+        }
+      } catch (err) {
+        if (!cancelled && initial) {
+          setDeviceAlertsError(err.message || "Unable to load device alerts.");
+        }
+      } finally {
+        alertsPollingInFlight.current = false;
+
+        if (!cancelled && initial) {
+          setDeviceAlertsLoading(false);
+        }
+      }
+    }
+
+    setDeviceAlertsLoading(true);
+    loadDeviceAlerts({ initial: true });
+
+    const interval = setInterval(() => {
+      loadDeviceAlerts();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      alertsPollingInFlight.current = false;
     };
   }, [id]);
 
@@ -996,38 +1091,61 @@ async function handlePowerToggle() {
               <h2 className="text-[15px] font-semibold text-[#102a3a]">
                 Device alerts
               </h2>
-              <span className="text-[9px] text-[#08a9c4]">
-                Alert system later
-              </span>
+              <button
+                type="button"
+                onClick={() => navigate("/alerts")}
+                className="text-[9px] font-medium text-[#08a9c4] hover:text-[#0799b2]"
+              >
+                View all alerts
+              </button>
             </div>
-            {!isOnline ? (
-              <div className="mt-4 rounded-[10px] bg-[#fff4df] p-4">
-                <div className="flex items-center gap-2 text-[#d08a11]">
-                  <CircleAlert size={14} />
-                  <span className="text-[9px] font-semibold">
-                    Device offline
-                  </span>
-                </div>
-                <p className="mt-2 text-[10px] font-medium text-[#425c6b]">
-                  No active telemetry connection
-                </p>
-                <p className="mt-1 text-[8px] leading-4 text-[#8ba0ab]">
-                  Live connectivity monitoring will become available after
-                  MQTT integration.
-                </p>
+            {deviceAlertsLoading ? (
+              <div className="mt-4 space-y-2" aria-label="Loading device alerts">
+                {[1, 2].map((item) => (
+                  <div key={item} className="h-[68px] animate-pulse rounded-[10px] bg-[#f8fbfd]" />
+                ))}
+              </div>
+            ) : deviceAlertsError ? (
+              <div className="mt-4 rounded-[10px] bg-[#f8fbfd] p-4 text-[10px] text-[#6b8290]">
+                Unable to load alerts right now.
+              </div>
+            ) : deviceAlerts.length === 0 ? (
+              <div className="mt-4 rounded-[10px] bg-[#f8fbfd] p-4 text-[10px] text-[#6b8290]">
+                No alerts recorded for this device.
               </div>
             ) : (
-              <div className="mt-4 rounded-[10px] bg-[#eaf8f3] p-4">
-                <div className="flex items-center gap-2 text-[#16a57a]">
-                  <CheckCircle2 size={14} />
-                  <span className="text-[9px] font-semibold">
-                    Device is online
-                  </span>
-                </div>
-                <p className="mt-2 text-[8px] leading-4 text-[#6f9083]">
-                  Detailed sensor alerts will appear when the alert backend is
-                  implemented.
-                </p>
+              <div className="mt-4 space-y-2">
+                {deviceAlerts.map((alert) => {
+                  const status = alertStatusStyles[alert.status] || alertStatusStyles.ACTIVE;
+                  const severity = alertSeverityStyles[alert.severity] || alertSeverityStyles.INFO;
+
+                  return (
+                    <div
+                      key={alert.id}
+                      className={`rounded-[10px] border p-3 ${status.container}`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[8px] font-semibold ${severity}`}>
+                          {alert.severity || "INFO"}
+                        </span>
+                        <span className={`text-[8px] font-semibold ${status.text}`}>
+                          {alert.status === "ACKNOWLEDGED" ? "Acknowledged" : alert.status === "RESOLVED" ? "Resolved" : "Active"}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-baseline justify-between gap-2">
+                        <span className="truncate text-[10px] font-semibold text-[#102a3a]">
+                          {formatAlertType(alert.type)}
+                        </span>
+                        <span className="shrink-0 text-[8px] text-[#8397a2]">
+                          {formatAlertTime(alert.createdAt)}
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-[9px] text-[#6b8290]">
+                        {alert.message || formatAlertType(alert.type)}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

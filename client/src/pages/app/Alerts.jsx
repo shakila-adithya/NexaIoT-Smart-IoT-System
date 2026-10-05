@@ -143,6 +143,10 @@ function getRecommendation(type) {
     return "Check the device environment and verify cooling or ventilation if the reading remains above the configured threshold.";
   }
 
+  if (type === "DEVICE_OFFLINE") {
+    return "Check the device power, network connection, and MQTT connectivity, then confirm telemetry resumes.";
+  }
+
   if (type === "BATTERY_LOW") {
     return "Check the device power source and replace or recharge the battery when possible.";
   }
@@ -252,12 +256,14 @@ function AlertDetails({ alert, updatingId, deletingId, onAcknowledge, onResolve,
         <div className="flex items-start gap-2"><Icon size={15} className="mt-0.5 shrink-0" /><span>{getRecommendation(alert.type)}</span></div>
       </div>
 
-      <div className="mt-4 rounded-[11px] bg-[#f8fbfd] p-3.5">
-        <div className="flex items-end justify-between gap-4">
-          <div><div className="text-[8px] uppercase tracking-[0.06em] text-[#9aaeba]">Current reading</div><div className="mt-1 text-[23px] font-normal text-[#e24e5a]">{formatValue(alert.value, alert.type)}</div></div>
-          <div className="text-right"><div className="text-[8px] uppercase tracking-[0.06em] text-[#9aaeba]">Safe threshold</div><div className="mt-2 text-[11px] font-semibold text-[#102a3a]">{formatValue(alert.threshold, alert.type)}</div></div>
+      {alert.type !== "DEVICE_OFFLINE" ? (
+        <div className="mt-4 rounded-[11px] bg-[#f8fbfd] p-3.5">
+          <div className="flex items-end justify-between gap-4">
+            <div><div className="text-[8px] uppercase tracking-[0.06em] text-[#9aaeba]">Current reading</div><div className="mt-1 text-[23px] font-normal text-[#e24e5a]">{formatValue(alert.value, alert.type)}</div></div>
+            <div className="text-right"><div className="text-[8px] uppercase tracking-[0.06em] text-[#9aaeba]">Safe threshold</div><div className="mt-2 text-[11px] font-semibold text-[#102a3a]">{formatValue(alert.threshold, alert.type)}</div></div>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <dl className="mt-5 space-y-3 text-[10px]">
         <div className="flex justify-between gap-4"><dt className="text-[#8397a2]">Device</dt><dd className="truncate text-right font-semibold text-[#102a3a]">{alert.deviceName || "—"}</dd></div>
@@ -272,28 +278,28 @@ function AlertDetails({ alert, updatingId, deletingId, onAcknowledge, onResolve,
         <p className="mt-2 text-[10px] leading-4 text-[#6b8290]">{getRecommendation(alert.type)}</p>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {alert.status === "ACTIVE" ? (
-          <button type="button" disabled={isUpdating} onClick={() => onAcknowledge(alert.id)} className="inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[#08a9c4] px-3.5 text-[10px] font-semibold text-white transition hover:bg-[#0799b2] disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" disabled={isUpdating} onClick={() => onAcknowledge(alert.id)} className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[9px] bg-[#08a9c4] px-3.5 text-[10px] font-semibold text-white transition hover:bg-[#0799b2] disabled:cursor-not-allowed disabled:opacity-60">
             <Check size={13} /> Acknowledge
           </button>
         ) : null}
 
-        <button type="button" disabled title="Task creation will be available in a future release" className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-[9px] border border-[#dce8ee] bg-white px-3.5 text-[10px] font-semibold text-[#9aaeba]">
-          <ClipboardCheck size={13} /> Create task
-        </button>
-
         {alert.status !== "RESOLVED" ? (
-          <button type="button" disabled={isUpdating} onClick={() => onResolve(alert.id)} className="inline-flex h-9 items-center gap-1.5 rounded-[9px] border border-[#dce8ee] bg-white px-3.5 text-[10px] font-semibold text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98] disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" disabled={isUpdating} onClick={() => onResolve(alert.id)} className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[9px] border border-[#dce8ee] bg-white px-3.5 text-[10px] font-semibold text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98] disabled:cursor-not-allowed disabled:opacity-60">
             <CheckCircle2 size={13} /> {isUpdating ? "Updating..." : "Mark as resolved"}
           </button>
         ) : null}
+
+        <button type="button" disabled title="Task creation will be available in a future release" className="inline-flex min-h-[44px] w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-[9px] border border-[#dce8ee] bg-white px-3.5 text-[10px] font-semibold text-[#9aaeba]">
+          <ClipboardCheck size={13} /> Create task
+        </button>
 
         <button
           type="button"
           disabled={isDeleting || isUpdating}
           onClick={() => onDelete(alert.id)}
-          className="inline-flex h-9 items-center gap-1.5 rounded-[9px] border border-[#f3cdd1] bg-[#fff7f8] px-3.5 text-[10px] font-semibold text-[#d83f4d] transition hover:border-[#e24e5a] hover:bg-[#fdecee] disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[9px] border border-[#f3cdd1] bg-[#fff7f8] px-3.5 text-[10px] font-semibold text-[#d83f4d] transition hover:border-[#e24e5a] hover:bg-[#fdecee] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <XCircle size={13} />
           {isDeleting ? "Deleting..." : "Delete alert"}
@@ -469,10 +475,10 @@ export default function Alerts() {
         </section>
 
         <section className="mt-6 grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard icon={Bell} value={counts.totalActive} label="Total active" note="Across your network" tone="cyan" />
-          <SummaryCard icon={AlertCircle} value={counts.critical} label="Critical" note="Immediate action" tone="red" />
-          <SummaryCard icon={AlertCircle} value={counts.warnings} label="Warnings" note="Needs review" tone="amber" />
-          <SummaryCard icon={CheckCircle2} value={counts.resolved} label="Resolved" note="All resolved alerts" tone="green" />
+          <SummaryCard icon={Bell} value={counts.totalActive} label="Total active" note={counts.totalActive > 0 ? "Across your network" : "No active alerts"} tone="cyan" />
+          <SummaryCard icon={AlertCircle} value={counts.critical} label="Critical" note={counts.critical > 0 ? "Immediate action" : "No critical alerts"} tone="red" />
+          <SummaryCard icon={AlertCircle} value={counts.warnings} label="Warnings" note={counts.warnings > 0 ? "Needs review" : "No warnings"} tone="amber" />
+          <SummaryCard icon={CheckCircle2} value={counts.resolved} label="Resolved" note={counts.resolved > 0 ? "Resolved alerts" : "No resolved alerts"} tone="green" />
         </section>
 
         <section className="mt-6 rounded-[14px] border border-[#dce8ee] bg-white p-3 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-[14px]">

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import DashboardStatCard from "../../components/dashboard/DashboardStatCard.jsx";
+import LatestAlerts from "../../components/dashboard/LatestAlerts.jsx";
 import QuickActions from "../../components/dashboard/QuickActions.jsx";
 import PageHero from "../../components/common/PageHero.jsx";
 import { getDevices } from "../../api/devicesApi.js";
@@ -335,22 +336,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="rounded-[14px] border border-[#dce8ee] bg-white p-5">
-            <h2 className="text-[14px] font-semibold text-[#102a3a]">
-              Latest alerts
-            </h2>
-
-            <div className="mt-4 rounded-[10px] bg-[#f8fbfd] p-4">
-              <p className="text-[11px] font-medium text-[#102a3a]">
-                No alert data yet
-              </p>
-
-              <p className="mt-1 text-[10px] leading-4 text-[#6b8290]">
-                Real device alerts will appear here after the alert system
-                is implemented.
-              </p>
-            </div>
-          </div>
+          <LatestAlerts />
         </section>
       </div>
     </div>

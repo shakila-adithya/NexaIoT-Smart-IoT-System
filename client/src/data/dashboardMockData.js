@@ -33,24 +33,3 @@ export const recentActivity = [
     tone: "purple",
   },
 ];
-
-export const latestAlerts = [
-  {
-    severity: "Critical",
-    status: "Open",
-    title: "Boiler pressure above safe limit",
-    meta: "Boiler Room · 4 min",
-  },
-  {
-    severity: "Warning",
-    status: "Open",
-    title: "Battery level below 15%",
-    meta: "Loading Dock Sensor · 21 min",
-  },
-  {
-    severity: "Info",
-    status: "Open",
-    title: "Firmware update available",
-    meta: "Gateway GW-104 · 1 hr",
-  },
-];
