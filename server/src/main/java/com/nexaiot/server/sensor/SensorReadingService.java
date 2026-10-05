@@ -1,6 +1,8 @@
 package com.nexaiot.server.sensor;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -14,6 +16,8 @@ import com.nexaiot.server.sensor.dto.SensorReadingResponse;
 
 @Service
 public class SensorReadingService {
+
+    private static final int MAX_HISTORY_POINTS = 200;
 
     private final SensorReadingRepository sensorReadingRepository;
     private final DeviceRepository deviceRepository;
@@ -68,15 +72,53 @@ public class SensorReadingService {
 
     public List<SensorReadingResponse> getHistory(
         String deviceId,
-        String ownerEmail
+        String ownerEmail,
+        String range
     ) {
         getOwnedDevice(deviceId, ownerEmail);
 
-        return sensorReadingRepository
-            .findTop100ByDeviceIdOrderByReceivedAtDesc(deviceId)
+        Instant to = Instant.now();
+        Instant from = to.minus(getRangeDuration(range));
+
+        List<SensorReading> readings = sensorReadingRepository
+            .findByDeviceIdAndReceivedAtBetweenOrderByReceivedAtAsc(
+                deviceId,
+                from,
+                to
+            );
+
+        return downsample(readings)
             .stream()
             .map(this::toResponse)
             .toList();
+    }
+
+    private Duration getRangeDuration(String range) {
+        return switch (range) {
+            case "1h" -> Duration.ofHours(1);
+            case "6h" -> Duration.ofHours(6);
+            case "24h" -> Duration.ofHours(24);
+            case "7d" -> Duration.ofDays(7);
+            default -> throw new IllegalArgumentException(
+                "Unsupported history range. Use 1h, 6h, 24h, or 7d."
+            );
+        };
+    }
+
+    private List<SensorReading> downsample(List<SensorReading> readings) {
+        if (readings.size() <= MAX_HISTORY_POINTS) {
+            return readings;
+        }
+
+        List<SensorReading> sampled = new ArrayList<>(MAX_HISTORY_POINTS);
+        double step = (double) (readings.size() - 1) / (MAX_HISTORY_POINTS - 1);
+
+        for (int index = 0; index < MAX_HISTORY_POINTS; index++) {
+            int sourceIndex = (int) Math.round(index * step);
+            sampled.add(readings.get(sourceIndex));
+        }
+
+        return sampled;
     }
 
     private SensorReadingResponse saveReading(

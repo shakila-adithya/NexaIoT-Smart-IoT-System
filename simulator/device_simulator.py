@@ -23,15 +23,63 @@ device_state = {
     "power": False
 }
 
+sensor_state = {
+    "temperature": 27.5,
+    "humidity": 60.0,
+    "battery": 90,
+    "rssi": -52
+}
+
+
+def update_sensor_value(current, center, minimum, maximum, max_step, decimals=1):
+    mean_reversion = (center - current) * 0.04
+    random_change = random.uniform(-max_step, max_step)
+    change = max(-max_step, min(max_step, random_change + mean_reversion))
+
+    return round(
+        max(minimum, min(maximum, current + change)),
+        decimals
+    )
+
+
+def update_battery():
+    if sensor_state["battery"] > 0 and random.random() < 0.12:
+        sensor_state["battery"] -= 1
+
+    return sensor_state["battery"]
+
 
 def create_telemetry():
+    sensor_state["temperature"] = update_sensor_value(
+        sensor_state["temperature"],
+        center=28.0,
+        minimum=24.0,
+        maximum=32.0,
+        max_step=0.25
+    )
+    sensor_state["humidity"] = update_sensor_value(
+        sensor_state["humidity"],
+        center=60.0,
+        minimum=45.0,
+        maximum=75.0,
+        max_step=0.6
+    )
+    sensor_state["rssi"] = update_sensor_value(
+        sensor_state["rssi"],
+        center=-52,
+        minimum=-75,
+        maximum=-40,
+        max_step=2,
+        decimals=0
+    )
+
     return {
         "metrics": {
-            "temperature": round(random.uniform(26.0, 32.0), 1),
-            "humidity": round(random.uniform(55.0, 75.0), 1)
+            "temperature": sensor_state["temperature"],
+            "humidity": sensor_state["humidity"]
         },
-        "battery": random.randint(80, 100),
-        "rssi": random.randint(-65, -40),
+        "battery": update_battery(),
+        "rssi": sensor_state["rssi"],
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 

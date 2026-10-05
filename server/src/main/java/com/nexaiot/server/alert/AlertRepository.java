@@ -26,4 +26,6 @@ public interface AlertRepository extends MongoRepository<Alert, String> {
             AlertType type,
             Set<AlertStatus> statuses
     );
+
+    long deleteByOwnerEmail(String ownerEmail);
 }

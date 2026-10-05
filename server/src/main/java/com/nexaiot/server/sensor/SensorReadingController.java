@@ -51,11 +51,13 @@ public class SensorReadingController {
     @GetMapping
     public List<SensorReadingResponse> getHistory(
         @PathVariable String deviceId,
+        @RequestParam(defaultValue = "1h") String range,
         Authentication authentication
     ) {
         return sensorReadingService.getHistory(
             deviceId,
-            authentication.getName()
+            authentication.getName(),
+            range
         );
     }
 }

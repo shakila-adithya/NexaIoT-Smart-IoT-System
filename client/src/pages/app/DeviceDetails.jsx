@@ -86,6 +86,38 @@ function formatAlertTime(value) {
   return `${Math.floor(elapsedSeconds / 86400)} day${Math.floor(elapsedSeconds / 86400) === 1 ? "" : "s"} ago`;
 }
 
+function formatChartTime(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getTemperatureDomain(values) {
+  const validValues = values.filter((value) => Number.isFinite(value));
+
+  if (validValues.length === 0) {
+    return [24, 32];
+  }
+
+  const minimum = Math.min(...validValues);
+  const maximum = Math.max(...validValues);
+  const range = maximum - minimum;
+
+  if (range < 4) {
+    const center = Math.round((minimum + maximum) / 2);
+    return [center - 2, center + 2];
+  }
+
+  return [Math.floor(minimum - 0.5), Math.ceil(maximum + 0.5)];
+}
+
 function TelemetryCard({
   icon: Icon,
   value,
@@ -178,8 +210,10 @@ export default function DeviceDetails() {
 
   const [latestReading, setLatestReading] = useState(null);
   const [readings, setReadings] = useState([]);
+  const [selectedRange, setSelectedRange] = useState("1h");
   const [controlLoading, setControlLoading] = useState(false);
   const [controlError, setControlError] = useState("");
+  const historyPollingInFlight = useRef(false);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -312,18 +346,20 @@ export default function DeviceDetails() {
     let cancelled = false;
 
     async function loadReadings() {
+      if (historyPollingInFlight.current) return;
+
+      historyPollingInFlight.current = true;
+
       try {
-        const data = await getDeviceReadings(id);
+        const data = await getDeviceReadings(id, selectedRange);
 
         if (!cancelled) {
           setReadings(Array.isArray(data) ? data : []);
         }
       } catch (err) {
         console.error("Unable to load telemetry history:", err);
-
-        if (!cancelled) {
-          setReadings([]);
-        }
+      } finally {
+        historyPollingInFlight.current = false;
       }
     }
 
@@ -337,7 +373,7 @@ export default function DeviceDetails() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [id]);
+  }, [id, selectedRange]);
 
   const openEditModal = () => {
     setEditForm({
@@ -475,18 +511,14 @@ async function handlePowerToggle() {
     : "—";
   const chartData = readings
     .slice()
-    .reverse()
     .map((reading) => ({
-      time: reading.receivedAt
-        ? new Date(reading.receivedAt).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          })
-        : "",
+      time: reading.receivedAt || "",
       temperature: reading.metrics?.temperature ?? null,
       humidity: reading.metrics?.humidity ?? null,
     }));
+  const temperatureDomain = getTemperatureDomain(
+    chartData.map((point) => point.temperature),
+  );
   const lastReadingTime = latestReading?.receivedAt
     ? new Date(latestReading.receivedAt).toLocaleTimeString([], {
         hour: "2-digit",
@@ -704,19 +736,23 @@ async function handlePowerToggle() {
                 </p>
               </div>
               <div className="flex w-fit max-w-full overflow-x-auto rounded-[9px] border border-[#e5edf1] bg-[#f8fbfd] p-1">
-                {["1H", "6H", "24H", "7D"].map((period) => (
+                {[
+                  { label: "1H", value: "1h" },
+                  { label: "6H", value: "6h" },
+                  { label: "24H", value: "24h" },
+                  { label: "7D", value: "7d" },
+                ].map((period) => (
                   <button
-                    key={period}
+                    key={period.value}
                     type="button"
-                    disabled
-                    title="Available when telemetry data is connected"
-                    className={`h-7 min-w-[38px] cursor-not-allowed rounded-[7px] px-2 text-[9px] font-medium ${
-                      period === "6H"
+                    onClick={() => setSelectedRange(period.value)}
+                    className={`h-7 min-w-[38px] rounded-[7px] px-2 text-[9px] font-medium transition ${
+                      selectedRange === period.value
                         ? "bg-white text-[#08a9c4] shadow-sm"
-                        : "text-[#8ca0ab]"
+                        : "text-[#8ca0ab] hover:text-[#526b79]"
                     }`}
                   >
-                    {period}
+                    {period.label}
                   </button>
                 ))}
               </div>
@@ -770,6 +806,7 @@ async function handlePowerToggle() {
                       axisLine={false}
                       tickLine={false}
                       minTickGap={24}
+                      tickFormatter={formatChartTime}
                       tick={{ fontSize: 8, fill: "#8ba0ab" }}
                     />
                     <YAxis
@@ -777,7 +814,8 @@ async function handlePowerToggle() {
                       axisLine={false}
                       tickLine={false}
                       width={32}
-                      domain={["auto", "auto"]}
+                      domain={temperatureDomain}
+                      allowDecimals={false}
                       tick={{ fontSize: 8, fill: "#8ba0ab" }}
                     />
                     <YAxis
@@ -796,6 +834,7 @@ async function handlePowerToggle() {
                         fontSize: 10,
                       }}
                       labelStyle={{ color: "#6b8290", fontSize: 9 }}
+                      labelFormatter={formatChartTime}
                     />
                     <Line
                       yAxisId="temperature"

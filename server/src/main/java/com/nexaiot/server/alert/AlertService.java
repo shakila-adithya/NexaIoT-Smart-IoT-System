@@ -73,6 +73,10 @@ public class AlertService {
         alertRepository.delete(alert);
     }
 
+    public void clearAllAlerts(String ownerEmail) {
+        alertRepository.deleteByOwnerEmail(normalizeEmail(ownerEmail));
+    }
+
     private Alert findOwnedAlert(
             String alertId,
             String ownerEmail

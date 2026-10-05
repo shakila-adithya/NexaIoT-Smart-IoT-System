@@ -19,3 +19,7 @@ export function resolveAlert(id) {
 export function deleteAlert(id) {
   return apiClient.delete(`/api/alerts/${id}`);
 }
+
+export function clearAllAlerts() {
+  return apiClient.delete("/api/alerts");
+}

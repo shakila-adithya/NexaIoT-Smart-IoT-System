@@ -83,4 +83,13 @@ public class AlertController {
 
         return ResponseEntity.noContent().build();
     }
+
+    @DeleteMapping
+    public ResponseEntity<Void> clearAllAlerts(
+            Authentication authentication
+    ) {
+        alertService.clearAllAlerts(authentication.getName());
+
+        return ResponseEntity.noContent().build();
+    }
 }

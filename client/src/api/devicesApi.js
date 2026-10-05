@@ -24,8 +24,8 @@ export function getLatestDeviceReading(id) {
   return apiClient.get(`/api/devices/${id}/readings/latest`);
 }
 
-export function getDeviceReadings(id) {
-  return apiClient.get(`/api/devices/${id}/readings`);
+export function getDeviceReadings(id, range = "1h") {
+  return apiClient.get(`/api/devices/${id}/readings?range=${range}`);
 }
 
 export function controlDevice(id, power) {

@@ -10,12 +10,14 @@ import {
   ListFilter,
   Search,
   SlidersHorizontal,
+  Trash2,
   Thermometer,
   XCircle,
 } from "lucide-react";
 
 import {
   acknowledgeAlert,
+  clearAllAlerts,
   deleteAlert,
   getAlerts,
   resolveAlert,
@@ -323,7 +325,10 @@ export default function Alerts() {
   const [updatingId, setUpdatingId] = useState("");
   const [deleteTargetId, setDeleteTargetId] = useState("");
   const [deletingId, setDeletingId] = useState("");
+  const [clearAllOpen, setClearAllOpen] = useState(false);
+  const [clearingAll, setClearingAll] = useState(false);
   const pollingInFlight = useRef(false);
+  const alertsRequestVersion = useRef(0);
 
   useEffect(() => {
     let mounted = true;
@@ -332,6 +337,7 @@ export default function Alerts() {
       if (pollingInFlight.current) return;
 
       pollingInFlight.current = true;
+      const requestVersion = alertsRequestVersion.current;
 
       try {
         if (initial) {
@@ -342,7 +348,7 @@ export default function Alerts() {
         const data = await getAlerts();
         const loadedAlerts = Array.isArray(data) ? data : [];
 
-        if (!mounted) return;
+        if (!mounted || requestVersion !== alertsRequestVersion.current) return;
 
         setAlerts(loadedAlerts);
 
@@ -459,6 +465,26 @@ export default function Alerts() {
     }
   }
 
+  async function handleClearAllAlerts() {
+    if (clearingAll || alerts.length === 0) return;
+
+    try {
+      setClearingAll(true);
+      setActionError("");
+
+      await clearAllAlerts();
+
+      alertsRequestVersion.current += 1;
+      setAlerts([]);
+      setSelectedAlertId("");
+      setClearAllOpen(false);
+    } catch (err) {
+      setActionError(err.message || "Unable to clear alert history.");
+    } finally {
+      setClearingAll(false);
+    }
+  }
+
   return (
     <div className="w-full px-4 pb-10 pt-[26px] md:px-[30px]">
       <div className="mx-auto w-full max-w-[1144px]">
@@ -471,6 +497,7 @@ export default function Alerts() {
           <div className="flex flex-wrap gap-2.5">
             <button type="button" disabled title="Alert rules will be available in a future release" className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#9aaeba]"><SlidersHorizontal size={14} /> Alert rules</button>
             <button type="button" disabled title="Mark all read will be available in a future release" className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white opacity-55"><Check size={14} /> Mark all read</button>
+            <button type="button" disabled={loading || alerts.length === 0 || clearingAll} onClick={() => setClearAllOpen(true)} title={alerts.length === 0 ? "There is no alert history to clear" : "Clear all alert history"} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#f3cdd1] bg-[#fff7f8] px-4 text-[11px] font-medium text-[#d83f4d] transition hover:border-[#e24e5a] hover:bg-[#fdecee] disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} /> Clear alert history</button>
           </div>
         </section>
 
@@ -558,6 +585,52 @@ export default function Alerts() {
                   className="h-9 rounded-[9px] bg-[#e24e5a] px-4 text-[10px] font-semibold text-white transition hover:bg-[#d83f4d] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {deletingId ? "Deleting..." : "Delete alert"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {clearAllOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b2535]/45 px-4">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="clear-alert-history-title"
+              className="w-full max-w-[420px] rounded-[14px] border border-[#dce8ee] bg-white p-5 shadow-2xl"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-[#fdecee] text-[#e24e5a]">
+                <Trash2 size={20} />
+              </div>
+
+              <h2 id="clear-alert-history-title" className="mt-4 text-[15px] font-semibold text-[#102a3a]">
+                Clear all alert history?
+              </h2>
+
+              <p className="mt-2 text-[11px] leading-5 text-[#6b8290]">
+                This permanently deletes all alerts in your history, including active, acknowledged, and resolved alerts. This action cannot be undone.
+              </p>
+              <p className="mt-2 text-[11px] leading-5 text-[#6b8290]">
+                Alerts may appear again if a monitored condition is still active.
+              </p>
+
+              <div className="mt-5 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  disabled={clearingAll}
+                  onClick={() => setClearAllOpen(false)}
+                  className="h-9 rounded-[9px] border border-[#dce8ee] bg-white px-4 text-[10px] font-semibold text-[#526b79] transition hover:bg-[#f8fbfd] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={clearingAll}
+                  onClick={handleClearAllAlerts}
+                  className="h-9 rounded-[9px] bg-[#e24e5a] px-4 text-[10px] font-semibold text-white transition hover:bg-[#d83f4d] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {clearingAll ? "Clearing..." : "Clear all alerts"}
                 </button>
               </div>
             </div>
