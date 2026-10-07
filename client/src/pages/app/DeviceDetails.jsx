@@ -2,25 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Activity,
-  BatteryMedium,
+  Bot,
   CalendarDays,
-  CheckCircle2,
-  CircleAlert,
   Cpu,
-  Droplets,
   Hash,
   KeyRound,
   MapPin,
   Pencil,
+  Leaf,
+  Power,
   RadioTower,
   Save,
   Settings2,
   ShieldCheck,
   Thermometer,
   Trash2,
-  Wifi,
   X,
-  Zap,
 } from "lucide-react";
 
 import {
@@ -42,6 +39,13 @@ import {
   controlDevice,
 } from "../../api/devicesApi.js";
 import { getAlerts } from "../../api/alertsApi.js";
+import CapabilitySelector from "../../components/device/CapabilitySelector.jsx";
+import { normalizeCapabilities } from "../../config/deviceCapabilities.js";
+import {
+  DEVICE_METRIC_DEFINITIONS,
+  getMetricDomain,
+  getMetricValue,
+} from "../../config/deviceMetricDefinitions.js";
 
 const alertSeverityStyles = {
   CRITICAL: "bg-[#fdecee] text-[#d83f4d]",
@@ -97,25 +101,6 @@ function formatChartTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function getTemperatureDomain(values) {
-  const validValues = values.filter((value) => Number.isFinite(value));
-
-  if (validValues.length === 0) {
-    return [24, 32];
-  }
-
-  const minimum = Math.min(...validValues);
-  const maximum = Math.max(...validValues);
-  const range = maximum - minimum;
-
-  if (range < 4) {
-    const center = Math.round((minimum + maximum) / 2);
-    return [center - 2, center + 2];
-  }
-
-  return [Math.floor(minimum - 0.5), Math.ceil(maximum + 0.5)];
 }
 
 function TelemetryCard({
@@ -211,6 +196,7 @@ export default function DeviceDetails() {
   const [latestReading, setLatestReading] = useState(null);
   const [readings, setReadings] = useState([]);
   const [selectedRange, setSelectedRange] = useState("1h");
+  const [selectedMetric, setSelectedMetric] = useState("");
   const [controlLoading, setControlLoading] = useState(false);
   const [controlError, setControlError] = useState("");
   const historyPollingInFlight = useRef(false);
@@ -224,6 +210,9 @@ export default function DeviceDetails() {
     type: "",
     location: "",
   });
+  const [editCapabilities, setEditCapabilities] = useState(
+    normalizeCapabilities(null),
+  );
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -301,7 +290,6 @@ export default function DeviceDetails() {
       }
     }
 
-    setDeviceAlertsLoading(true);
     loadDeviceAlerts({ initial: true });
 
     const interval = setInterval(() => {
@@ -381,6 +369,7 @@ export default function DeviceDetails() {
       type: device?.type || "",
       location: device?.location || "",
     });
+    setEditCapabilities(normalizeCapabilities(device?.capabilities));
 
     setEditError("");
     setShowEditModal(true);
@@ -422,6 +411,7 @@ export default function DeviceDetails() {
         name: editForm.name.trim(),
         type: editForm.type.trim(),
         location: editForm.location.trim(),
+        capabilities: editCapabilities,
       });
 
       setDevice(updatedDevice);
@@ -509,16 +499,6 @@ async function handlePowerToggle() {
         year: "numeric",
       })
     : "—";
-  const chartData = readings
-    .slice()
-    .map((reading) => ({
-      time: reading.receivedAt || "",
-      temperature: reading.metrics?.temperature ?? null,
-      humidity: reading.metrics?.humidity ?? null,
-    }));
-  const temperatureDomain = getTemperatureDomain(
-    chartData.map((point) => point.temperature),
-  );
   const lastReadingTime = latestReading?.receivedAt
     ? new Date(latestReading.receivedAt).toLocaleTimeString([], {
         hour: "2-digit",
@@ -526,6 +506,45 @@ async function handlePowerToggle() {
         second: "2-digit",
       })
     : "—";
+  const configuredCapabilities = normalizeCapabilities(device.capabilities);
+  const supportedCapabilities = [
+    ...configuredCapabilities.sensors,
+    ...configuredCapabilities.deviceMetrics,
+  ].filter((capability) => DEVICE_METRIC_DEFINITIONS[capability]);
+  const liveMetricDefinitions = supportedCapabilities
+    .map((capability) => DEVICE_METRIC_DEFINITIONS[capability])
+    .filter(Boolean);
+  const supportsDigitalOutput = configuredCapabilities.controls.includes(
+    "DIGITAL_OUTPUT",
+  );
+  const supportsTemperatureSetpoint = configuredCapabilities.controls.includes(
+    "TEMPERATURE_SETPOINT",
+  );
+  const supportsAutoMode = configuredCapabilities.controls.includes("AUTO_MODE");
+  const supportsEcoSchedule = configuredCapabilities.controls.includes(
+    "ECO_SCHEDULE",
+  );
+  const hasConfiguredControl =
+    supportsDigitalOutput ||
+    supportsTemperatureSetpoint ||
+    supportsAutoMode ||
+    supportsEcoSchedule;
+  const effectiveSelectedMetric = supportedCapabilities.includes(selectedMetric)
+    ? selectedMetric
+    : supportedCapabilities[0] || "";
+  const metricDefinition = DEVICE_METRIC_DEFINITIONS[effectiveSelectedMetric];
+  const chartData = metricDefinition
+    ? readings
+        .map((reading) => ({
+          time: reading.receivedAt || "",
+          value: getMetricValue(metricDefinition, reading),
+        }))
+        .filter((point) => Number.isFinite(point.value))
+    : [];
+  const metricDomain = getMetricDomain(
+    metricDefinition,
+    chartData.map((point) => point.value),
+  );
   return (
     <div className="w-full px-4 pb-10 pt-6 md:px-6 lg:px-[30px]">
       <div className="mx-auto w-full max-w-[1144px]">
@@ -661,65 +680,39 @@ async function handlePowerToggle() {
             </div>
           </div>
         </section>
-        <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          <TelemetryCard
-            icon={Thermometer}
-            value={
-              latestReading?.metrics?.temperature != null
-                ? `${latestReading.metrics.temperature} °C`
-                : "—"
-            }
-            label="Temperature"
-            note={latestReading ? "Latest MQTT reading" : "Waiting for telemetry"}
-            tone="cyan"
-          />
-          <TelemetryCard
-            icon={Droplets}
-            value={
-              latestReading?.metrics?.humidity != null
-                ? `${latestReading.metrics.humidity} %`
-                : "—"
-            }
-            label="Humidity"
-            note={latestReading ? "Latest MQTT reading" : "Waiting for telemetry"}
-            tone="blue"
-          />
-          <TelemetryCard
-            icon={Zap}
-            value={device.powerOn ? "ON" : "OFF"}
-            label="Power"
-            note="Current backend state"
-            tone="amber"
-            active={device.powerOn}
-          />
-          <TelemetryCard
-            icon={Wifi}
-            value={device.status}
-            label="Connectivity"
-            note={
-              isOnline
-                ? "Device is connected"
-                : "No live device connection"
-            }
-            tone="green"
-            active={isOnline}
-            iconColor={
-              isOnline
-                ? "text-[#16a57a]"
-                : "text-red-500"
-            }
-          />
-          <TelemetryCard
-            icon={BatteryMedium}
-            value={
-              latestReading?.battery != null
-                ? `${latestReading.battery} %`
-                : "—"
-            }
-            label="Battery"
-            note={latestReading ? "Latest MQTT reading" : "Waiting for telemetry"}
-            tone="violet"
-          />
+        <section className="mt-4">
+          {liveMetricDefinitions.length === 0 ? (
+            <div className="rounded-[14px] border border-[#dce8ee] bg-white p-6 text-center shadow-[0_3px_12px_rgba(16,42,58,0.04)]">
+              <p className="text-[12px] font-medium text-[#102a3a]">
+                No measurement capabilities configured for this device.
+              </p>
+              <p className="mt-1 text-[10px] text-[#6b8290]">
+                Edit the device to select its supported measurements.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              {liveMetricDefinitions.map((definition) => {
+                const value = getMetricValue(definition, latestReading);
+                const Icon = definition.icon;
+
+                return (
+                  <TelemetryCard
+                    key={definition.key}
+                    icon={Icon}
+                    value={value != null ? `${value} ${definition.unit}` : "—"}
+                    label={definition.label}
+                    note={
+                      latestReading
+                        ? "Latest MQTT reading"
+                        : "Waiting for telemetry"
+                    }
+                    tone={definition.tone}
+                  />
+                );
+              })}
+            </div>
+          )}
         </section>
         <section className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_340px]">
           <div className="rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(16,42,58,0.05)] sm:p-5">
@@ -728,58 +721,70 @@ async function handlePowerToggle() {
                 <div className="flex items-center gap-2">
                   <Activity size={16} className="text-[#08a9c4]" />
                   <h2 className="text-[15px] font-semibold text-[#102a3a]">
-                    Real-time telemetry
+                    Telemetry history
                   </h2>
                 </div>
                 <p className="mt-1 text-[10px] text-[#6b8290]">
-                  Live temperature and humidity measurements
+                  Historical {metricDefinition?.label || "telemetry"} measurements
                 </p>
               </div>
-              <div className="flex w-fit max-w-full overflow-x-auto rounded-[9px] border border-[#e5edf1] bg-[#f8fbfd] p-1">
-                {[
-                  { label: "1H", value: "1h" },
-                  { label: "6H", value: "6h" },
-                  { label: "24H", value: "24h" },
-                  { label: "7D", value: "7d" },
-                ].map((period) => (
-                  <button
-                    key={period.value}
-                    type="button"
-                    onClick={() => setSelectedRange(period.value)}
-                    className={`h-7 min-w-[38px] rounded-[7px] px-2 text-[9px] font-medium transition ${
-                      selectedRange === period.value
-                        ? "bg-white text-[#08a9c4] shadow-sm"
-                        : "text-[#8ca0ab] hover:text-[#526b79]"
-                    }`}
-                  >
-                    {period.label}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-2">
+                {liveMetricDefinitions.length > 0 ? (
+                  <label className="flex h-9 items-center gap-2 rounded-[9px] border border-[#dce8ee] bg-white px-2.5 text-[9px] text-[#6b8290]">
+                    <span>Metric</span>
+                    <select
+                      value={effectiveSelectedMetric}
+                      onChange={(event) => setSelectedMetric(event.target.value)}
+                      className="max-w-[140px] bg-transparent text-[9px] font-medium text-[#102a3a] outline-none"
+                    >
+                      {liveMetricDefinitions.map((definition) => (
+                        <option key={definition.key} value={definition.key}>
+                          {definition.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                <div className="flex w-fit max-w-full overflow-x-auto rounded-[9px] border border-[#e5edf1] bg-[#f8fbfd] p-1">
+                  {[
+                    { label: "1H", value: "1h" },
+                    { label: "6H", value: "6h" },
+                    { label: "24H", value: "24h" },
+                    { label: "7D", value: "7d" },
+                  ].map((period) => (
+                    <button
+                      key={period.value}
+                      type="button"
+                      onClick={() => setSelectedRange(period.value)}
+                      className={`h-7 min-w-[38px] rounded-[7px] px-2 text-[9px] font-medium transition ${
+                        selectedRange === period.value
+                          ? "bg-white text-[#08a9c4] shadow-sm"
+                          : "text-[#8ca0ab] hover:text-[#526b79]"
+                      }`}
+                    >
+                      {period.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-[#08a9c4]" />
-                <span className="text-[9px] text-[#6b8290]">
-                  Temperature
-                </span>
-                <span className="text-[9px] font-semibold text-[#102a3a]">
-                  {latestReading?.metrics?.temperature != null
-                    ? `${latestReading.metrics.temperature} °C`
-                    : "—"}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-[#7568e8]" />
-                <span className="text-[9px] text-[#6b8290]">
-                  Humidity
-                </span>
-                <span className="text-[9px] font-semibold text-[#102a3a]">
-                  {latestReading?.metrics?.humidity != null
-                    ? `${latestReading.metrics.humidity} %`
-                    : "—"}
-                </span>
-              </div>
+              {metricDefinition ? (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: metricDefinition.color }}
+                  />
+                  <span className="text-[9px] text-[#6b8290]">
+                    {metricDefinition.label}
+                  </span>
+                  <span className="text-[9px] font-semibold text-[#102a3a]">
+                    {getMetricValue(metricDefinition, latestReading) != null
+                      ? `${getMetricValue(metricDefinition, latestReading)} ${metricDefinition.unit}`
+                      : "—"}
+                  </span>
+                </div>
+              ) : null}
               <div className="flex items-center gap-1.5 text-[8px] text-[#8ba0ab] sm:ml-auto">
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${
@@ -790,7 +795,21 @@ async function handlePowerToggle() {
               </div>
             </div>
             <div className="relative mt-4 h-[220px] overflow-hidden rounded-[12px] border border-[#edf2f4] bg-[#fcfefe] p-2 sm:h-[235px]">
-              {chartData.length > 0 ? (
+              {!metricDefinition ? (
+                <div className="flex h-full items-center justify-center px-4">
+                  <div className="max-w-[300px] text-center">
+                    <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#eef9fb]">
+                      <RadioTower size={20} className="text-[#08a9c4]" />
+                    </div>
+                    <p className="mt-3 text-[11px] font-semibold text-[#102a3a]">
+                      No telemetry capabilities configured for this device.
+                    </p>
+                    <p className="mt-1 text-[9px] leading-4 text-[#7d929e]">
+                      Edit the device to select supported measurements.
+                    </p>
+                  </div>
+                </div>
+              ) : chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
                     data={chartData}
@@ -810,21 +829,11 @@ async function handlePowerToggle() {
                       tick={{ fontSize: 8, fill: "#8ba0ab" }}
                     />
                     <YAxis
-                      yAxisId="temperature"
                       axisLine={false}
                       tickLine={false}
                       width={32}
-                      domain={temperatureDomain}
+                      domain={metricDomain}
                       allowDecimals={false}
-                      tick={{ fontSize: 8, fill: "#8ba0ab" }}
-                    />
-                    <YAxis
-                      yAxisId="humidity"
-                      orientation="right"
-                      axisLine={false}
-                      tickLine={false}
-                      width={32}
-                      domain={[0, 100]}
                       tick={{ fontSize: 8, fill: "#8ba0ab" }}
                     />
                     <Tooltip
@@ -835,24 +844,16 @@ async function handlePowerToggle() {
                       }}
                       labelStyle={{ color: "#6b8290", fontSize: 9 }}
                       labelFormatter={formatChartTime}
+                      formatter={(value) => [
+                        `${value} ${metricDefinition.unit}`,
+                        metricDefinition.label,
+                      ]}
                     />
                     <Line
-                      yAxisId="temperature"
                       type="monotone"
-                      dataKey="temperature"
-                      name="Temperature (°C)"
-                      stroke="#08a9c4"
-                      strokeWidth={2}
-                      dot={false}
-                      connectNulls
-                      isAnimationActive={false}
-                    />
-                    <Line
-                      yAxisId="humidity"
-                      type="monotone"
-                      dataKey="humidity"
-                      name="Humidity (%)"
-                      stroke="#7568e8"
+                      dataKey="value"
+                      name={`${metricDefinition.label} (${metricDefinition.unit})`}
+                      stroke={metricDefinition.color}
                       strokeWidth={2}
                       dot={false}
                       connectNulls
@@ -867,11 +868,10 @@ async function handlePowerToggle() {
                       <RadioTower size={20} className="text-[#08a9c4]" />
                     </div>
                     <p className="mt-3 text-[11px] font-semibold text-[#102a3a]">
-                      Waiting for telemetry history
+                      No {metricDefinition.label} data available for this time range.
                     </p>
                     <p className="mt-1 text-[9px] leading-4 text-[#7d929e]">
-                      Historical temperature and humidity readings will appear
-                      here as soon as this device publishes telemetry.
+                      No valid readings for this capability are available in the selected range.
                     </p>
                   </div>
                 </div>
@@ -897,7 +897,7 @@ async function handlePowerToggle() {
               </span>
             </div>
           </div>
-          <div className="self-start rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(16,42,58,0.05)] sm:p-5">
+          <div className="self-start rounded-[16px] border border-[#dce8ee] bg-white p-5 shadow-[0_8px_24px_rgba(16,42,58,0.06)] sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2 className="text-[15px] font-semibold text-[#102a3a]">
@@ -917,110 +917,151 @@ async function handlePowerToggle() {
                 {isOnline ? "MQTT connected" : "Device offline"}
               </span>
             </div>
-            <div className="mt-4 rounded-[11px] border border-[#edf2f4] bg-[#f8fbfd] p-4 opacity-70">
-              <div className="flex justify-between gap-3">
-                <div>
-                  <span className="text-[10px] font-medium text-[#425c6b]">
-                    Temperature set point
-                  </span>
-                  <p className="mt-1 text-[8px] text-[#8da1ac]">
-                    Automatic temperature target
-                  </p>
-                </div>
-                <span className="text-[15px] font-semibold text-[#08a9c4]">
-                  —
-                </span>
+            {hasConfiguredControl ? (
+              <>
+                {supportsTemperatureSetpoint ? (
+                  <div className="mt-4 min-h-[104px] rounded-[14px] border border-[#e0edf1] bg-[#f8fbfd] p-4 opacity-70 shadow-[0_3px_10px_rgba(16,42,58,0.025)]">
+                    <div className="flex justify-between gap-3">
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eaf9fc] text-[#08a9c4]">
+                          <Thermometer size={15} />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-semibold text-[#425c6b]">
+                            Temperature set point
+                          </span>
+                          <p className="mt-1 text-[8px] text-[#8da1ac]">
+                            Automatic temperature target
+                          </p>
+                        </div>
+                      </div>
+                      <span className="w-[38px] shrink-0 text-right text-[15px] font-semibold text-[#08a9c4]">
+                        —
+                      </span>
+                    </div>
+                    <div className="relative mt-4 h-1.5 rounded-full bg-[#dce8ee]">
+                      <span className="absolute left-0 top-0 h-1.5 w-[50%] rounded-full bg-[#a4dfe8]" />
+                      <span className="absolute left-[50%] top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[#08a9c4] shadow" />
+                    </div>
+                    <div className="mt-2 flex justify-between text-[8px] text-[#9aadb6]">
+                      <span>16°C</span>
+                      <span>28°C</span>
+                    </div>
+                  </div>
+                ) : null}
+                {supportsAutoMode ? (
+                  <div className="mt-3 flex min-h-[72px] items-center justify-between gap-4 rounded-[14px] border border-[#e0edf1] bg-[#f8fbfd] p-4 shadow-[0_3px_10px_rgba(16,42,58,0.025)]">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef4ff] text-[#4d7ee8]">
+                        <Bot size={15} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-semibold text-[#425c6b]">
+                          Auto mode
+                        </p>
+                        <p className="mt-1 text-[8px] leading-3 text-[#8da1ac]">
+                          Automatically control connected actuator
+                        </p>
+                      </div>
+                    </div>
+                    <DisabledToggle />
+                  </div>
+                ) : null}
+                {supportsEcoSchedule ? (
+                  <div className="mt-3 flex min-h-[72px] items-center justify-between gap-4 rounded-[14px] border border-[#e0edf1] bg-[#f8fbfd] p-4 shadow-[0_3px_10px_rgba(16,42,58,0.025)]">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eaf8f3] text-[#16a57a]">
+                        <Leaf size={15} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-semibold text-[#425c6b]">
+                          Eco schedule
+                        </p>
+                        <p className="mt-1 text-[8px] leading-3 text-[#8da1ac]">
+                          Energy-saving operating schedule
+                        </p>
+                      </div>
+                    </div>
+                    <DisabledToggle />
+                  </div>
+                ) : null}
+                {supportsDigitalOutput ? (
+                  <>
+                    <div className={`mt-3 flex min-h-[72px] items-center justify-between gap-4 rounded-[14px] border p-4 shadow-[0_3px_10px_rgba(16,42,58,0.025)] ${device.powerOn ? "border-[#b9e5eb] bg-[#eefafd]" : "border-[#e0edf1] bg-[#f8fbfd]"}`}>
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] ${device.powerOn ? "bg-[#d9f4f8] text-[#08a9c4]" : "bg-[#edf4f6] text-[#6b8290]"}`}>
+                          <Power size={15} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold text-[#425c6b]">
+                            Device output
+                          </p>
+                          <p className="mt-1 text-[8px] leading-3 text-[#8da1ac]">
+                            {controlLoading
+                              ? "Sending MQTT command..."
+                              : "Confirmed device power state"}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handlePowerToggle}
+                        disabled={controlLoading || !isOnline}
+                        className={`relative h-[22px] w-[38px] shrink-0 rounded-full transition ${
+                          device.powerOn ? "bg-[#08a9c4]" : "bg-[#dce8ee]"
+                        } ${
+                          controlLoading || !isOnline
+                            ? "cursor-not-allowed opacity-50"
+                            : "cursor-pointer"
+                        }`}
+                        title={
+                          !isOnline
+                            ? "Device must be online"
+                            : controlLoading
+                              ? "Sending command..."
+                              : device.powerOn
+                                ? "Turn device off"
+                                : "Turn device on"
+                        }
+                        aria-label={device.powerOn ? "Turn device off" : "Turn device on"}
+                      >
+                        <span
+                          className={`absolute top-[3px] h-4 w-4 rounded-full bg-white shadow-sm transition-all ${
+                            device.powerOn ? "left-[19px]" : "left-[3px]"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    {controlError ? (
+                      <div className="mt-4 rounded-[9px] border border-red-200 bg-red-50 px-3 py-2.5 text-[9px] text-red-600">
+                        {controlError}
+                      </div>
+                    ) : null}
+                    <div className="mt-4 flex min-h-10 w-full items-center justify-center gap-2 rounded-[11px] border border-[#dce8ee] bg-[#f8fbfd] px-3 py-2 text-[10px] font-medium text-[#526b79]">
+                      <RadioTower size={14} className={isOnline ? "text-[#16a57a]" : "text-[#9aadb6]"} />
+                      {controlLoading
+                        ? "Sending power command..."
+                        : isOnline
+                          ? "Manual power control ready"
+                          : "Connect device to enable control"}
+                    </div>
+                    <p className="mt-2 text-center text-[8px] leading-4 text-[#9aadb6]">
+                      Power commands are sent through MQTT and the UI reflects the
+                      confirmed device state.
+                    </p>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <div className="mt-4 rounded-[11px] border border-[#edf2f4] bg-[#f8fbfd] p-5 text-center">
+                <p className="text-[11px] font-medium text-[#102a3a]">
+                  No control capabilities configured for this device.
+                </p>
+                <p className="mt-1 text-[9px] text-[#6b8290]">
+                  Edit the device to select supported controls.
+                </p>
               </div>
-              <div className="relative mt-4 h-1.5 rounded-full bg-[#dce8ee]">
-                <span className="absolute left-0 top-0 h-1.5 w-[50%] rounded-full bg-[#a4dfe8]" />
-                <span className="absolute left-[50%] top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[#08a9c4] shadow" />
-              </div>
-              <div className="mt-2 flex justify-between text-[8px] text-[#9aadb6]">
-                <span>16°C</span>
-                <span>28°C</span>
-              </div>
-            </div>
-            <div className="mt-4 divide-y divide-[#edf2f4]">
-              <div className="flex items-center justify-between gap-4 pb-3.5">
-                <div>
-                  <p className="text-[10px] font-medium text-[#425c6b]">
-                    Auto mode
-                  </p>
-                  <p className="mt-1 text-[8px] leading-3 text-[#8da1ac]">
-                    Automatically control connected actuator
-                  </p>
-                </div>
-                <DisabledToggle />
-              </div>
-              <div className="flex items-center justify-between gap-4 py-3.5">
-                <div>
-                  <p className="text-[10px] font-medium text-[#425c6b]">
-                    Eco schedule
-                  </p>
-                  <p className="mt-1 text-[8px] leading-3 text-[#8da1ac]">
-                    Energy-saving operating schedule
-                  </p>
-                </div>
-                <DisabledToggle />
-              </div>
-              <div className="flex items-center justify-between gap-4 pt-3.5">
-                <div>
-                  <p className="text-[10px] font-medium text-[#425c6b]">
-                    Device output
-                  </p>
-                  <p className="mt-1 text-[8px] leading-3 text-[#8da1ac]">
-                    {controlLoading
-                      ? "Sending MQTT command..."
-                      : "Confirmed device power state"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handlePowerToggle}
-                  disabled={controlLoading || !isOnline}
-                  className={`relative h-[22px] w-[38px] shrink-0 rounded-full transition ${
-                    device.powerOn ? "bg-[#08a9c4]" : "bg-[#dce8ee]"
-                  } ${
-                    controlLoading || !isOnline
-                      ? "cursor-not-allowed opacity-50"
-                      : "cursor-pointer"
-                  }`}
-                  title={
-                    !isOnline
-                      ? "Device must be online"
-                      : controlLoading
-                        ? "Sending command..."
-                        : device.powerOn
-                          ? "Turn device off"
-                          : "Turn device on"
-                  }
-                  aria-label={device.powerOn ? "Turn device off" : "Turn device on"}
-                >
-                  <span
-                    className={`absolute top-[3px] h-4 w-4 rounded-full bg-white shadow-sm transition-all ${
-                      device.powerOn ? "left-[19px]" : "left-[3px]"
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-            {controlError ? (
-              <div className="mt-4 rounded-[9px] border border-red-200 bg-red-50 px-3 py-2.5 text-[9px] text-red-600">
-                {controlError}
-              </div>
-            ) : null}
-            <div className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-[9px] border border-[#dce8ee] bg-[#f8fbfd] text-[10px] font-medium text-[#526b79]">
-              <CheckCircle2 size={14} className={isOnline ? "text-[#16a57a]" : "text-[#9aadb6]"} />
-              {controlLoading
-                ? "Sending power command..."
-                : isOnline
-                  ? "Manual power control ready"
-                  : "Connect device to enable control"}
-            </div>
-            <p className="mt-2 text-center text-[8px] leading-4 text-[#9aadb6]">
-              Power commands are sent through MQTT and the UI reflects the
-              confirmed device state. Auto mode and Eco schedule remain disabled.
-            </p>
+            )}
           </div>
         </section>
         <section className="mt-4 grid items-start gap-4 xl:grid-cols-[1.35fr_1fr_1fr]">
@@ -1322,6 +1363,10 @@ async function handlePowerToggle() {
                       </div>
                     </div>
                   </section>
+                  <CapabilitySelector
+                    capabilities={editCapabilities}
+                    onChange={setEditCapabilities}
+                  />
                   <section className="rounded-[14px] border border-[#dce8ee] bg-[#f8fbfd] p-4 sm:p-5">
                     <div className="flex items-center gap-2">
                       <RadioTower size={15} className="text-[#08a9c4]" />

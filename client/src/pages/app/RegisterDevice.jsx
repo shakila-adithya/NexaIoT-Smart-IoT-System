@@ -15,6 +15,8 @@ import {
 
 import { createDevice } from "../../api/devicesApi.js";
 import PageHero from "../../components/common/PageHero.jsx";
+import CapabilitySelector from "../../components/device/CapabilitySelector.jsx";
+import { emptyCapabilities } from "../../config/deviceCapabilities.js";
 
 const connectivityOptions = [
   {
@@ -51,6 +53,7 @@ export default function RegisterDevice() {
     type: "",
     location: "",
   });
+  const [capabilities, setCapabilities] = useState(emptyCapabilities);
 
   const [connectivity, setConnectivity] = useState("wifi");
   const [saving, setSaving] = useState(false);
@@ -76,6 +79,7 @@ export default function RegisterDevice() {
         name: form.name.trim(),
         type: form.type.trim(),
         location: form.location.trim(),
+        capabilities,
       });
 
       navigate("/devices");
@@ -234,6 +238,11 @@ export default function RegisterDevice() {
                 </div>
               </div>
             </section>
+
+            <CapabilitySelector
+              capabilities={capabilities}
+              onChange={setCapabilities}
+            />
 
             <section className="rounded-[14px] border border-[#dce8ee] bg-white p-5">
               <div>

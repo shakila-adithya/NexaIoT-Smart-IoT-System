@@ -32,6 +32,7 @@ public class DeviceService {
         device.setName(request.getName().trim());
         device.setType(request.getType().trim());
         device.setLocation(request.getLocation().trim());
+        device.setCapabilities(request.getCapabilities());
         device.setStatus("OFFLINE");
         device.setPowerOn(false);
         device.setCreatedAt(now);
@@ -76,6 +77,10 @@ public class DeviceService {
 
         if (request.getLocation() != null && !request.getLocation().isBlank()) {
             device.setLocation(request.getLocation().trim());
+        }
+
+        if (request.getCapabilities() != null) {
+            device.setCapabilities(request.getCapabilities());
         }
 
         device.setUpdatedAt(Instant.now());
@@ -142,7 +147,8 @@ public class DeviceService {
                 device.isPowerOn(),
                 device.getCreatedAt(),
                 device.getUpdatedAt(),
-                device.getLastSeenAt()
+                device.getLastSeenAt(),
+                device.getCapabilities()
         );
     }
 

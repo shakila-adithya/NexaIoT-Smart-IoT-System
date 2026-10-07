@@ -2,6 +2,8 @@ package com.nexaiot.server.device.dto;
 
 import jakarta.validation.constraints.Size;
 
+import com.nexaiot.server.device.DeviceCapabilities;
+
 public class UpdateDeviceRequest {
 
     @Size(max = 100, message = "Device name must be at most 100 characters")
@@ -12,6 +14,8 @@ public class UpdateDeviceRequest {
 
     @Size(max = 150, message = "Device location must be at most 150 characters")
     private String location;
+
+    private DeviceCapabilities capabilities;
 
     public UpdateDeviceRequest() {
     }
@@ -38,5 +42,13 @@ public class UpdateDeviceRequest {
 
     public void setLocation(String location) {
         this.location = location;
+    }
+
+    public DeviceCapabilities getCapabilities() {
+        return capabilities;
+    }
+
+    public void setCapabilities(DeviceCapabilities capabilities) {
+        this.capabilities = capabilities;
     }
 }

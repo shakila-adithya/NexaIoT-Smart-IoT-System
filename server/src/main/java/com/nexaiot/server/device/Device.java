@@ -23,6 +23,7 @@ public class Device {
     private String location;
     private String status;
     private boolean powerOn;
+    private DeviceCapabilities capabilities;
 
     private Instant createdAt;
     private Instant updatedAt;
@@ -93,6 +94,14 @@ public class Device {
 
     public void setPowerOn(boolean powerOn) {
         this.powerOn = powerOn;
+    }
+
+    public DeviceCapabilities getCapabilities() {
+        return capabilities;
+    }
+
+    public void setCapabilities(DeviceCapabilities capabilities) {
+        this.capabilities = capabilities;
     }
 
     public Instant getCreatedAt() {
