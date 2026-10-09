@@ -40,11 +40,37 @@ public class DeviceService {
         device.setType(request.getType().trim());
         device.setLocation(request.getLocation().trim());
         device.setCapabilities(request.getCapabilities());
-        if (request.getTemplateId() != null && !request.getTemplateId().isBlank()) {
+        boolean hasTemplateId = request.getTemplateId() != null
+                && !request.getTemplateId().isBlank();
+        boolean hasCustomManifest = request.getCapabilityManifest() != null;
+
+        if (hasTemplateId && hasCustomManifest) {
+            throw new IllegalArgumentException(
+                    "Provide either templateId or capabilityManifest, not both."
+            );
+        }
+
+        if (hasTemplateId) {
             DeviceTemplate template = deviceTemplateService.getTemplate(request.getTemplateId().trim());
             device.setCapabilityManifest(
                     CapabilityManifestCopier.copy(template.getCapabilityManifest())
             );
+        } else if (hasCustomManifest) {
+            CapabilityManifest customManifest = CapabilityManifestCopier.copy(
+                    request.getCapabilityManifest()
+            );
+            customManifest.setSource(CapabilityManifestSource.CUSTOM);
+            customManifest.setTemplateId(null);
+
+            if (customManifest.getCapabilities() == null
+                    || customManifest.getCapabilities().isEmpty()
+                    || !CapabilityManifestValidator.isValid(customManifest)) {
+                throw new IllegalArgumentException(
+                        "Invalid custom capability manifest."
+                );
+            }
+
+            device.setCapabilityManifest(customManifest);
         }
         device.setStatus("OFFLINE");
         device.setPowerOn(false);

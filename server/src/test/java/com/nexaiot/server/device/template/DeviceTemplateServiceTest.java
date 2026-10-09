@@ -12,6 +12,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.nexaiot.server.device.CapabilityManifestSource;
+import com.nexaiot.server.device.CapabilityCategory;
+import com.nexaiot.server.device.CapabilityDataType;
+import com.nexaiot.server.device.CapabilityDefinition;
+import com.nexaiot.server.device.CapabilityManifest;
 import com.nexaiot.server.device.DeviceCapabilities;
 import com.nexaiot.server.device.DeviceRepository;
 import com.nexaiot.server.device.DeviceService;
@@ -117,6 +121,80 @@ class DeviceTemplateServiceTest {
                 .anyMatch(definition -> definition.getKey().equals("temperature")));
     }
 
+    @Test
+    void customCreationForcesCustomSourceClearsTemplateIdAndSnapshotsManifest() {
+        DeviceService deviceService = new DeviceService(repositoryStub(), templateService);
+        CreateDeviceRequest request = request(null);
+        CapabilityManifest clientManifest = customManifest();
+        request.setCapabilityManifest(clientManifest);
+
+        DeviceResponse response = deviceService.createDevice(request, "owner@example.com");
+
+        assertEquals(CapabilityManifestSource.CUSTOM,
+                response.getCapabilityManifest().getSource());
+        assertEquals(null, response.getCapabilityManifest().getTemplateId());
+        assertEquals("waterLevel",
+                response.getCapabilityManifest().getCapabilities().get(0).getKey());
+        assertNotSame(clientManifest, response.getCapabilityManifest());
+
+        clientManifest.getCapabilities().get(0).setName("Changed Client Value");
+        clientManifest.setSource(CapabilityManifestSource.TEMPLATE);
+        clientManifest.setTemplateId("changed-template");
+
+        assertEquals("Water Level",
+                response.getCapabilityManifest().getCapabilities().get(0).getName());
+        assertEquals(CapabilityManifestSource.CUSTOM,
+                response.getCapabilityManifest().getSource());
+        assertEquals(null, response.getCapabilityManifest().getTemplateId());
+    }
+
+    @Test
+    void invalidCustomManifestIsRejected() {
+        DeviceService deviceService = new DeviceService(repositoryStub(), templateService);
+        CreateDeviceRequest request = request(null);
+        CapabilityManifest manifest = customManifest();
+        manifest.getCapabilities().add(manifest.getCapabilities().get(0));
+        request.setCapabilityManifest(manifest);
+
+        var exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> deviceService.createDevice(request, "owner@example.com")
+        );
+
+        assertEquals("Invalid custom capability manifest.", exception.getMessage());
+    }
+
+    @Test
+    void emptyCustomManifestIsRejected() {
+        DeviceService deviceService = new DeviceService(repositoryStub(), templateService);
+        CreateDeviceRequest request = request(null);
+        CapabilityManifest manifest = new CapabilityManifest(CapabilityManifestSource.TEMPLATE);
+        manifest.setTemplateId("client-template");
+        request.setCapabilityManifest(manifest);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> deviceService.createDevice(request, "owner@example.com")
+        );
+    }
+
+    @Test
+    void templateAndCustomManifestTogetherAreRejected() {
+        DeviceService deviceService = new DeviceService(repositoryStub(), templateService);
+        CreateDeviceRequest request = request("smart-fan");
+        request.setCapabilityManifest(customManifest());
+
+        var exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> deviceService.createDevice(request, "owner@example.com")
+        );
+
+        assertEquals(
+                "Provide either templateId or capabilityManifest, not both.",
+                exception.getMessage()
+        );
+    }
+
     private CreateDeviceRequest request(String templateId) {
         CreateDeviceRequest request = new CreateDeviceRequest();
         request.setName("Test Device");
@@ -124,6 +202,24 @@ class DeviceTemplateServiceTest {
         request.setLocation("Lab");
         request.setTemplateId(templateId);
         return request;
+    }
+
+    private CapabilityManifest customManifest() {
+        CapabilityManifest manifest = new CapabilityManifest(CapabilityManifestSource.TEMPLATE);
+        manifest.setTemplateId("client-supplied-template");
+
+        CapabilityDefinition waterLevel = new CapabilityDefinition();
+        waterLevel.setKey("waterLevel");
+        waterLevel.setName("Water Level");
+        waterLevel.setCategory(CapabilityCategory.MEASUREMENT);
+        waterLevel.setDataType(CapabilityDataType.NUMBER);
+        waterLevel.setUnit("%");
+        waterLevel.setSemanticType("waterLevel");
+        waterLevel.setReadOnly(true);
+        waterLevel.setChartable(true);
+
+        manifest.setCapabilities(new java.util.ArrayList<>(List.of(waterLevel)));
+        return manifest;
     }
 
     private DeviceRepository repositoryStub() {

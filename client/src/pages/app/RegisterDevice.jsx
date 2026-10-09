@@ -16,9 +16,8 @@ import {
 import { createDevice } from "../../api/devicesApi.js";
 import { getDeviceTemplates } from "../../api/deviceTemplatesApi.js";
 import PageHero from "../../components/common/PageHero.jsx";
-import CapabilitySelector from "../../components/device/CapabilitySelector.jsx";
+import CustomCapabilityBuilder from "../../components/device/CustomCapabilityBuilder.jsx";
 import TemplateCapabilityPreview from "../../components/device/TemplateCapabilityPreview.jsx";
-import { emptyCapabilities } from "../../config/deviceCapabilities.js";
 
 const connectivityOptions = [
   {
@@ -55,7 +54,7 @@ export default function RegisterDevice() {
     type: "",
     location: "",
   });
-  const [capabilities, setCapabilities] = useState(emptyCapabilities);
+  const [customCapabilities, setCustomCapabilities] = useState([]);
   const [registrationMode, setRegistrationMode] = useState("template");
   const [templates, setTemplates] = useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
@@ -163,7 +162,13 @@ export default function RegisterDevice() {
         }
         payload.templateId = selectedTemplateId;
       } else {
-        payload.capabilities = capabilities;
+        if (customCapabilities.length === 0) {
+          throw new Error("Add at least one custom capability before registering.");
+        }
+        payload.capabilityManifest = {
+          version: 1,
+          capabilities: customCapabilities,
+        };
       }
 
       await createDevice(payload);
@@ -406,9 +411,9 @@ export default function RegisterDevice() {
                 )}
               </section>
             ) : (
-              <CapabilitySelector
-                capabilities={capabilities}
-                onChange={setCapabilities}
+              <CustomCapabilityBuilder
+                capabilities={customCapabilities}
+                onChange={setCustomCapabilities}
               />
             )}
 
