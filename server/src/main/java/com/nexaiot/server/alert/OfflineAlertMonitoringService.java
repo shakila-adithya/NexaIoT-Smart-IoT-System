@@ -7,11 +7,13 @@ import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.context.annotation.Profile;
 
 import com.nexaiot.server.device.Device;
 import com.nexaiot.server.device.DeviceRepository;
 
 @Service
+@Profile("!test")
 public class OfflineAlertMonitoringService {
 
     private static final Set<AlertStatus> UNRESOLVED_STATUSES = Set.of(
