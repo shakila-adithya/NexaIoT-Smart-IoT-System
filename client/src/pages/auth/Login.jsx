@@ -5,7 +5,7 @@ import Input from "../../components/ui/Input.jsx";
 import Button from "../../components/ui/Button.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import { validateLogin } from "../../utils/validation.js";
-import { useToast } from "../../context/ToastContext.jsx";
+import { useToast } from "../../hooks/useToast.js";
 
 export default function Login() {
   const { login } = useAuth();
