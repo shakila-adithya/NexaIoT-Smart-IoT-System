@@ -1,0 +1,52 @@
+{
+  "templateId": "smart-fan",
+  "version": 1,
+  "name": "Smart Fan",
+  "category": "CONTROL",
+  "description": "Controls fan power, speed, and operating mode.",
+  "enabled": true,
+  "capabilityManifest": {
+    "version": 1,
+    "source": "TEMPLATE",
+    "templateId": "smart-fan",
+    "capabilities": [
+      {
+        "key": "power",
+        "name": "Power",
+        "category": "CONTROL",
+        "dataType": "BOOLEAN",
+        "semanticType": "power",
+        "readOnly": false,
+        "chartable": false,
+        "control": { "type": "SWITCH" }
+      },
+      {
+        "key": "fanSpeed",
+        "name": "Fan Speed",
+        "category": "CONTROL",
+        "dataType": "NUMBER",
+        "unit": "%",
+        "semanticType": "fanSpeed",
+        "readOnly": false,
+        "chartable": false,
+        "constraints": { "min": 0, "max": 100, "step": 1 },
+        "control": { "type": "SLIDER" }
+      },
+      {
+        "key": "mode",
+        "name": "Mode",
+        "category": "CONTROL",
+        "dataType": "ENUM",
+        "semanticType": "fanMode",
+        "readOnly": false,
+        "chartable": false,
+        "options": [
+          { "value": "AUTO", "label": "Auto" },
+          { "value": "MANUAL", "label": "Manual" },
+          { "value": "ECO", "label": "Eco" }
+        ],
+        "control": { "type": "SELECT" }
+      }
+    ]
+  }
+}

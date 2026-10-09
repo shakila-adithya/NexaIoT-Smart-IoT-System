@@ -1,0 +1,62 @@
+{
+  "templateId": "dc-motor-controller",
+  "version": 1,
+  "name": "DC Motor Controller",
+  "category": "CONTROL",
+  "description": "Reports motor speed and controls power, target speed, and direction.",
+  "enabled": true,
+  "capabilityManifest": {
+    "version": 1,
+    "source": "TEMPLATE",
+    "templateId": "dc-motor-controller",
+    "capabilities": [
+      {
+        "key": "motorSpeed",
+        "name": "Motor Speed",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "RPM",
+        "semanticType": "motorSpeed",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      },
+      {
+        "key": "power",
+        "name": "Power",
+        "category": "CONTROL",
+        "dataType": "BOOLEAN",
+        "semanticType": "power",
+        "readOnly": false,
+        "chartable": false,
+        "control": { "type": "SWITCH" }
+      },
+      {
+        "key": "targetSpeed",
+        "name": "Target Speed",
+        "category": "CONTROL",
+        "dataType": "NUMBER",
+        "unit": "RPM",
+        "semanticType": "targetSpeed",
+        "readOnly": false,
+        "chartable": false,
+        "constraints": { "min": 0, "max": 5000, "step": 10 },
+        "control": { "type": "SLIDER" }
+      },
+      {
+        "key": "direction",
+        "name": "Direction",
+        "category": "CONTROL",
+        "dataType": "ENUM",
+        "semanticType": "direction",
+        "readOnly": false,
+        "chartable": false,
+        "options": [
+          { "value": "FORWARD", "label": "Forward" },
+          { "value": "REVERSE", "label": "Reverse" }
+        ],
+        "control": { "type": "SELECT" }
+      }
+    ]
+  }
+}

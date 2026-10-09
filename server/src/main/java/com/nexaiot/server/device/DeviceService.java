@@ -9,15 +9,22 @@ import org.springframework.stereotype.Service;
 import com.nexaiot.server.device.dto.CreateDeviceRequest;
 import com.nexaiot.server.device.dto.DeviceResponse;
 import com.nexaiot.server.device.dto.UpdateDeviceRequest;
+import com.nexaiot.server.device.template.DeviceTemplate;
+import com.nexaiot.server.device.template.DeviceTemplateService;
 
 @Service
 public class DeviceService {
 
     private final DeviceRepository deviceRepository;
+    private final DeviceTemplateService deviceTemplateService;
     private static final long ONLINE_TIMEOUT_SECONDS = 5;
 
-    public DeviceService(DeviceRepository deviceRepository) {
+    public DeviceService(
+            DeviceRepository deviceRepository,
+            DeviceTemplateService deviceTemplateService
+    ) {
         this.deviceRepository = deviceRepository;
+        this.deviceTemplateService = deviceTemplateService;
     }
 
     public DeviceResponse createDevice(
@@ -33,6 +40,12 @@ public class DeviceService {
         device.setType(request.getType().trim());
         device.setLocation(request.getLocation().trim());
         device.setCapabilities(request.getCapabilities());
+        if (request.getTemplateId() != null && !request.getTemplateId().isBlank()) {
+            DeviceTemplate template = deviceTemplateService.getTemplate(request.getTemplateId().trim());
+            device.setCapabilityManifest(
+                    CapabilityManifestCopier.copy(template.getCapabilityManifest())
+            );
+        }
         device.setStatus("OFFLINE");
         device.setPowerOn(false);
         device.setCreatedAt(now);

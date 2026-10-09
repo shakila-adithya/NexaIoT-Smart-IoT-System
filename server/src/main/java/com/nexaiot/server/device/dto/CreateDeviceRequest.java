@@ -20,6 +20,7 @@ public class CreateDeviceRequest {
     private String location;
 
     private DeviceCapabilities capabilities;
+    private String templateId;
 
     public CreateDeviceRequest() {
     }
@@ -54,5 +55,13 @@ public class CreateDeviceRequest {
 
     public void setCapabilities(DeviceCapabilities capabilities) {
         this.capabilities = capabilities;
+    }
+
+    public String getTemplateId() {
+        return templateId;
+    }
+
+    public void setTemplateId(String templateId) {
+        this.templateId = templateId;
     }
 }

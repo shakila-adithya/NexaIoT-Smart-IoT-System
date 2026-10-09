@@ -1,0 +1,37 @@
+{
+  "templateId": "temperature-humidity-sensor",
+  "version": 1,
+  "name": "Temperature & Humidity Sensor",
+  "category": "ENVIRONMENTAL",
+  "description": "Measures ambient temperature and humidity.",
+  "enabled": true,
+  "capabilityManifest": {
+    "version": 1,
+    "source": "TEMPLATE",
+    "templateId": "temperature-humidity-sensor",
+    "capabilities": [
+      {
+        "key": "temperature",
+        "name": "Temperature",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "°C",
+        "semanticType": "temperature",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      },
+      {
+        "key": "humidity",
+        "name": "Humidity",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "%",
+        "semanticType": "humidity",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "templateId": "temperature-sensor",
+  "version": 1,
+  "name": "Temperature Sensor",
+  "category": "ENVIRONMENTAL",
+  "description": "Measures ambient temperature.",
+  "enabled": true,
+  "capabilityManifest": {
+    "version": 1,
+    "source": "TEMPLATE",
+    "templateId": "temperature-sensor",
+    "capabilities": [
+      {
+        "key": "temperature",
+        "name": "Temperature",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "°C",
+        "semanticType": "temperature",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      }
+    ]
+  }
+}
