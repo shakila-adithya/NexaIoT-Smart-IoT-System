@@ -3,6 +3,7 @@ package com.nexaiot.server.device.dto;
 import java.time.Instant;
 
 import com.nexaiot.server.device.DeviceCapabilities;
+import com.nexaiot.server.device.CapabilityManifest;
 
 public class DeviceResponse {
 
@@ -17,6 +18,7 @@ public class DeviceResponse {
     private Instant updatedAt;
     private Instant lastSeenAt;
     private DeviceCapabilities capabilities;
+    private CapabilityManifest capabilityManifest;
 
     public DeviceResponse() {
     }
@@ -32,7 +34,8 @@ public class DeviceResponse {
             Instant createdAt,
             Instant updatedAt,
             Instant lastSeenAt,
-            DeviceCapabilities capabilities
+            DeviceCapabilities capabilities,
+            CapabilityManifest capabilityManifest
     ) {
         this.id = id;
         this.deviceKey = deviceKey;
@@ -45,6 +48,7 @@ public class DeviceResponse {
         this.updatedAt = updatedAt;
         this.lastSeenAt = lastSeenAt;
         this.capabilities = capabilities;
+        this.capabilityManifest = capabilityManifest;
     }
 
     public String getId() {
@@ -89,5 +93,9 @@ public class DeviceResponse {
 
     public DeviceCapabilities getCapabilities() {
         return capabilities;
+    }
+
+    public CapabilityManifest getCapabilityManifest() {
+        return capabilityManifest;
     }
 }

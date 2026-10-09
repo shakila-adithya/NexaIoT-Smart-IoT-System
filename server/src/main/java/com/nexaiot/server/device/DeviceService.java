@@ -148,7 +148,8 @@ public class DeviceService {
                 device.getCreatedAt(),
                 device.getUpdatedAt(),
                 device.getLastSeenAt(),
-                device.getCapabilities()
+                device.getCapabilities(),
+                CapabilityManifestAdapter.effectiveManifest(device)
         );
     }
 
