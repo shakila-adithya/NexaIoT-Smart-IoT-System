@@ -17,6 +17,7 @@ export const CAPABILITY_GROUPS = [
     options: [
       ["BATTERY", "Battery level"],
       ["RSSI", "Signal strength"],
+      ["ENERGY_CONSUMPTION", "Energy consumption"],
     ],
   },
   {

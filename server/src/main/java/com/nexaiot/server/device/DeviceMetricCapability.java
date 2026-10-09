@@ -2,5 +2,6 @@ package com.nexaiot.server.device;
 
 public enum DeviceMetricCapability {
     BATTERY,
-    RSSI
+    RSSI,
+    ENERGY_CONSUMPTION
 }

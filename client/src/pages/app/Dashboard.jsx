@@ -3,12 +3,8 @@ import { useNavigate } from "react-router-dom";
 import {
   ChartNoAxesCombined,
   Cpu,
-  BatteryMedium,
-  Droplets,
   Plus,
   RadioTower,
-  Signal,
-  Thermometer,
   TriangleAlert,
   Wifi,
   WifiOff,
@@ -21,6 +17,11 @@ import PageHero from "../../components/common/PageHero.jsx";
 import { getDevices, getLatestDeviceReading } from "../../api/devicesApi.js";
 import { getAlerts } from "../../api/alertsApi.js";
 import { useAuth } from "../../hooks/useAuth.js";
+import { normalizeCapabilities } from "../../config/deviceCapabilities.js";
+import {
+  DEVICE_METRIC_DEFINITIONS,
+  getMetricValue,
+} from "../../config/deviceMetricDefinitions.js";
 
 function formatTelemetryTime(value) {
   if (!value) return "—";
@@ -35,13 +36,6 @@ function formatTelemetryTime(value) {
     hour: "numeric",
     minute: "2-digit",
   });
-}
-
-function getSignalLabel(value) {
-  if (value == null) return "—";
-  if (value >= -55) return "Strong";
-  if (value >= -70) return "Good";
-  return "Weak";
 }
 
 function TelemetryMetric({ icon: Icon, label, value, unit, note, tone }) {
@@ -230,6 +224,16 @@ export default function Dashboard() {
     stats.total === 0
       ? "Register your first IoT device to begin monitoring your connected environment."
       : `${stats.total} devices registered · ${stats.online} online · ${stats.offline} offline · ${stats.maintenance} maintenance`;
+
+  const dashboardCapabilities = normalizeCapabilities(
+    telemetry?.device?.capabilities,
+  );
+  const dashboardMetricDefinitions = [
+    ...dashboardCapabilities.sensors,
+    ...dashboardCapabilities.deviceMetrics,
+  ]
+    .map((capability) => DEVICE_METRIC_DEFINITIONS[capability])
+    .filter(Boolean);
 
   return (
     <div className="w-full px-4 pb-9 pt-[26px] md:px-[30px]">
@@ -427,37 +431,29 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <TelemetryMetric
-                    icon={Thermometer}
-                    label="Temperature"
-                    value={telemetry.reading.metrics?.temperature}
-                    unit="°C"
-                    tone="orange"
-                  />
-                  <TelemetryMetric
-                    icon={Droplets}
-                    label="Humidity"
-                    value={telemetry.reading.metrics?.humidity}
-                    unit="%"
-                    tone="blue"
-                  />
-                  <TelemetryMetric
-                    icon={BatteryMedium}
-                    label="Battery"
-                    value={telemetry.reading.battery}
-                    unit="%"
-                    tone="green"
-                  />
-                  <TelemetryMetric
-                    icon={Signal}
-                    label="Signal"
-                    value={telemetry.reading.rssi}
-                    unit="dBm"
-                    note={getSignalLabel(telemetry.reading.rssi)}
-                    tone="violet"
-                  />
-                </div>
+                {dashboardMetricDefinitions.length === 0 ? (
+                  <div className="rounded-[12px] border border-dashed border-[#dce8ee] bg-[#f8fbfd] p-6 text-center text-[11px] text-[#6b8290]">
+                    <p className="font-medium text-[#102a3a]">
+                      No measurement capabilities configured for this device.
+                    </p>
+                    <p className="mt-1 text-[10px]">
+                      Edit the device to select its supported measurements.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
+                    {dashboardMetricDefinitions.map((definition) => (
+                      <TelemetryMetric
+                        key={definition.key}
+                        icon={definition.icon}
+                        label={definition.label}
+                        value={getMetricValue(definition, telemetry.reading)}
+                        unit={definition.unit}
+                        tone={definition.tone === "cyan" ? "orange" : definition.tone}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

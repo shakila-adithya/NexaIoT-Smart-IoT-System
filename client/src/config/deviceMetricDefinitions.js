@@ -7,6 +7,7 @@ import {
   Thermometer,
   Wind,
   Wifi,
+  Zap,
 } from "lucide-react";
 
 export const DEVICE_METRIC_DEFINITIONS = {
@@ -89,6 +90,16 @@ export const DEVICE_METRIC_DEFINITIONS = {
     tone: "green",
     color: "#16a57a",
     domain: "rssi",
+  },
+  ENERGY_CONSUMPTION: {
+    source: "metrics",
+    key: "energyConsumption",
+    label: "Energy Consumption",
+    unit: "kWh",
+    icon: Zap,
+    tone: "amber",
+    color: "#e99a12",
+    domain: "zeroBased",
   },
 };
 
