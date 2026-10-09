@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bluetooth,
@@ -14,8 +14,10 @@ import {
 } from "lucide-react";
 
 import { createDevice } from "../../api/devicesApi.js";
+import { getDeviceTemplates } from "../../api/deviceTemplatesApi.js";
 import PageHero from "../../components/common/PageHero.jsx";
 import CapabilitySelector from "../../components/device/CapabilitySelector.jsx";
+import TemplateCapabilityPreview from "../../components/device/TemplateCapabilityPreview.jsx";
 import { emptyCapabilities } from "../../config/deviceCapabilities.js";
 
 const connectivityOptions = [
@@ -54,18 +56,92 @@ export default function RegisterDevice() {
     location: "",
   });
   const [capabilities, setCapabilities] = useState(emptyCapabilities);
+  const [registrationMode, setRegistrationMode] = useState("template");
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templatesLoading, setTemplatesLoading] = useState(true);
+  const [templatesError, setTemplatesError] = useState("");
 
   const [connectivity, setConnectivity] = useState("wifi");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadTemplates() {
+      try {
+        setTemplatesLoading(true);
+        setTemplatesError("");
+
+        const response = await getDeviceTemplates();
+        if (!mounted) return;
+
+        const loadedTemplates = Array.isArray(response) ? response : [];
+        setTemplates(loadedTemplates);
+
+        if (loadedTemplates.length > 0) {
+          const firstTemplate = loadedTemplates[0];
+          setSelectedTemplateId(firstTemplate.templateId);
+          setForm((current) => ({
+            ...current,
+            type: firstTemplate.name || current.type,
+          }));
+        } else {
+          setTemplatesError("No device templates are available right now.");
+        }
+      } catch {
+        if (!mounted) return;
+        setTemplatesError("Unable to load device templates right now.");
+      } finally {
+        if (mounted) setTemplatesLoading(false);
+      }
+    }
+
+    loadTemplates();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const selectedTemplate = templates.find(
+    (template) => template.templateId === selectedTemplateId,
+  );
+
   const handleChange = (event) => {
     const { name, value } = event.target;
+
+    if (name === "type" && registrationMode === "template") return;
 
     setForm((current) => ({
       ...current,
       [name]: value,
     }));
+  };
+
+  const handleModeChange = (mode) => {
+    setRegistrationMode(mode);
+
+    if (mode === "template" && selectedTemplate) {
+      setForm((current) => ({
+        ...current,
+        type: selectedTemplate.name,
+      }));
+    }
+  };
+
+  const handleTemplateChange = (event) => {
+    const templateId = event.target.value;
+    const template = templates.find((item) => item.templateId === templateId);
+
+    setSelectedTemplateId(templateId);
+    if (template) {
+      setForm((current) => ({
+        ...current,
+        type: template.name,
+      }));
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -75,12 +151,22 @@ export default function RegisterDevice() {
       setSaving(true);
       setError("");
 
-      await createDevice({
+      const payload = {
         name: form.name.trim(),
         type: form.type.trim(),
         location: form.location.trim(),
-        capabilities,
-      });
+      };
+
+      if (registrationMode === "template") {
+        if (!selectedTemplateId) {
+          throw new Error("Select a device template before registering.");
+        }
+        payload.templateId = selectedTemplateId;
+      } else {
+        payload.capabilities = capabilities;
+      }
+
+      await createDevice(payload);
 
       navigate("/devices");
     } catch (err) {
@@ -239,10 +325,92 @@ export default function RegisterDevice() {
               </div>
             </section>
 
-            <CapabilitySelector
-              capabilities={capabilities}
-              onChange={setCapabilities}
-            />
+            <section className="rounded-[14px] border border-[#dce8ee] bg-white p-5">
+              <div>
+                <h2 className="text-[15px] font-semibold text-[#102a3a]">
+                  Registration mode
+                </h2>
+                <p className="mt-1 text-[10px] text-[#6b8290]">
+                  Start with a built-in template or use the existing manual setup.
+                </p>
+              </div>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {[
+                  ["template", "Use a Device Template", "Backend-defined capabilities"],
+                  ["manual", "Configure Manually", "Legacy capability selection"],
+                ].map(([mode, label, description]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => handleModeChange(mode)}
+                    className={`rounded-[10px] border px-3 py-3 text-left transition ${
+                      registrationMode === mode
+                        ? "border-[#08a9c4] bg-[#eef9fb]"
+                        : "border-[#dce8ee] bg-[#f8fbfd] hover:border-[#b9d7df]"
+                    }`}
+                  >
+                    <span className="text-[10px] font-semibold text-[#102a3a]">
+                      {label}
+                    </span>
+                    <span className="mt-1 block text-[9px] text-[#6b8290]">
+                      {description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {registrationMode === "template" ? (
+              <section className="rounded-[14px] border border-[#dce8ee] bg-white p-5">
+                <div>
+                  <h2 className="text-[15px] font-semibold text-[#102a3a]">
+                    Device template
+                  </h2>
+                  <p className="mt-1 text-[10px] text-[#6b8290]">
+                    Choose a built-in profile for this device.
+                  </p>
+                </div>
+
+                {templatesLoading ? (
+                  <div className="mt-4 h-10 animate-pulse rounded-[10px] bg-[#f1f6f8]" />
+                ) : templatesError ? (
+                  <div className="mt-4 rounded-[10px] border border-amber-200 bg-amber-50 p-3 text-[10px] text-amber-700">
+                    {templatesError} You can switch to manual configuration.
+                  </div>
+                ) : templates.length === 0 ? (
+                  <div className="mt-4 rounded-[10px] border border-dashed border-[#dce8ee] bg-[#f8fbfd] p-4 text-[10px] text-[#6b8290]">
+                    No device templates are available. Switch to manual configuration.
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
+                      <select
+                        value={selectedTemplateId}
+                        onChange={handleTemplateChange}
+                        className="h-10 rounded-[10px] border border-[#dce8ee] bg-[#f8fbfd] px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4] focus:ring-2 focus:ring-[#08a9c4]/10"
+                      >
+                        {templates.map((template) => (
+                          <option key={template.templateId} value={template.templateId}>
+                            {template.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex items-center rounded-[10px] border border-[#dce8ee] bg-[#f8fbfd] px-3 text-[9px] text-[#6b8290]">
+                        {selectedTemplate?.category || "Template"}
+                      </div>
+                    </div>
+
+                    <TemplateCapabilityPreview template={selectedTemplate} />
+                  </>
+                )}
+              </section>
+            ) : (
+              <CapabilitySelector
+                capabilities={capabilities}
+                onChange={setCapabilities}
+              />
+            )}
 
             <section className="rounded-[14px] border border-[#dce8ee] bg-white p-5">
               <div>
