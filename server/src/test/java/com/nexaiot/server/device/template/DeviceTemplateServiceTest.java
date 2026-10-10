@@ -69,13 +69,12 @@ class DeviceTemplateServiceTest {
         DeviceTemplate template = templateService.getTemplate("smart-fan");
 
         assertEquals(
-                List.of("power", "fanSpeed", "mode"),
+                List.of("temperature", "power"),
                 template.getCapabilityManifest().getCapabilities().stream()
                         .map(definition -> definition.getKey())
                         .toList()
         );
-        assertEquals(3, template.getCapabilityManifest().getCapabilities().size());
-        assertEquals(3, template.getCapabilityManifest().getCapabilities().get(2).getOptions().size());
+        assertEquals(2, template.getCapabilityManifest().getCapabilities().size());
     }
 
     @Test
@@ -104,8 +103,19 @@ class DeviceTemplateServiceTest {
         assertNotSame(template.getCapabilityManifest(), templatedResponse.getCapabilityManifest());
         assertEquals("smart-fan", templatedResponse.getCapabilityManifest().getTemplateId());
 
-        template.getCapabilityManifest().getCapabilities().get(0).setName("Changed Template Power");
-        assertEquals("Power", templatedResponse.getCapabilityManifest().getCapabilities().get(0).getName());
+        template.getCapabilityManifest().getCapabilities().stream()
+                .filter(definition -> definition.getKey().equals("power"))
+                .findFirst()
+                .orElseThrow()
+                .setName("Changed Template Power");
+        assertEquals(
+                "Power",
+                templatedResponse.getCapabilityManifest().getCapabilities().stream()
+                        .filter(definition -> definition.getKey().equals("power"))
+                        .findFirst()
+                        .orElseThrow()
+                        .getName()
+        );
 
         CreateDeviceRequest legacyRequest = request(null);
         DeviceCapabilities legacyCapabilities = new DeviceCapabilities();

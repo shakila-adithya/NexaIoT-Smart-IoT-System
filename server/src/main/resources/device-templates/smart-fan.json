@@ -3,13 +3,24 @@
   "version": 1,
   "name": "Smart Fan",
   "category": "CONTROL",
-  "description": "Controls fan power, speed, and operating mode.",
+  "description": "Measures temperature and controls fan power.",
   "enabled": true,
   "capabilityManifest": {
     "version": 1,
     "source": "TEMPLATE",
     "templateId": "smart-fan",
     "capabilities": [
+      {
+        "key": "temperature",
+        "name": "Temperature",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "°C",
+        "semanticType": "temperature",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      },
       {
         "key": "power",
         "name": "Power",
@@ -19,33 +30,6 @@
         "readOnly": false,
         "chartable": false,
         "control": { "type": "SWITCH" }
-      },
-      {
-        "key": "fanSpeed",
-        "name": "Fan Speed",
-        "category": "CONTROL",
-        "dataType": "NUMBER",
-        "unit": "%",
-        "semanticType": "fanSpeed",
-        "readOnly": false,
-        "chartable": false,
-        "constraints": { "min": 0, "max": 100, "step": 1 },
-        "control": { "type": "SLIDER" }
-      },
-      {
-        "key": "mode",
-        "name": "Mode",
-        "category": "CONTROL",
-        "dataType": "ENUM",
-        "semanticType": "fanMode",
-        "readOnly": false,
-        "chartable": false,
-        "options": [
-          { "value": "AUTO", "label": "Auto" },
-          { "value": "MANUAL", "label": "Manual" },
-          { "value": "ECO", "label": "Eco" }
-        ],
-        "control": { "type": "SELECT" }
       }
     ]
   }

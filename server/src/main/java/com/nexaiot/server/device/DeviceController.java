@@ -109,7 +109,7 @@ public class DeviceController {
             @Valid @RequestBody ControlDeviceRequest request,
             Authentication authentication
     ) {
-        DeviceResponse device = deviceService.getDevice(
+        DeviceResponse device = deviceService.getControllableDevice(
                 id,
                 authentication.getName()
         );

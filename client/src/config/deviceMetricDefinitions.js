@@ -103,6 +103,38 @@ export const DEVICE_METRIC_DEFINITIONS = {
   },
 };
 
+const definitionsByCapabilityKey = Object.values(DEVICE_METRIC_DEFINITIONS)
+  .reduce((definitions, definition) => {
+    definitions[definition.key] = definition;
+    return definitions;
+  }, {});
+
+export function getMetricDefinitionForCapability(capability) {
+  if (!capability) return null;
+
+  if (typeof capability === "string") {
+    return DEVICE_METRIC_DEFINITIONS[capability] || null;
+  }
+
+  const knownDefinition = definitionsByCapabilityKey[capability.key]
+    || definitionsByCapabilityKey[capability.semanticType];
+
+  if (knownDefinition) return knownDefinition;
+
+  if (capability.category === "CONTROL") return null;
+
+  return {
+    source: "metrics",
+    key: capability.key,
+    label: capability.name || capability.key,
+    unit: capability.unit || "",
+    icon: Gauge,
+    tone: "cyan",
+    color: "#08a9c4",
+    domain: "dynamic",
+  };
+}
+
 export function getMetricValue(definition, reading) {
   if (!definition || !reading) return null;
 

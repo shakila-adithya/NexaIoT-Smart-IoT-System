@@ -17,9 +17,9 @@ import PageHero from "../../components/common/PageHero.jsx";
 import { getDevices, getLatestDeviceReading } from "../../api/devicesApi.js";
 import { getAlerts } from "../../api/alertsApi.js";
 import { useAuth } from "../../hooks/useAuth.js";
-import { normalizeCapabilities } from "../../config/deviceCapabilities.js";
+import { normalizeCapabilityManifest } from "../../config/capabilityManifest.js";
 import {
-  DEVICE_METRIC_DEFINITIONS,
+  getMetricDefinitionForCapability,
   getMetricValue,
 } from "../../config/deviceMetricDefinitions.js";
 
@@ -225,14 +225,9 @@ export default function Dashboard() {
       ? "Register your first IoT device to begin monitoring your connected environment."
       : `${stats.total} devices registered · ${stats.online} online · ${stats.offline} offline · ${stats.maintenance} maintenance`;
 
-  const dashboardCapabilities = normalizeCapabilities(
-    telemetry?.device?.capabilities,
-  );
-  const dashboardMetricDefinitions = [
-    ...dashboardCapabilities.sensors,
-    ...dashboardCapabilities.deviceMetrics,
-  ]
-    .map((capability) => DEVICE_METRIC_DEFINITIONS[capability])
+  const dashboardMetricDefinitions = normalizeCapabilityManifest(telemetry?.device)
+    .filter((capability) => capability.category !== "CONTROL")
+    .map(getMetricDefinitionForCapability)
     .filter(Boolean);
 
   return (

@@ -122,6 +122,30 @@ public class DeviceService {
             device.setCapabilities(request.getCapabilities());
         }
 
+        if (request.getCapabilityManifest() != null) {
+            if (device.getCapabilityManifest() == null) {
+                throw new IllegalArgumentException(
+                        "This device does not use a capability manifest."
+                );
+            }
+
+            CapabilityManifest manifest = CapabilityManifestCopier.copy(
+                    request.getCapabilityManifest()
+            );
+            manifest.setSource(device.getCapabilityManifest().getSource());
+            manifest.setTemplateId(device.getCapabilityManifest().getTemplateId());
+
+            if (manifest.getCapabilities() == null
+                    || manifest.getCapabilities().isEmpty()
+                    || !CapabilityManifestValidator.isValid(manifest)) {
+                throw new IllegalArgumentException(
+                        "Invalid capability manifest."
+                );
+            }
+
+            device.setCapabilityManifest(manifest);
+        }
+
         device.setUpdatedAt(Instant.now());
 
         Device updatedDevice = deviceRepository.save(device);
@@ -136,6 +160,31 @@ public class DeviceService {
         Device device = findOwnedDevice(deviceId, ownerEmail);
 
         deviceRepository.delete(device);
+    }
+
+    public DeviceResponse getControllableDevice(
+            String deviceId,
+            String ownerEmail
+    ) {
+        Device device = findOwnedDevice(deviceId, ownerEmail);
+        boolean supportsPower = CapabilityManifestAdapter.effectiveManifest(device)
+                .getCapabilities()
+                .stream()
+                .anyMatch(definition ->
+                        definition.getCategory() == CapabilityCategory.CONTROL
+                                && ("power".equals(definition.getKey())
+                                || "digitalOutput".equals(definition.getKey())
+                                || "power".equals(definition.getSemanticType())
+                                || "digitalOutput".equals(definition.getSemanticType()))
+                );
+
+        if (!supportsPower) {
+            throw new IllegalArgumentException(
+                    "This device does not support power control."
+            );
+        }
+
+        return toResponse(device);
     }
 
     private Device findOwnedDevice(

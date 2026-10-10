@@ -16,21 +16,13 @@ const dataTypes = [
 ];
 
 const controlTypes = {
-  BOOLEAN: [
-    ["SWITCH", "Switch"],
-    ["BUTTON", "Button"],
-  ],
-  NUMBER: [
-    ["SLIDER", "Slider"],
-    ["NUMBER_INPUT", "Number input"],
-  ],
-  STRING: [["BUTTON", "Button"]],
-  ENUM: [["SELECT", "Select"]],
+  BOOLEAN: [["SWITCH", "Switch"]],
 };
 
 function createDraft() {
   return {
     name: "",
+    key: "digitalOutput",
     category: "MEASUREMENT",
     dataType: "NUMBER",
     unit: "",
@@ -66,23 +58,31 @@ function labelFor(values, value) {
   return values.find(([optionValue]) => optionValue === value)?.[1] || value;
 }
 
-function controlOptions(dataType) {
+function controlOptions(dataType, category) {
+  if (category === "CONTROL") return [["SWITCH", "Switch"]];
   return controlTypes[dataType] || [];
 }
 
 function draftFromCapability(capability) {
   return {
     ...createDraft(),
-    name: capability.name || "",
+    name: capability.category === "CONTROL"
+      ? (capability.key === "power" ? "Power" : "Digital Output")
+      : capability.name || "",
+    key: capability.category === "CONTROL" && capability.key === "power"
+      ? "power"
+      : "digitalOutput",
     category: capability.category || "MEASUREMENT",
-    dataType: capability.dataType || "NUMBER",
+    dataType: capability.category === "CONTROL" ? "BOOLEAN" : capability.dataType || "NUMBER",
     unit: capability.unit || "",
-    semanticType: capability.semanticType || "",
+    semanticType: capability.category === "CONTROL"
+      ? (capability.key === "power" ? "power" : "digitalOutput")
+      : capability.semanticType || "",
     description: capability.description || "",
     valueKind: capability.valueKind || "GAUGE",
     readOnly: capability.category === "CONTROL" ? false : capability.readOnly !== false,
     chartable: capability.category === "CONTROL" ? false : capability.chartable !== false,
-    controlType: capability.control?.type || "",
+    controlType: capability.category === "CONTROL" ? "SWITCH" : capability.control?.type || "",
     min: capability.constraints?.min ?? "",
     max: capability.constraints?.max ?? "",
     step: capability.constraints?.step ?? "",
@@ -95,15 +95,11 @@ function draftFromCapability(capability) {
   };
 }
 
-function numberValue(value) {
-  return value === "" ? null : Number(value);
-}
-
 function formatCapability(capability) {
   return [
     labelFor(categories, capability.category),
     capability.dataType,
-    capability.control?.type ? labelFor(controlOptions(capability.dataType), capability.control.type) : null,
+    capability.control?.type ? labelFor(controlOptions(capability.dataType, capability.category), capability.control.type) : null,
     capability.unit || null,
   ].filter(Boolean).join(" · ");
 }
@@ -143,7 +139,11 @@ export default function CustomCapabilityBuilder({ capabilities, onChange }) {
       category,
       readOnly: category === "CONTROL" ? false : true,
       chartable: category === "CONTROL" ? false : true,
-      controlType: category === "CONTROL" ? controlOptions(current.dataType)[0]?.[0] || "" : "",
+      name: category === "CONTROL" ? "Digital Output" : current.name,
+      key: category === "CONTROL" ? "digitalOutput" : current.key,
+      semanticType: category === "CONTROL" ? "digitalOutput" : current.semanticType,
+      dataType: category === "CONTROL" ? "BOOLEAN" : current.dataType,
+      controlType: category === "CONTROL" ? "SWITCH" : "",
       valueKind: category === "CONTROL" || current.dataType !== "NUMBER" ? "" : "GAUGE",
     }));
   };
@@ -151,23 +151,24 @@ export default function CustomCapabilityBuilder({ capabilities, onChange }) {
   const changeDataType = (dataType) => {
     setDraft((current) => ({
       ...current,
-      dataType,
+      dataType: current.category === "CONTROL" ? "BOOLEAN" : dataType,
       valueKind: current.category === "CONTROL" || dataType !== "NUMBER" ? "" : "GAUGE",
-      controlType: current.category === "CONTROL" ? controlOptions(dataType)[0]?.[0] || "" : "",
+      controlType: current.category === "CONTROL" ? "SWITCH" : "",
       options: dataType === "ENUM" ? current.options : [{ label: "", value: "" }],
     }));
   };
 
   const validateDraft = () => {
-    const key = toCapabilityKey(draft.name);
+    const key = draft.category === "CONTROL" ? draft.key : toCapabilityKey(draft.name);
     if (!draft.name.trim()) return "Enter a capability name.";
     if (!key) return "Enter a capability name using letters or numbers.";
     if (capabilities.some((capability, index) => capability.key === key && index !== editingIndex)) {
       return `The generated key "${key}" is already used. Choose a different name.`;
     }
 
-    if (draft.category === "CONTROL" && !draft.controlType) {
-      return "Choose a control type.";
+    if (draft.category === "CONTROL"
+      && (draft.dataType !== "BOOLEAN" || draft.controlType !== "SWITCH")) {
+      return "V1 supports only Digital Output / Power switch controls.";
     }
 
     if (draft.dataType === "ENUM") {
@@ -183,27 +184,6 @@ export default function CustomCapabilityBuilder({ capabilities, onChange }) {
       }
     }
 
-    const usesConstraints = draft.category === "CONTROL"
-      && draft.dataType === "NUMBER"
-      && ["SLIDER", "NUMBER_INPUT"].includes(draft.controlType);
-    const hasAnyConstraint = [draft.min, draft.max, draft.step].some((value) => value !== "");
-    const hasAllConstraints = [draft.min, draft.max, draft.step].every((value) => value !== "");
-
-    if (usesConstraints && draft.controlType === "SLIDER" && !hasAllConstraints) {
-      return "Slider controls require minimum, maximum, and step values.";
-    }
-    if (usesConstraints && hasAnyConstraint && !hasAllConstraints) {
-      return "Provide minimum, maximum, and step together.";
-    }
-    if (usesConstraints && hasAllConstraints) {
-      const min = numberValue(draft.min);
-      const max = numberValue(draft.max);
-      const step = numberValue(draft.step);
-      if (![min, max, step].every(Number.isFinite)) return "Constraints must be valid numbers.";
-      if (min > max) return "Minimum must be less than or equal to maximum.";
-      if (step <= 0) return "Step must be greater than zero.";
-    }
-
     return "";
   };
 
@@ -214,18 +194,20 @@ export default function CustomCapabilityBuilder({ capabilities, onChange }) {
       return;
     }
 
-    const key = toCapabilityKey(draft.name);
+    const key = draft.category === "CONTROL" ? draft.key : toCapabilityKey(draft.name);
     const capability = {
       key,
-      name: draft.name.trim(),
+      name: draft.category === "CONTROL"
+        ? (draft.key === "power" ? "Power" : "Digital Output")
+        : draft.name.trim(),
       category: draft.category,
-      dataType: draft.dataType,
+      dataType: draft.category === "CONTROL" ? "BOOLEAN" : draft.dataType,
       readOnly: draft.category === "CONTROL" ? false : draft.readOnly,
       chartable: draft.category === "CONTROL" ? false : draft.chartable,
     };
 
     ["unit", "semanticType", "description"].forEach((field) => {
-      if (draft[field].trim()) capability[field] = draft[field].trim();
+      if (draft.category !== "CONTROL" && draft[field].trim()) capability[field] = draft[field].trim();
     });
 
     if (draft.category !== "CONTROL" && draft.dataType === "NUMBER") {
@@ -233,7 +215,8 @@ export default function CustomCapabilityBuilder({ capabilities, onChange }) {
     }
 
     if (draft.category === "CONTROL") {
-      capability.control = { type: draft.controlType };
+      capability.semanticType = draft.key === "power" ? "power" : "digitalOutput";
+      capability.control = { type: "SWITCH" };
     }
 
     if (draft.dataType === "ENUM") {
@@ -241,17 +224,6 @@ export default function CustomCapabilityBuilder({ capabilities, onChange }) {
         label: option.label.trim(),
         value: option.value.trim(),
       }));
-    }
-
-    const usesConstraints = draft.category === "CONTROL"
-      && draft.dataType === "NUMBER"
-      && ["SLIDER", "NUMBER_INPUT"].includes(draft.controlType);
-    if (usesConstraints && [draft.min, draft.max, draft.step].every((value) => value !== "")) {
-      capability.constraints = {
-        min: numberValue(draft.min),
-        max: numberValue(draft.max),
-        step: numberValue(draft.step),
-      };
     }
 
     const nextCapabilities = [...capabilities];
@@ -318,10 +290,10 @@ export default function CustomCapabilityBuilder({ capabilities, onChange }) {
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="text-[9px] font-medium text-[#526b79]">Name<input value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} placeholder="e.g. Water Level" className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4]" /></label>
-            <label className="text-[9px] font-medium text-[#526b79]">Generated key<div className="mt-1.5 flex h-9 items-center rounded-[9px] border border-[#dce8ee] bg-[#f8fbfd] px-3 font-mono text-[10px] text-[#6b8290]">{toCapabilityKey(draft.name) || "—"}</div></label>
+            <label className="text-[9px] font-medium text-[#526b79]">Name<input value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} disabled={draft.category === "CONTROL"} placeholder="e.g. Water Level" className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4] disabled:bg-[#f8fbfd] disabled:text-[#6b8290]" /></label>
+            <label className="text-[9px] font-medium text-[#526b79]">Generated key<div className="mt-1.5 flex h-9 items-center rounded-[9px] border border-[#dce8ee] bg-[#f8fbfd] px-3 font-mono text-[10px] text-[#6b8290]">{draft.category === "CONTROL" ? draft.key : toCapabilityKey(draft.name) || "—"}</div></label>
             <label className="text-[9px] font-medium text-[#526b79]">Category<select value={draft.category} onChange={(event) => changeCategory(event.target.value)} className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4]">{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-            <label className="text-[9px] font-medium text-[#526b79]">Data type<select value={draft.dataType} onChange={(event) => changeDataType(event.target.value)} className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4]">{dataTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label className="text-[9px] font-medium text-[#526b79]">Data type<select value={draft.dataType} onChange={(event) => changeDataType(event.target.value)} disabled={draft.category === "CONTROL"} className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4] disabled:bg-[#f8fbfd] disabled:text-[#6b8290]">{(draft.category === "CONTROL" ? [["BOOLEAN", "Boolean"]] : dataTypes).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             <label className="text-[9px] font-medium text-[#526b79]">Unit <span className="font-normal text-[#9aadb6]">(optional)</span><input value={draft.unit} onChange={(event) => updateDraft("unit", event.target.value)} placeholder="e.g. % or °C" className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4]" /></label>
             <label className="text-[9px] font-medium text-[#526b79]">Semantic type <span className="font-normal text-[#9aadb6]">(optional)</span><input value={draft.semanticType} onChange={(event) => updateDraft("semanticType", event.target.value)} placeholder="e.g. waterLevel" className="mt-1.5 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 py-2 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4]" /></label>
           </div>
@@ -337,8 +309,7 @@ export default function CustomCapabilityBuilder({ capabilities, onChange }) {
 
           {draft.category === "CONTROL" ? (
             <div className="mt-3 rounded-[9px] border border-[#dce8ee] bg-white p-3">
-              <label className="text-[9px] font-medium text-[#526b79]">Control type<select value={draft.controlType} onChange={(event) => updateDraft("controlType", event.target.value)} className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4]">{controlOptions(draft.dataType).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              {draft.dataType === "NUMBER" && ["SLIDER", "NUMBER_INPUT"].includes(draft.controlType) ? <div className="mt-3 grid gap-2 sm:grid-cols-3">{[["min", "Minimum"], ["max", "Maximum"], ["step", "Step"]].map(([field, label]) => <label key={field} className="text-[9px] text-[#526b79]">{label}<input type="number" value={draft[field]} onChange={(event) => updateDraft(field, event.target.value)} placeholder="Optional" className="mt-1.5 h-8 w-full rounded-[8px] border border-[#dce8ee] px-2 text-[10px] outline-none focus:border-[#08a9c4]" /></label>)}</div> : null}
+              <label className="text-[9px] font-medium text-[#526b79]">Control type<select value={draft.controlType} disabled className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-[#f8fbfd] px-3 text-[11px] text-[#6b8290] outline-none">{controlOptions(draft.dataType, draft.category).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             </div>
           ) : null}
 
