@@ -1,6 +1,4 @@
-import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAlerts } from "../../api/alertsApi.js";
 
 const severityStyles = {
   CRITICAL: {
@@ -57,51 +55,8 @@ function formatRelativeTime(value) {
   return `${Math.floor(elapsedSeconds / 86400)} day${Math.floor(elapsedSeconds / 86400) === 1 ? "" : "s"} ago`;
 }
 
-export default function LatestAlerts() {
+export default function LatestAlerts({ alerts = [], loading = false, error = "" }) {
   const navigate = useNavigate();
-  const [alerts, setAlerts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const pollingInFlight = useRef(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadAlerts({ initial = false } = {}) {
-      if (pollingInFlight.current) return;
-
-      pollingInFlight.current = true;
-
-      try {
-        const data = await getAlerts();
-
-        if (cancelled) return;
-
-        setAlerts(Array.isArray(data) ? data : []);
-        setError("");
-      } catch (err) {
-        if (!cancelled && initial) {
-          setError(err.message || "Unable to load alerts.");
-        }
-      } finally {
-        pollingInFlight.current = false;
-
-        if (!cancelled && initial) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadAlerts({ initial: true });
-    const intervalId = window.setInterval(() => loadAlerts(), 5000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-      pollingInFlight.current = false;
-    };
-  }, []);
-
   const latestAlerts = [...alerts]
     .sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt))
     .slice(0, 5);

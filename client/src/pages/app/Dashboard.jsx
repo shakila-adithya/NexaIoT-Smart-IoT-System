@@ -12,6 +12,7 @@ import {
 
 import DashboardStatCard from "../../components/dashboard/DashboardStatCard.jsx";
 import LatestAlerts from "../../components/dashboard/LatestAlerts.jsx";
+import RecentActivity from "../../components/dashboard/RecentActivity.jsx";
 import QuickActions from "../../components/dashboard/QuickActions.jsx";
 import PageHero from "../../components/common/PageHero.jsx";
 import { getDevices, getLatestDeviceReading } from "../../api/devicesApi.js";
@@ -70,10 +71,12 @@ export default function Dashboard() {
   const { user } = useAuth();
 
   const [devices, setDevices] = useState([]);
+  const [alerts, setAlerts] = useState([]);
   const [activeAlertCount, setActiveAlertCount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [alertsError, setAlertsError] = useState("");
+  const [alertsLoading, setAlertsLoading] = useState(true);
   const [telemetry, setTelemetry] = useState(null);
   const pollingInFlight = useRef(false);
 
@@ -154,6 +157,7 @@ export default function Dashboard() {
         if (alertsResult.status === "fulfilled") {
           const alerts = Array.isArray(alertsResult.value) ? alertsResult.value : [];
 
+          setAlerts(alerts);
           setActiveAlertCount(
             alerts.filter(
               (alert) =>
@@ -169,6 +173,7 @@ export default function Dashboard() {
 
         if (initial && !cancelled) {
           setLoading(false);
+          setAlertsLoading(false);
         }
       }
     }
@@ -514,24 +519,13 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="rounded-[14px] border border-[#dce8ee] bg-white p-5">
-            <h2 className="text-[14px] font-semibold text-[#102a3a]">
-              Recent activity
-            </h2>
+          <RecentActivity devices={devices} alerts={alerts} />
 
-            <div className="mt-4 rounded-[10px] bg-[#f8fbfd] p-4">
-              <p className="text-[11px] font-medium text-[#102a3a]">
-                No activity data yet
-              </p>
-
-              <p className="mt-1 text-[10px] leading-4 text-[#6b8290]">
-                Device events and activity history will appear here after
-                event logging is implemented.
-              </p>
-            </div>
-          </div>
-
-          <LatestAlerts />
+          <LatestAlerts
+            alerts={alerts}
+            loading={alertsLoading}
+            error={alertsError}
+          />
         </section>
       </div>
     </div>

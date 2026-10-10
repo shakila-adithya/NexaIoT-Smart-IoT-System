@@ -1,10 +1,4 @@
-import {
-  BellRing,
-  ChevronRight,
-  FileChartColumn,
-  PlusCircle,
-  ScanLine,
-} from "lucide-react";
+import { BellRing, ChevronRight, FileChartColumn, PlusCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const actions = [
@@ -14,12 +8,6 @@ const actions = [
     icon: PlusCircle,
     tone: "bg-[#e8f8fb] text-[#08a9c4]",
     path: "/devices",
-  },
-  {
-    title: "Run diagnostics",
-    description: "Check network and sensor health",
-    icon: ScanLine,
-    tone: "bg-[#e8f7f2] text-[#16a57a]",
   },
   {
     title: "Generate report",
