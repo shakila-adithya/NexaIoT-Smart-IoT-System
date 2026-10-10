@@ -24,6 +24,7 @@ public class Device {
     private String status;
     private boolean powerOn;
     private DeviceCapabilities capabilities;
+    private CapabilityManifest capabilityManifest;
 
     private Instant createdAt;
     private Instant updatedAt;
@@ -102,6 +103,14 @@ public class Device {
 
     public void setCapabilities(DeviceCapabilities capabilities) {
         this.capabilities = capabilities;
+    }
+
+    public CapabilityManifest getCapabilityManifest() {
+        return capabilityManifest;
+    }
+
+    public void setCapabilityManifest(CapabilityManifest capabilityManifest) {
+        this.capabilityManifest = capabilityManifest;
     }
 
     public Instant getCreatedAt() {

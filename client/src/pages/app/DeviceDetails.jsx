@@ -2,20 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Activity,
-  Bot,
   CalendarDays,
   Cpu,
   Hash,
   KeyRound,
   MapPin,
   Pencil,
-  Leaf,
   Power,
   RadioTower,
   Save,
   Settings2,
   ShieldCheck,
-  Thermometer,
   Trash2,
   X,
 } from "lucide-react";
@@ -40,9 +37,13 @@ import {
 } from "../../api/devicesApi.js";
 import { getAlerts } from "../../api/alertsApi.js";
 import CapabilitySelector from "../../components/device/CapabilitySelector.jsx";
-import { normalizeCapabilities } from "../../config/deviceCapabilities.js";
+import CustomCapabilityBuilder from "../../components/device/CustomCapabilityBuilder.jsx";
 import {
-  DEVICE_METRIC_DEFINITIONS,
+  isManifestDevice,
+  normalizeCapabilityManifest,
+} from "../../config/capabilityManifest.js";
+import {
+  getMetricDefinitionForCapability,
   getMetricDomain,
   getMetricValue,
 } from "../../config/deviceMetricDefinitions.js";
@@ -165,22 +166,6 @@ function TelemetryCard({
   );
 }
 
-function DisabledToggle({ enabled = false }) {
-  return (
-    <div
-      className={`relative h-[22px] w-[38px] shrink-0 rounded-full ${
-        enabled ? "bg-[#08a9c4]" : "bg-[#dce8ee]"
-      } opacity-60`}
-    >
-      <span
-        className={`absolute top-[3px] h-4 w-4 rounded-full bg-white shadow-sm ${
-          enabled ? "left-[19px]" : "left-[3px]"
-        }`}
-      />
-    </div>
-  );
-}
-
 export default function DeviceDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -211,8 +196,9 @@ export default function DeviceDetails() {
     location: "",
   });
   const [editCapabilities, setEditCapabilities] = useState(
-    normalizeCapabilities(null),
+    { sensors: [], deviceMetrics: [], controls: [] },
   );
+  const [editManifestCapabilities, setEditManifestCapabilities] = useState([]);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -369,7 +355,18 @@ export default function DeviceDetails() {
       type: device?.type || "",
       location: device?.location || "",
     });
-    setEditCapabilities(normalizeCapabilities(device?.capabilities));
+    setEditCapabilities({
+      sensors: Array.isArray(device?.capabilities?.sensors)
+        ? device.capabilities.sensors
+        : [],
+      deviceMetrics: Array.isArray(device?.capabilities?.deviceMetrics)
+        ? device.capabilities.deviceMetrics
+        : [],
+      controls: Array.isArray(device?.capabilities?.controls)
+        ? device.capabilities.controls
+        : [],
+    });
+    setEditManifestCapabilities(normalizeCapabilityManifest(device));
 
     setEditError("");
     setShowEditModal(true);
@@ -407,12 +404,22 @@ export default function DeviceDetails() {
       setSaving(true);
       setEditError("");
 
-      const updatedDevice = await updateDevice(device.id, {
+      const payload = {
         name: editForm.name.trim(),
         type: editForm.type.trim(),
         location: editForm.location.trim(),
-        capabilities: editCapabilities,
-      });
+      };
+
+      if (isManifestDevice(device)) {
+        payload.capabilityManifest = {
+          version: 1,
+          capabilities: editManifestCapabilities,
+        };
+      } else {
+        payload.capabilities = editCapabilities;
+      }
+
+      const updatedDevice = await updateDevice(device.id, payload);
 
       setDevice(updatedDevice);
       setShowEditModal(false);
@@ -506,33 +513,27 @@ async function handlePowerToggle() {
         second: "2-digit",
       })
     : "—";
-  const configuredCapabilities = normalizeCapabilities(device.capabilities);
-  const supportedCapabilities = [
-    ...configuredCapabilities.sensors,
-    ...configuredCapabilities.deviceMetrics,
-  ].filter((capability) => DEVICE_METRIC_DEFINITIONS[capability]);
-  const liveMetricDefinitions = supportedCapabilities
-    .map((capability) => DEVICE_METRIC_DEFINITIONS[capability])
+  const configuredManifest = normalizeCapabilityManifest(device);
+  const supportedCapabilities = configuredManifest
+    .filter((capability) => capability.category !== "CONTROL")
+    .map(getMetricDefinitionForCapability)
     .filter(Boolean);
-  const supportsDigitalOutput = configuredCapabilities.controls.includes(
-    "DIGITAL_OUTPUT",
+  const configuredControls = configuredManifest.filter(
+    (capability) => capability.category === "CONTROL",
   );
-  const supportsTemperatureSetpoint = configuredCapabilities.controls.includes(
-    "TEMPERATURE_SETPOINT",
+  const supportsDigitalOutput = configuredControls.some(
+    (capability) => ["digitalOutput", "power"].includes(capability.key)
+      || ["digitalOutput", "power"].includes(capability.semanticType),
   );
-  const supportsAutoMode = configuredCapabilities.controls.includes("AUTO_MODE");
-  const supportsEcoSchedule = configuredCapabilities.controls.includes(
-    "ECO_SCHEDULE",
-  );
-  const hasConfiguredControl =
-    supportsDigitalOutput ||
-    supportsTemperatureSetpoint ||
-    supportsAutoMode ||
-    supportsEcoSchedule;
-  const effectiveSelectedMetric = supportedCapabilities.includes(selectedMetric)
+  const hasConfiguredControl = supportsDigitalOutput;
+  const effectiveSelectedMetric = supportedCapabilities.some(
+    (definition) => definition.key === selectedMetric,
+  )
     ? selectedMetric
-    : supportedCapabilities[0] || "";
-  const metricDefinition = DEVICE_METRIC_DEFINITIONS[effectiveSelectedMetric];
+    : supportedCapabilities[0]?.key || "";
+  const metricDefinition = supportedCapabilities.find(
+    (definition) => definition.key === effectiveSelectedMetric,
+  );
   const chartData = metricDefinition
     ? readings
         .map((reading) => ({
@@ -681,7 +682,7 @@ async function handlePowerToggle() {
           </div>
         </section>
         <section className="mt-4">
-          {liveMetricDefinitions.length === 0 ? (
+          {supportedCapabilities.length === 0 ? (
             <div className="rounded-[14px] border border-[#dce8ee] bg-white p-6 text-center shadow-[0_3px_12px_rgba(16,42,58,0.04)]">
               <p className="text-[12px] font-medium text-[#102a3a]">
                 No measurement capabilities configured for this device.
@@ -692,7 +693,7 @@ async function handlePowerToggle() {
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-              {liveMetricDefinitions.map((definition) => {
+              {supportedCapabilities.map((definition) => {
                 const value = getMetricValue(definition, latestReading);
                 const Icon = definition.icon;
 
@@ -729,7 +730,7 @@ async function handlePowerToggle() {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {liveMetricDefinitions.length > 0 ? (
+                {supportedCapabilities.length > 0 ? (
                   <label className="flex h-9 items-center gap-2 rounded-[9px] border border-[#dce8ee] bg-white px-2.5 text-[9px] text-[#6b8290]">
                     <span>Metric</span>
                     <select
@@ -737,7 +738,7 @@ async function handlePowerToggle() {
                       onChange={(event) => setSelectedMetric(event.target.value)}
                       className="max-w-[140px] bg-transparent text-[9px] font-medium text-[#102a3a] outline-none"
                     >
-                      {liveMetricDefinitions.map((definition) => (
+                      {supportedCapabilities.map((definition) => (
                         <option key={definition.key} value={definition.key}>
                           {definition.label}
                         </option>
@@ -919,72 +920,6 @@ async function handlePowerToggle() {
             </div>
             {hasConfiguredControl ? (
               <>
-                {supportsTemperatureSetpoint ? (
-                  <div className="mt-4 min-h-[104px] rounded-[14px] border border-[#e0edf1] bg-[#f8fbfd] p-4 opacity-70 shadow-[0_3px_10px_rgba(16,42,58,0.025)]">
-                    <div className="flex justify-between gap-3">
-                      <div className="flex min-w-0 flex-1 items-start gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eaf9fc] text-[#08a9c4]">
-                          <Thermometer size={15} />
-                        </div>
-                        <div className="min-w-0">
-                          <span className="text-[10px] font-semibold text-[#425c6b]">
-                            Temperature set point
-                          </span>
-                          <p className="mt-1 text-[8px] text-[#8da1ac]">
-                            Automatic temperature target
-                          </p>
-                        </div>
-                      </div>
-                      <span className="w-[38px] shrink-0 text-right text-[15px] font-semibold text-[#08a9c4]">
-                        —
-                      </span>
-                    </div>
-                    <div className="relative mt-4 h-1.5 rounded-full bg-[#dce8ee]">
-                      <span className="absolute left-0 top-0 h-1.5 w-[50%] rounded-full bg-[#a4dfe8]" />
-                      <span className="absolute left-[50%] top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[#08a9c4] shadow" />
-                    </div>
-                    <div className="mt-2 flex justify-between text-[8px] text-[#9aadb6]">
-                      <span>16°C</span>
-                      <span>28°C</span>
-                    </div>
-                  </div>
-                ) : null}
-                {supportsAutoMode ? (
-                  <div className="mt-3 flex min-h-[72px] items-center justify-between gap-4 rounded-[14px] border border-[#e0edf1] bg-[#f8fbfd] p-4 shadow-[0_3px_10px_rgba(16,42,58,0.025)]">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef4ff] text-[#4d7ee8]">
-                        <Bot size={15} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-semibold text-[#425c6b]">
-                          Auto mode
-                        </p>
-                        <p className="mt-1 text-[8px] leading-3 text-[#8da1ac]">
-                          Automatically control connected actuator
-                        </p>
-                      </div>
-                    </div>
-                    <DisabledToggle />
-                  </div>
-                ) : null}
-                {supportsEcoSchedule ? (
-                  <div className="mt-3 flex min-h-[72px] items-center justify-between gap-4 rounded-[14px] border border-[#e0edf1] bg-[#f8fbfd] p-4 shadow-[0_3px_10px_rgba(16,42,58,0.025)]">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eaf8f3] text-[#16a57a]">
-                        <Leaf size={15} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-semibold text-[#425c6b]">
-                          Eco schedule
-                        </p>
-                        <p className="mt-1 text-[8px] leading-3 text-[#8da1ac]">
-                          Energy-saving operating schedule
-                        </p>
-                      </div>
-                    </div>
-                    <DisabledToggle />
-                  </div>
-                ) : null}
                 {supportsDigitalOutput ? (
                   <>
                     <div className={`mt-3 flex min-h-[72px] items-center justify-between gap-4 rounded-[14px] border p-4 shadow-[0_3px_10px_rgba(16,42,58,0.025)] ${device.powerOn ? "border-[#b9e5eb] bg-[#eefafd]" : "border-[#e0edf1] bg-[#f8fbfd]"}`}>
@@ -1363,10 +1298,17 @@ async function handlePowerToggle() {
                       </div>
                     </div>
                   </section>
-                  <CapabilitySelector
-                    capabilities={editCapabilities}
-                    onChange={setEditCapabilities}
-                  />
+                  {isManifestDevice(device) ? (
+                    <CustomCapabilityBuilder
+                      capabilities={editManifestCapabilities}
+                      onChange={setEditManifestCapabilities}
+                    />
+                  ) : (
+                    <CapabilitySelector
+                      capabilities={editCapabilities}
+                      onChange={setEditCapabilities}
+                    />
+                  )}
                   <section className="rounded-[14px] border border-[#dce8ee] bg-[#f8fbfd] p-4 sm:p-5">
                     <div className="flex items-center gap-2">
                       <RadioTower size={15} className="text-[#08a9c4]" />

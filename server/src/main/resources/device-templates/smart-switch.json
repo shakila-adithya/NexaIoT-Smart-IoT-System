@@ -1,0 +1,25 @@
+{
+  "templateId": "smart-switch",
+  "version": 1,
+  "name": "Smart Switch",
+  "category": "CONTROL",
+  "description": "Controls a simple digital power output.",
+  "enabled": true,
+  "capabilityManifest": {
+    "version": 1,
+    "source": "TEMPLATE",
+    "templateId": "smart-switch",
+    "capabilities": [
+      {
+        "key": "power",
+        "name": "Power",
+        "category": "CONTROL",
+        "dataType": "BOOLEAN",
+        "semanticType": "power",
+        "readOnly": false,
+        "chartable": false,
+        "control": { "type": "SWITCH" }
+      }
+    ]
+  }
+}

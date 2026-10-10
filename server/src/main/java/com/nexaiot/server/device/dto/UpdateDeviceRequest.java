@@ -3,6 +3,7 @@ package com.nexaiot.server.device.dto;
 import jakarta.validation.constraints.Size;
 
 import com.nexaiot.server.device.DeviceCapabilities;
+import com.nexaiot.server.device.CapabilityManifest;
 
 public class UpdateDeviceRequest {
 
@@ -16,6 +17,7 @@ public class UpdateDeviceRequest {
     private String location;
 
     private DeviceCapabilities capabilities;
+    private CapabilityManifest capabilityManifest;
 
     public UpdateDeviceRequest() {
     }
@@ -50,5 +52,13 @@ public class UpdateDeviceRequest {
 
     public void setCapabilities(DeviceCapabilities capabilities) {
         this.capabilities = capabilities;
+    }
+
+    public CapabilityManifest getCapabilityManifest() {
+        return capabilityManifest;
+    }
+
+    public void setCapabilityManifest(CapabilityManifest capabilityManifest) {
+        this.capabilityManifest = capabilityManifest;
     }
 }

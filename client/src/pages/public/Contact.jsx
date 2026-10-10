@@ -4,7 +4,7 @@ import Card from "../../components/ui/Card.jsx";
 import Input from "../../components/ui/Input.jsx";
 import Button from "../../components/ui/Button.jsx";
 import EditorialVisual from "../../components/ui/EditorialVisual.jsx";
-import { useToast } from "../../context/ToastContext.jsx";
+import { useToast } from "../../hooks/useToast.js";
 
 const infoCards = [
   { icon: Mail, title: "Email", value: "hello@nexaiot.dev" },

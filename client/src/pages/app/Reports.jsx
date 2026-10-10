@@ -27,9 +27,10 @@ import {
   getDeviceReadings,
   getDevices,
 } from "../../api/devicesApi.js";
-import { normalizeCapabilities } from "../../config/deviceCapabilities.js";
+import { normalizeCapabilityManifest } from "../../config/capabilityManifest.js";
 import {
   DEVICE_METRIC_DEFINITIONS,
+  getMetricDefinitionForCapability,
   getMetricDomain,
   getMetricValue,
 } from "../../config/deviceMetricDefinitions.js";
@@ -298,39 +299,38 @@ export default function Reports() {
   }, []);
 
   const selectedDevice = devices.find((device) => device.id === selectedDeviceId) || null;
-  const configuredCapabilities = normalizeCapabilities(selectedDevice?.capabilities);
-  const supportedCapabilities = [
-    ...configuredCapabilities.sensors,
-    ...configuredCapabilities.deviceMetrics,
-  ].filter((capability) => DEVICE_METRIC_DEFINITIONS[capability]);
+  const configuredCapabilities = normalizeCapabilityManifest(selectedDevice);
+  const supportedCapabilities = configuredCapabilities
+    .filter((capability) => capability.category !== "CONTROL");
   const metricDefinitions = supportedCapabilities
-    .filter((capability) => capability !== "ENERGY_CONSUMPTION")
-    .map((capability) => DEVICE_METRIC_DEFINITIONS[capability])
+    .filter((capability) => capability.key !== "energyConsumption")
+    .map(getMetricDefinitionForCapability)
     .filter(Boolean);
-  const energyConsumptionConfigured = configuredCapabilities.deviceMetrics.includes(
-    "ENERGY_CONSUMPTION",
+  const energyConsumptionConfigured = supportedCapabilities.some(
+    (capability) => capability.key === "energyConsumption",
   );
-  const effectiveSelectedMetric = supportedCapabilities.includes(selectedMetric)
+  const effectiveSelectedMetric = supportedCapabilities.some(
+    (capability) => capability.key === selectedMetric,
+  )
     ? selectedMetric
-    : supportedCapabilities[0] || "";
+    : supportedCapabilities[0]?.key || "";
   const selectedMetricDefinition =
-    DEVICE_METRIC_DEFINITIONS[effectiveSelectedMetric];
+    getMetricDefinitionForCapability(
+      supportedCapabilities.find((capability) => capability.key === effectiveSelectedMetric),
+    );
   const sortedReadings = useMemo(
     () => readings.slice().sort((first, second) => new Date(first.receivedAt) - new Date(second.receivedAt)),
     [readings],
   );
 
-  const chartData = useMemo(
-    () => (selectedMetricDefinition
-      ? sortedReadings
-          .map((reading) => ({
-            time: reading.receivedAt || "",
-            value: getMetricValue(selectedMetricDefinition, reading),
-          }))
-          .filter((point) => Number.isFinite(point.value))
-      : []),
-    [selectedMetricDefinition, sortedReadings],
-  );
+  const chartData = selectedMetricDefinition
+    ? sortedReadings
+        .map((reading) => ({
+          time: reading.receivedAt || "",
+          value: getMetricValue(selectedMetricDefinition, reading),
+        }))
+        .filter((point) => Number.isFinite(point.value))
+    : [];
   const latestReading = sortedReadings[sortedReadings.length - 1] || null;
   const latestBattery = getMetricValue(
     DEVICE_METRIC_DEFINITIONS.BATTERY,
@@ -343,6 +343,9 @@ export default function Reports() {
   const metricDomain = getMetricDomain(
     selectedMetricDefinition,
     chartData.map((point) => point.value),
+  );
+  const hasConfiguredCapability = (key) => configuredCapabilities.some(
+    (capability) => capability.key === key,
   );
   const alertFrequency = useMemo(() => {
     const now = alertNow;
@@ -479,7 +482,7 @@ export default function Reports() {
                     <label className="flex h-9 items-center gap-2 rounded-[9px] border border-[#dce8ee] bg-white px-2.5 text-[9px] text-[#6b8290]">
                       <span>Metric</span>
                       <select value={effectiveSelectedMetric} onChange={(event) => setSelectedMetric(event.target.value)} className="max-w-[140px] bg-transparent text-[9px] font-medium text-[#102a3a] outline-none">
-                        {metricDefinitions.map((definition) => <option key={definition.key} value={supportedCapabilities[metricDefinitions.indexOf(definition)]}>{definition.label}</option>)}
+                        {metricDefinitions.map((definition) => <option key={definition.key} value={definition.key}>{definition.label}</option>)}
                       </select>
                     </label>
                   </div>
@@ -523,9 +526,9 @@ export default function Reports() {
                     </span>
                   </div>
 
-                  {configuredCapabilities.deviceMetrics.includes("BATTERY") || configuredCapabilities.deviceMetrics.includes("RSSI") ? (
+                  {hasConfiguredCapability("battery") || hasConfiguredCapability("rssi") ? (
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      {configuredCapabilities.deviceMetrics.includes("BATTERY") ? (
+                      {hasConfiguredCapability("battery") ? (
                         <div className="rounded-[12px] border border-[#e7eff3] bg-white p-3.5">
                           <div className="flex items-center gap-2 text-[#16a57a]"><BatteryMedium size={15} /><span className="text-[9px] font-semibold uppercase tracking-[0.06em] text-[#6b8290]">Battery</span></div>
                           <p className="mt-3 text-[21px] font-semibold tracking-[-0.03em] text-[#102a3a]">{formatValue(latestBattery)}{Number.isFinite(latestBattery) ? "%" : ""}</p>
@@ -533,7 +536,7 @@ export default function Reports() {
                           <p className="mt-2 text-[9px] text-[#8ba0ab]">Latest reported battery level</p>
                         </div>
                       ) : null}
-                      {configuredCapabilities.deviceMetrics.includes("RSSI") ? (
+                      {hasConfiguredCapability("rssi") ? (
                         <div className="rounded-[12px] border border-[#e7eff3] bg-white p-3.5">
                           <div className="flex items-center gap-2 text-[#4d7ee8]"><Wifi size={15} /><span className="text-[9px] font-semibold uppercase tracking-[0.06em] text-[#6b8290]">Signal</span></div>
                           <p className="mt-3 text-[21px] font-semibold tracking-[-0.03em] text-[#102a3a]">{formatValue(latestRssi, 0)}{Number.isFinite(latestRssi) ? " dBm" : ""}</p>
@@ -582,8 +585,8 @@ export default function Reports() {
                     <div className="flex items-center gap-2"><Lightbulb size={15} className="text-[#08a9c4]" /><h2 className="text-[14px] font-semibold text-[#102a3a]">Efficiency insights</h2></div>
                     <p className="mt-1 text-[9px] text-[#8ba0ab]">Automated findings from available telemetry</p>
                     <div className="mt-4 space-y-2">
-                      {configuredCapabilities.deviceMetrics.includes("BATTERY") ? <div className="rounded-[10px] bg-[#eaf8f3] p-3"><p className="text-[9px] font-medium text-[#16815f]">Battery telemetry</p><p className="mt-1 text-[8px] text-[#6b8290]">{Number.isFinite(latestBattery) ? `Latest reported level: ${formatValue(latestBattery)}%` : "No battery reading available"}</p></div> : null}
-                      {configuredCapabilities.deviceMetrics.includes("RSSI") ? <div className="rounded-[10px] bg-[#fff4df] p-3"><p className="text-[9px] font-medium text-[#a36a0a]">Signal quality</p><p className="mt-1 text-[8px] text-[#6b8290]">{Number.isFinite(latestRssi) ? `${latestSignalLabel} at ${formatValue(latestRssi, 0)} dBm` : "No RSSI reading available"}</p></div> : null}
+                      {hasConfiguredCapability("battery") ? <div className="rounded-[10px] bg-[#eaf8f3] p-3"><p className="text-[9px] font-medium text-[#16815f]">Battery telemetry</p><p className="mt-1 text-[8px] text-[#6b8290]">{Number.isFinite(latestBattery) ? `Latest reported level: ${formatValue(latestBattery)}%` : "No battery reading available"}</p></div> : null}
+                      {hasConfiguredCapability("rssi") ? <div className="rounded-[10px] bg-[#fff4df] p-3"><p className="text-[9px] font-medium text-[#a36a0a]">Signal quality</p><p className="mt-1 text-[8px] text-[#6b8290]">{Number.isFinite(latestRssi) ? `${latestSignalLabel} at ${formatValue(latestRssi, 0)} dBm` : "No RSSI reading available"}</p></div> : null}
                       <div className="rounded-[10px] bg-[#eef4ff] p-3"><p className="text-[9px] font-medium text-[#416ac2]">Range coverage</p><p className="mt-1 text-[8px] text-[#6b8290]">{chartData.length} telemetry samples available</p></div>
                     </div>
                   </section>

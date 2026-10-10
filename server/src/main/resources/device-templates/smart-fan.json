@@ -1,0 +1,36 @@
+{
+  "templateId": "smart-fan",
+  "version": 1,
+  "name": "Smart Fan",
+  "category": "CONTROL",
+  "description": "Measures temperature and controls fan power.",
+  "enabled": true,
+  "capabilityManifest": {
+    "version": 1,
+    "source": "TEMPLATE",
+    "templateId": "smart-fan",
+    "capabilities": [
+      {
+        "key": "temperature",
+        "name": "Temperature",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "°C",
+        "semanticType": "temperature",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      },
+      {
+        "key": "power",
+        "name": "Power",
+        "category": "CONTROL",
+        "dataType": "BOOLEAN",
+        "semanticType": "power",
+        "readOnly": false,
+        "chartable": false,
+        "control": { "type": "SWITCH" }
+      }
+    ]
+  }
+}

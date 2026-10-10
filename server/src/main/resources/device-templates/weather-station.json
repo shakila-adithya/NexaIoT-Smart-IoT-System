@@ -1,0 +1,59 @@
+{
+  "templateId": "weather-station",
+  "version": 1,
+  "name": "Weather Station",
+  "category": "ENVIRONMENTAL",
+  "description": "Reports common outdoor weather measurements.",
+  "enabled": true,
+  "capabilityManifest": {
+    "version": 1,
+    "source": "TEMPLATE",
+    "templateId": "weather-station",
+    "capabilities": [
+      {
+        "key": "temperature",
+        "name": "Temperature",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "°C",
+        "semanticType": "temperature",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      },
+      {
+        "key": "humidity",
+        "name": "Humidity",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "%",
+        "semanticType": "humidity",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      },
+      {
+        "key": "rainfall",
+        "name": "Rainfall",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "mm",
+        "semanticType": "rainfall",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      },
+      {
+        "key": "windSpeed",
+        "name": "Wind Speed",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "m/s",
+        "semanticType": "windSpeed",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      }
+    ]
+  }
+}

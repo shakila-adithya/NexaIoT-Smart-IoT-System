@@ -1,0 +1,48 @@
+{
+  "templateId": "soil-moisture-sensor",
+  "version": 1,
+  "name": "Soil Moisture Sensor",
+  "category": "AGRICULTURE",
+  "description": "Measures soil moisture with device health metrics.",
+  "enabled": true,
+  "capabilityManifest": {
+    "version": 1,
+    "source": "TEMPLATE",
+    "templateId": "soil-moisture-sensor",
+    "capabilities": [
+      {
+        "key": "soilMoisture",
+        "name": "Soil Moisture",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "%",
+        "semanticType": "soilMoisture",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      },
+      {
+        "key": "battery",
+        "name": "Battery",
+        "category": "DEVICE_METRIC",
+        "dataType": "NUMBER",
+        "unit": "%",
+        "semanticType": "battery",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      },
+      {
+        "key": "rssi",
+        "name": "Signal Strength",
+        "category": "DEVICE_METRIC",
+        "dataType": "NUMBER",
+        "unit": "dBm",
+        "semanticType": "rssi",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      }
+    ]
+  }
+}

@@ -9,15 +9,22 @@ import org.springframework.stereotype.Service;
 import com.nexaiot.server.device.dto.CreateDeviceRequest;
 import com.nexaiot.server.device.dto.DeviceResponse;
 import com.nexaiot.server.device.dto.UpdateDeviceRequest;
+import com.nexaiot.server.device.template.DeviceTemplate;
+import com.nexaiot.server.device.template.DeviceTemplateService;
 
 @Service
 public class DeviceService {
 
     private final DeviceRepository deviceRepository;
+    private final DeviceTemplateService deviceTemplateService;
     private static final long ONLINE_TIMEOUT_SECONDS = 5;
 
-    public DeviceService(DeviceRepository deviceRepository) {
+    public DeviceService(
+            DeviceRepository deviceRepository,
+            DeviceTemplateService deviceTemplateService
+    ) {
         this.deviceRepository = deviceRepository;
+        this.deviceTemplateService = deviceTemplateService;
     }
 
     public DeviceResponse createDevice(
@@ -33,6 +40,38 @@ public class DeviceService {
         device.setType(request.getType().trim());
         device.setLocation(request.getLocation().trim());
         device.setCapabilities(request.getCapabilities());
+        boolean hasTemplateId = request.getTemplateId() != null
+                && !request.getTemplateId().isBlank();
+        boolean hasCustomManifest = request.getCapabilityManifest() != null;
+
+        if (hasTemplateId && hasCustomManifest) {
+            throw new IllegalArgumentException(
+                    "Provide either templateId or capabilityManifest, not both."
+            );
+        }
+
+        if (hasTemplateId) {
+            DeviceTemplate template = deviceTemplateService.getTemplate(request.getTemplateId().trim());
+            device.setCapabilityManifest(
+                    CapabilityManifestCopier.copy(template.getCapabilityManifest())
+            );
+        } else if (hasCustomManifest) {
+            CapabilityManifest customManifest = CapabilityManifestCopier.copy(
+                    request.getCapabilityManifest()
+            );
+            customManifest.setSource(CapabilityManifestSource.CUSTOM);
+            customManifest.setTemplateId(null);
+
+            if (customManifest.getCapabilities() == null
+                    || customManifest.getCapabilities().isEmpty()
+                    || !CapabilityManifestValidator.isValid(customManifest)) {
+                throw new IllegalArgumentException(
+                        "Invalid custom capability manifest."
+                );
+            }
+
+            device.setCapabilityManifest(customManifest);
+        }
         device.setStatus("OFFLINE");
         device.setPowerOn(false);
         device.setCreatedAt(now);
@@ -83,6 +122,30 @@ public class DeviceService {
             device.setCapabilities(request.getCapabilities());
         }
 
+        if (request.getCapabilityManifest() != null) {
+            if (device.getCapabilityManifest() == null) {
+                throw new IllegalArgumentException(
+                        "This device does not use a capability manifest."
+                );
+            }
+
+            CapabilityManifest manifest = CapabilityManifestCopier.copy(
+                    request.getCapabilityManifest()
+            );
+            manifest.setSource(device.getCapabilityManifest().getSource());
+            manifest.setTemplateId(device.getCapabilityManifest().getTemplateId());
+
+            if (manifest.getCapabilities() == null
+                    || manifest.getCapabilities().isEmpty()
+                    || !CapabilityManifestValidator.isValid(manifest)) {
+                throw new IllegalArgumentException(
+                        "Invalid capability manifest."
+                );
+            }
+
+            device.setCapabilityManifest(manifest);
+        }
+
         device.setUpdatedAt(Instant.now());
 
         Device updatedDevice = deviceRepository.save(device);
@@ -97,6 +160,31 @@ public class DeviceService {
         Device device = findOwnedDevice(deviceId, ownerEmail);
 
         deviceRepository.delete(device);
+    }
+
+    public DeviceResponse getControllableDevice(
+            String deviceId,
+            String ownerEmail
+    ) {
+        Device device = findOwnedDevice(deviceId, ownerEmail);
+        boolean supportsPower = CapabilityManifestAdapter.effectiveManifest(device)
+                .getCapabilities()
+                .stream()
+                .anyMatch(definition ->
+                        definition.getCategory() == CapabilityCategory.CONTROL
+                                && ("power".equals(definition.getKey())
+                                || "digitalOutput".equals(definition.getKey())
+                                || "power".equals(definition.getSemanticType())
+                                || "digitalOutput".equals(definition.getSemanticType()))
+                );
+
+        if (!supportsPower) {
+            throw new IllegalArgumentException(
+                    "This device does not support power control."
+            );
+        }
+
+        return toResponse(device);
     }
 
     private Device findOwnedDevice(
@@ -148,7 +236,8 @@ public class DeviceService {
                 device.getCreatedAt(),
                 device.getUpdatedAt(),
                 device.getLastSeenAt(),
-                device.getCapabilities()
+                device.getCapabilities(),
+                CapabilityManifestAdapter.effectiveManifest(device)
         );
     }
 

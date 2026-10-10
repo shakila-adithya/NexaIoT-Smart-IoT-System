@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import com.nexaiot.server.device.DeviceCapabilities;
+import com.nexaiot.server.device.CapabilityManifest;
 
 public class CreateDeviceRequest {
 
@@ -20,6 +21,8 @@ public class CreateDeviceRequest {
     private String location;
 
     private DeviceCapabilities capabilities;
+    private String templateId;
+    private CapabilityManifest capabilityManifest;
 
     public CreateDeviceRequest() {
     }
@@ -54,5 +57,21 @@ public class CreateDeviceRequest {
 
     public void setCapabilities(DeviceCapabilities capabilities) {
         this.capabilities = capabilities;
+    }
+
+    public String getTemplateId() {
+        return templateId;
+    }
+
+    public void setTemplateId(String templateId) {
+        this.templateId = templateId;
+    }
+
+    public CapabilityManifest getCapabilityManifest() {
+        return capabilityManifest;
+    }
+
+    public void setCapabilityManifest(CapabilityManifest capabilityManifest) {
+        this.capabilityManifest = capabilityManifest;
     }
 }

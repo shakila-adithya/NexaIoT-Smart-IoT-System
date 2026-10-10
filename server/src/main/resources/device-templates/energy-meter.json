@@ -1,0 +1,59 @@
+{
+  "templateId": "energy-meter",
+  "version": 1,
+  "name": "Energy Meter",
+  "category": "ENERGY",
+  "description": "Reports electrical voltage, current, power, and energy consumption.",
+  "enabled": true,
+  "capabilityManifest": {
+    "version": 1,
+    "source": "TEMPLATE",
+    "templateId": "energy-meter",
+    "capabilities": [
+      {
+        "key": "voltage",
+        "name": "Voltage",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "V",
+        "semanticType": "voltage",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      },
+      {
+        "key": "current",
+        "name": "Current",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "A",
+        "semanticType": "current",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      },
+      {
+        "key": "power",
+        "name": "Power",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "W",
+        "semanticType": "power",
+        "valueKind": "GAUGE",
+        "readOnly": true,
+        "chartable": true
+      },
+      {
+        "key": "energyConsumption",
+        "name": "Energy Consumption",
+        "category": "MEASUREMENT",
+        "dataType": "NUMBER",
+        "unit": "kWh",
+        "semanticType": "energyConsumption",
+        "valueKind": "COUNTER",
+        "readOnly": true,
+        "chartable": true
+      }
+    ]
+  }
+}

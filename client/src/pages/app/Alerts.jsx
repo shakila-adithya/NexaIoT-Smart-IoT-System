@@ -125,10 +125,15 @@ function formatValue(value, type) {
   return String(value);
 }
 
-function getAlertIcon(type) {
-  if (type?.includes("TEMPERATURE")) return Thermometer;
-  if (type === "DEVICE_OFFLINE") return XCircle;
-  return AlertCircle;
+const alertIconMap = {
+  TEMPERATURE_HIGH: Thermometer,
+  TEMPERATURE_LOW: Thermometer,
+  DEVICE_OFFLINE: XCircle,
+};
+
+function AlertIcon({ type, ...props }) {
+  const Icon = alertIconMap[type] || AlertCircle;
+  return <Icon {...props} />;
 }
 
 function isWithinDateRange(value, range) {
@@ -185,8 +190,6 @@ function SummaryCard({ icon: Icon, value, label, note, tone }) {
 function AlertRow({ alert, selected, onSelect }) {
   const styles = severityStyles[alert.severity] || severityStyles.INFO;
   const status = statusStyles[alert.status] || statusStyles.ACTIVE;
-  const Icon = getAlertIcon(alert.type);
-
   return (
     <button
       type="button"
@@ -194,7 +197,7 @@ function AlertRow({ alert, selected, onSelect }) {
       className={`flex w-full items-center gap-3 border-b px-3.5 py-3 text-left transition last:border-b-0 hover:bg-[#f8fbfd] sm:px-4 ${status.row} ${selected ? status.selected : ""}`}
     >
       <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] ${styles.icon}`}>
-        <Icon size={16} />
+        <AlertIcon type={alert.type} size={16} />
       </div>
 
       <div className="min-w-0 flex-1">
@@ -236,7 +239,6 @@ function AlertDetails({ alert, updatingId, deletingId, onAcknowledge, onResolve,
 
   const styles = severityStyles[alert.severity] || severityStyles.INFO;
   const status = statusStyles[alert.status] || statusStyles.ACTIVE;
-  const Icon = getAlertIcon(alert.type);
   const isUpdating = updatingId === alert.id;
   const isDeleting = deletingId === alert.id;
 
@@ -255,7 +257,7 @@ function AlertDetails({ alert, updatingId, deletingId, onAcknowledge, onResolve,
       <h2 className="mt-3 text-[17px] font-normal leading-6 text-[#102a3a]">{alert.message || formatType(alert.type)}</h2>
 
       <div className={`mt-4 rounded-[10px] border p-3 text-[10px] leading-4 ${styles.panel}`}>
-        <div className="flex items-start gap-2"><Icon size={15} className="mt-0.5 shrink-0" /><span>{getRecommendation(alert.type)}</span></div>
+        <div className="flex items-start gap-2"><AlertIcon type={alert.type} size={15} className="mt-0.5 shrink-0" /><span>{getRecommendation(alert.type)}</span></div>
       </div>
 
       {alert.type !== "DEVICE_OFFLINE" ? (
@@ -425,11 +427,6 @@ export default function Alerts() {
   }, [alerts, dateRange, deviceFilter, search, severityFilter, statusTab]);
 
   const selectedAlert = filteredAlerts.find((alert) => alert.id === selectedAlertId) || filteredAlerts[0] || null;
-
-  useEffect(() => {
-    if (selectedAlert && selectedAlert.id !== selectedAlertId) setSelectedAlertId(selectedAlert.id);
-    if (!selectedAlert && selectedAlertId) setSelectedAlertId("");
-  }, [selectedAlert, selectedAlertId]);
 
   async function updateAlert(id, action) {
     try {
