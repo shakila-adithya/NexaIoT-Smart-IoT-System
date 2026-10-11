@@ -22,6 +22,9 @@ public interface AlertRepository extends MongoRepository<Alert, String> {
             String ownerEmail
     );
 
+    List<Alert> findByDeviceIdAndOwnerEmailAndCreatedAtBetweenOrderByCreatedAtAsc(
+            String deviceId, String ownerEmail, java.time.Instant from, java.time.Instant to);
+
     Optional<Alert> findFirstByDeviceIdAndOwnerEmailAndTypeAndStatusIn(
             String deviceId,
             String ownerEmail,

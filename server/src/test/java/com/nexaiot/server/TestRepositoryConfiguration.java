@@ -15,6 +15,7 @@ import com.nexaiot.server.device.DeviceRepository;
 import com.nexaiot.server.repository.UserRepository;
 import com.nexaiot.server.sensor.SensorReadingRepository;
 import com.nexaiot.server.task.MaintenanceTaskRepository;
+import com.nexaiot.server.report.GeneratedReportRepository;
 
 @TestConfiguration(proxyBeanMethods = false)
 class TestRepositoryConfiguration {
@@ -52,6 +53,11 @@ class TestRepositoryConfiguration {
     @Bean
     MaintenanceTaskRepository maintenanceTaskRepository() {
         return repositoryStub(MaintenanceTaskRepository.class);
+    }
+
+    @Bean
+    GeneratedReportRepository generatedReportRepository() {
+        return repositoryStub(GeneratedReportRepository.class);
     }
 
     @SuppressWarnings("unchecked")

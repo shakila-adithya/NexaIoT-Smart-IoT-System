@@ -52,12 +52,11 @@ public class SensorReadingController {
     public List<SensorReadingResponse> getHistory(
         @PathVariable String deviceId,
         @RequestParam(defaultValue = "1h") String range,
+        @RequestParam(defaultValue = "false") boolean raw,
         Authentication authentication
     ) {
-        return sensorReadingService.getHistory(
-            deviceId,
-            authentication.getName(),
-            range
-        );
+        return raw
+            ? sensorReadingService.getRawHistory(deviceId, authentication.getName(), range)
+            : sensorReadingService.getHistory(deviceId, authentication.getName(), range);
     }
 }

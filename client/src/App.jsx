@@ -24,6 +24,7 @@ import Reports from "./pages/app/Reports.jsx";
 import Profile from "./pages/app/Profile.jsx";
 import SettingsPage from "./pages/app/Settings.jsx";
 import Tasks from "./pages/app/Tasks.jsx";
+import ReportDetails from "./pages/app/ReportDetails.jsx";
 
 export default function App() {
   const { pathname } = useLocation();
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/alerts/rules" element={<AlertRules />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/reports/:id" element={<ReportDetails />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/tasks" element={<Tasks />} />
