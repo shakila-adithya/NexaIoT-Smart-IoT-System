@@ -3,6 +3,7 @@ package com.nexaiot.server.exception;
 import com.nexaiot.server.device.DeviceNotFoundException;
 import com.nexaiot.server.alert.AlertNotFoundException;
 import com.nexaiot.server.alert.AlertRuleNotFoundException;
+import com.nexaiot.server.task.MaintenanceTaskNotFoundException;
 import com.nexaiot.server.device.template.DeviceTemplateNotFoundException;
 
 import org.springframework.http.HttpStatus;
@@ -83,6 +84,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
                 .body(Map.of("message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(MaintenanceTaskNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleMaintenanceTaskNotFound(MaintenanceTaskNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", ex.getMessage()));
     }
 
     @ExceptionHandler(DeviceTemplateNotFoundException.class)

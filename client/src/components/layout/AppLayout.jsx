@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Bell,
+  ClipboardCheck,
   ChartNoAxesCombined,
   ChevronDown,
   Cpu,
@@ -23,6 +24,7 @@ const navigation = [
   { name: "Devices", path: "/devices", icon: Cpu },
   { name: "Alerts", path: "/alerts", icon: TriangleAlert },
   { name: "Reports", path: "/reports", icon: ChartNoAxesCombined },
+  { name: "Tasks", path: "/tasks", icon: ClipboardCheck },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 

@@ -227,7 +227,7 @@ function AlertRow({ alert, selected, onSelect }) {
   );
 }
 
-function AlertDetails({ alert, updatingId, deletingId, onAcknowledge, onResolve, onDelete }) {
+function AlertDetails({ alert, updatingId, deletingId, onAcknowledge, onResolve, onDelete, onCreateTask }) {
   if (!alert) {
     return (
       <aside className="flex min-h-[360px] items-center justify-center rounded-[14px] border border-[#dce8ee] bg-white p-5 text-center shadow-[0_5px_18px_rgba(10,48,72,0.05)]">
@@ -298,7 +298,7 @@ function AlertDetails({ alert, updatingId, deletingId, onAcknowledge, onResolve,
           </button>
         ) : null}
 
-        <button type="button" disabled title="Task creation will be available in a future release" className="inline-flex min-h-[44px] w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-[9px] border border-[#dce8ee] bg-white px-3.5 text-[10px] font-semibold text-[#9aaeba]">
+        <button type="button" onClick={() => onCreateTask(alert.id)} className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[9px] border border-[#dce8ee] bg-white px-3.5 text-[10px] font-semibold text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98]">
           <ClipboardCheck size={13} /> Create task
         </button>
 
@@ -568,7 +568,7 @@ export default function Alerts() {
               {filteredAlerts.length > 0 && counts.totalActive === 0 ? <div className="flex items-center gap-3 border-t border-[#d9eee7] bg-[#eaf8f3] px-4 py-3"><CheckCircle2 size={18} className="text-[#16a57a]" /><div><p className="text-[10px] font-medium text-[#16815f]">No other urgent alerts</p><p className="text-[9px] text-[#6b8290]">All monitored conditions are within safe limits.</p></div></div> : null}
             </div>
 
-            <AlertDetails alert={selectedAlert} updatingId={updatingId} deletingId={deletingId} onAcknowledge={(id) => updateAlert(id, "acknowledge")} onResolve={(id) => updateAlert(id, "resolve")} onDelete={setDeleteTargetId} />
+            <AlertDetails alert={selectedAlert} updatingId={updatingId} deletingId={deletingId} onAcknowledge={(id) => updateAlert(id, "acknowledge")} onResolve={(id) => updateAlert(id, "resolve")} onDelete={setDeleteTargetId} onCreateTask={(id) => navigate(`/tasks?alertId=${encodeURIComponent(id)}`)} />
           </section>
         )}
 
