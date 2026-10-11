@@ -623,13 +623,12 @@ async function handlePowerToggle() {
                   {device.type}
                 </span>
                 <span className="text-[9px] text-[#9aaeba]">
-                  Telemetry not connected
+                  {isOnline ? "Telemetry reporting" : "Telemetry unavailable while offline"}
                 </span>
               </div>
               <p className="mt-2 max-w-[660px] text-[10px] leading-[17px] text-[#6b8290] sm:text-[11px] sm:leading-5">
                 Registered NexaIoT device located at {device.location}. Live
-                telemetry, diagnostics and remote controls will become
-                available after MQTT integration.
+                telemetry and supported remote controls are available when the device is online.
               </p>
               <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-[8px] text-[#7d929e] sm:text-[9px]">
                 <span className="flex items-center gap-1.5">
@@ -638,7 +637,7 @@ async function handlePowerToggle() {
                 </span>
                 <span className="flex items-center gap-1.5">
                   <RadioTower size={12} />
-                  MQTT pending
+                  {isOnline ? "Telemetry reporting" : "Awaiting telemetry"}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CalendarDays size={12} />
@@ -1008,7 +1007,7 @@ async function handlePowerToggle() {
                 Activity & logs
               </h2>
               <span className="text-[9px] text-[#08a9c4]">
-                Live events later
+                Device timeline
               </span>
             </div>
             <div className="mt-4 flex gap-3">
@@ -1032,10 +1031,10 @@ async function handlePowerToggle() {
               <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#dce8ee]" />
               <div className="min-w-0">
                 <p className="text-[10px] font-medium text-[#102a3a]">
-                  Waiting for device events
+                  No additional device events available
                 </p>
                 <p className="mt-1 text-[9px] leading-4 text-[#6b8290]">
-                  MQTT activity and sensor events will appear here.
+                  Event history is not available in this release.
                 </p>
               </div>
             </div>
@@ -1081,7 +1080,7 @@ async function handlePowerToggle() {
               <div className="flex justify-between gap-4 text-[9px]">
                 <span className="text-[#8ba0ab]">Connectivity</span>
                 <span className="font-semibold text-[#425c6b]">
-                  MQTT pending
+                  {isOnline ? "Telemetry reporting" : "Awaiting telemetry"}
                 </span>
               </div>
               <div className="flex justify-between gap-4 text-[9px]">

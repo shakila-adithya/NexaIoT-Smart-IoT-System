@@ -8,6 +8,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.nexaiot.server.device.Device;
+import com.nexaiot.server.device.CapabilityCategory;
+import com.nexaiot.server.device.CapabilityDataType;
+import com.nexaiot.server.device.CapabilityDefinition;
+import com.nexaiot.server.device.CapabilityManifestAdapter;
 import com.nexaiot.server.sensor.SensorReading;
 
 @Service
@@ -19,6 +23,7 @@ public class AlertEvaluationService {
     );
 
     private final AlertRepository alertRepository;
+    private final AlertRuleRepository alertRuleRepository;
     private final double temperatureHighThreshold;
     private final double temperatureLowThreshold;
     private final double batteryLowThreshold;
@@ -28,6 +33,7 @@ public class AlertEvaluationService {
 
     public AlertEvaluationService(
             AlertRepository alertRepository,
+            AlertRuleRepository alertRuleRepository,
             @Value("${alerts.temperature-high-threshold}")
             double temperatureHighThreshold,
             @Value("${alerts.temperature-low-threshold}")
@@ -42,6 +48,7 @@ public class AlertEvaluationService {
             double rssiWeakThreshold
     ) {
         this.alertRepository = alertRepository;
+        this.alertRuleRepository = alertRuleRepository;
         this.temperatureHighThreshold = temperatureHighThreshold;
         this.temperatureLowThreshold = temperatureLowThreshold;
         this.batteryLowThreshold = batteryLowThreshold;
@@ -52,11 +59,20 @@ public class AlertEvaluationService {
 
     public void evaluate(Device device, SensorReading reading) {
         Map<String, Double> metrics = reading.getMetrics();
+        var enabledRules = alertRuleRepository.findByDeviceIdAndOwnerEmailAndEnabledTrue(
+                device.getId(), device.getOwnerEmail());
+        var customMetricKeys = enabledRules.stream()
+                .filter(rule -> rule.getRuleType() == AlertRuleType.METRIC_THRESHOLD)
+                .map(AlertRule::getMetricKey)
+                .filter(key -> key != null && !key.isBlank())
+                .collect(java.util.stream.Collectors.toSet());
+
+        evaluateCustomMetricRules(device, reading, enabledRules);
 
         if (metrics != null) {
             Double temperature = metrics.get("temperature");
 
-            if (temperature != null) {
+            if (temperature != null && !customMetricKeys.contains("temperature")) {
                 evaluateThresholdAlert(
                         device,
                         AlertType.TEMPERATURE_HIGH,
@@ -80,7 +96,7 @@ public class AlertEvaluationService {
 
             Double humidity = metrics.get("humidity");
 
-            if (humidity != null) {
+            if (humidity != null && !customMetricKeys.contains("humidity")) {
                 evaluateThresholdAlert(
                         device,
                         AlertType.HUMIDITY_HIGH,
@@ -105,7 +121,7 @@ public class AlertEvaluationService {
 
         Integer battery = reading.getBattery();
 
-        if (battery != null) {
+        if (battery != null && !customMetricKeys.contains("battery")) {
             double batteryValue = battery.doubleValue();
 
             evaluateThresholdAlert(
@@ -121,7 +137,7 @@ public class AlertEvaluationService {
 
         Integer rssi = reading.getRssi();
 
-        if (rssi != null) {
+        if (rssi != null && !customMetricKeys.contains("rssi")) {
             double rssiValue = rssi.doubleValue();
 
             evaluateThresholdAlert(
@@ -134,6 +150,68 @@ public class AlertEvaluationService {
                     rssi < rssiWeakThreshold
             );
         }
+    }
+
+    private void evaluateCustomMetricRules(
+            Device device,
+            SensorReading reading,
+            java.util.List<AlertRule> enabledRules
+    ) {
+        var manifest = CapabilityManifestAdapter.effectiveManifest(device);
+        for (AlertRule rule : enabledRules) {
+            if (rule.getRuleType() != AlertRuleType.METRIC_THRESHOLD) {
+                continue;
+            }
+
+            CapabilityDefinition definition = manifest.getCapabilities().stream()
+                    .filter(capability -> rule.getMetricKey().equals(capability.getKey()))
+                    .findFirst().orElse(null);
+            if (definition == null || definition.getCategory() == CapabilityCategory.CONTROL
+                    || definition.getDataType() != CapabilityDataType.NUMBER) {
+                continue;
+            }
+
+            Double value = switch (definition.getKey()) {
+                case "battery" -> reading.getBattery() == null ? null : reading.getBattery().doubleValue();
+                case "rssi" -> reading.getRssi() == null ? null : reading.getRssi().doubleValue();
+                default -> reading.getMetrics() == null ? null : reading.getMetrics().get(definition.getKey());
+            };
+            if (value == null) {
+                continue;
+            }
+
+            boolean breached = switch (rule.getOperator()) {
+                case GREATER_THAN -> value > rule.getThreshold();
+                case GREATER_THAN_OR_EQUAL -> value >= rule.getThreshold();
+                case LESS_THAN -> value < rule.getThreshold();
+                case LESS_THAN_OR_EQUAL -> value <= rule.getThreshold();
+            };
+            evaluateRuleAlert(device, rule, value, breached);
+        }
+    }
+
+    private void evaluateRuleAlert(Device device, AlertRule rule, double value, boolean breached) {
+        var existingAlert = alertRepository
+                .findFirstByDeviceIdAndOwnerEmailAndAlertRuleIdAndStatusIn(
+                        device.getId(), device.getOwnerEmail(), rule.getId(), UNRESOLVED_STATUSES);
+        if (!breached || existingAlert.isPresent()) {
+            return;
+        }
+
+        Alert alert = new Alert();
+        alert.setOwnerEmail(device.getOwnerEmail());
+        alert.setDeviceId(device.getId());
+        alert.setDeviceKey(device.getDeviceKey());
+        alert.setDeviceName(device.getName());
+        alert.setType(AlertType.CUSTOM_THRESHOLD);
+        alert.setAlertRuleId(rule.getId());
+        alert.setSeverity(rule.getSeverity());
+        alert.setMessage("Alert rule \"" + rule.getName() + "\" threshold was exceeded.");
+        alert.setValue(value);
+        alert.setThreshold(rule.getThreshold());
+        alert.setStatus(AlertStatus.ACTIVE);
+        alert.setCreatedAt(Instant.now());
+        alertRepository.save(alert);
     }
 
     private void evaluateThresholdAlert(

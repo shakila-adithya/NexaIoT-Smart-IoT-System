@@ -23,3 +23,11 @@ export function deleteAlert(id) {
 export function clearAllAlerts() {
   return apiClient.delete("/api/alerts");
 }
+
+export function markAlertRead(id) {
+  return apiClient.patch(`/api/alerts/${id}/read`);
+}
+
+export function markAllAlertsRead() {
+  return apiClient.patch("/api/alerts/read-all");
+}

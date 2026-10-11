@@ -24,6 +24,8 @@ public class Alert {
     private Instant createdAt;
     private Instant acknowledgedAt;
     private Instant resolvedAt;
+    private Instant readAt;
+    private String alertRuleId;
 
     public Alert() {
     }
@@ -138,5 +140,21 @@ public class Alert {
 
     public void setResolvedAt(Instant resolvedAt) {
         this.resolvedAt = resolvedAt;
+    }
+
+    public Instant getReadAt() {
+        return readAt;
+    }
+
+    public void setReadAt(Instant readAt) {
+        this.readAt = readAt;
+    }
+
+    public String getAlertRuleId() {
+        return alertRuleId;
+    }
+
+    public void setAlertRuleId(String alertRuleId) {
+        this.alertRuleId = alertRuleId;
     }
 }

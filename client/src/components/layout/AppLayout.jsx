@@ -15,7 +15,8 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth.js";
-import { getAlerts } from "../../api/alertsApi.js";
+import { getAlerts, markAlertRead, markAllAlertsRead } from "../../api/alertsApi.js";
+import { getDevices } from "../../api/devicesApi.js";
 
 const navigation = [
   { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -99,13 +100,34 @@ function SidebarContent({ onNavigate, unresolvedAlertCount }) {
   );
 }
 
+function formatAlertType(type = "") {
+  return type.toLowerCase().split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ") || "Alert";
+}
+
+function matchesSearch(value, query) {
+  return String(value || "").toLowerCase().includes(query);
+}
+
 export default function AppLayout() {
   const { user, logout, profileImageUrl } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unresolvedAlertCount, setUnresolvedAlertCount] = useState(0);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [notificationLoading, setNotificationLoading] = useState(true);
+  const [notificationError, setNotificationError] = useState("");
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [searchData, setSearchData] = useState(null);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
   const profileMenuRef = useRef(null);
+  const notificationRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -125,11 +147,20 @@ export default function AppLayout() {
               ).length
             : 0,
         );
+        setNotifications(Array.isArray(alerts) ? alerts.slice(0, 5) : []);
+        setUnreadNotificationCount(
+          Array.isArray(alerts) ? alerts.filter((alert) => !alert.readAt).length : 0,
+        );
+        setNotificationError("");
       } catch (error) {
         if (!mounted) return;
 
         setUnresolvedAlertCount(0);
+        setUnreadNotificationCount(0);
+        setNotificationError("Unable to load notifications.");
         console.error("Unable to load alert count:", error);
+      } finally {
+        if (mounted) setNotificationLoading(false);
       }
     }
 
@@ -144,9 +175,90 @@ export default function AppLayout() {
   }, []);
 
   useEffect(() => {
+    function closeSearch(event) {
+      if (searchRef.current && !searchRef.current.contains(event.target)) setSearchOpen(false);
+    }
+
+    document.addEventListener("mousedown", closeSearch);
+    return () => document.removeEventListener("mousedown", closeSearch);
+  }, []);
+
+  const normalizedSearch = globalSearch.trim().toLowerCase();
+  const deviceResults = normalizedSearch.length >= 2 && searchData
+    ? searchData.devices.filter((device) => [device.name, device.type, device.deviceKey, device.location, device.status].some((field) => matchesSearch(field, normalizedSearch))).slice(0, 5)
+    : [];
+  const alertResults = normalizedSearch.length >= 2 && searchData
+    ? searchData.alerts.filter((alert) => [alert.type, alert.message, alert.severity, alert.status, alert.deviceName, alert.deviceKey].some((field) => matchesSearch(field, normalizedSearch))).slice(0, 5)
+    : [];
+  const searchItems = [
+    ...deviceResults.map((device) => ({ type: "device", id: device.id })),
+    ...alertResults.map((alert) => ({ type: "alert", id: alert.id })),
+  ];
+
+  useEffect(() => {
+    if (normalizedSearch.length < 2) {
+      return undefined;
+    }
+
+    if (searchData) return undefined;
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setSearchLoading(true);
+        setSearchError("");
+        const [devices, alerts] = await Promise.all([getDevices(), getAlerts()]);
+        if (!cancelled) setSearchData({ devices: Array.isArray(devices) ? devices : [], alerts: Array.isArray(alerts) ? alerts : [] });
+      } catch {
+        if (!cancelled) setSearchError("Unable to search devices and alerts right now.");
+      } finally {
+        if (!cancelled) setSearchLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [normalizedSearch, searchData]);
+
+  const clearSearch = () => {
+    setGlobalSearch("");
+    setSearchOpen(false);
+    setSearchData(null);
+    setActiveSearchIndex(-1);
+  };
+
+  const openSearchItem = (item) => {
+    clearSearch();
+    navigate(item.type === "device" ? `/devices/${item.id}` : `/alerts?alertId=${encodeURIComponent(item.id)}`);
+  };
+
+  const handleSearchKeyDown = (event) => {
+    if (event.key === "Escape") {
+      setSearchOpen(false);
+      return;
+    }
+    if (!searchOpen || searchItems.length === 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveSearchIndex((index) => (index + 1) % searchItems.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveSearchIndex((index) => (index - 1 + searchItems.length) % searchItems.length);
+    } else if (event.key === "Enter" && activeSearchIndex >= 0) {
+      event.preventDefault();
+      openSearchItem(searchItems[activeSearchIndex]);
+    }
+  };
+
+  useEffect(() => {
     function closeProfileMenu(event) {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
         setProfileMenuOpen(false);
+      }
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setNotificationOpen(false);
       }
     }
 
@@ -154,10 +266,46 @@ export default function AppLayout() {
     return () => document.removeEventListener("mousedown", closeProfileMenu);
   }, []);
 
+  useEffect(() => {
+    const closeNotificationsOnEscape = (event) => {
+      if (event.key === "Escape") setNotificationOpen(false);
+    };
+    document.addEventListener("keydown", closeNotificationsOnEscape);
+    return () => document.removeEventListener("keydown", closeNotificationsOnEscape);
+  }, []);
+
   const handleLogout = () => {
     setProfileMenuOpen(false);
     logout();
     navigate("/login", { replace: true });
+  };
+
+  const handleNotificationClick = async (alert) => {
+    if (!alert.readAt) {
+      try {
+        const updatedAlert = await markAlertRead(alert.id);
+        setNotifications((current) => current.map((item) => item.id === updatedAlert.id ? updatedAlert : item));
+        setUnreadNotificationCount((count) => Math.max(0, count - 1));
+      } catch {
+        setNotificationError("Unable to mark notification as read.");
+      }
+    }
+    setNotificationOpen(false);
+    navigate(`/alerts?alertId=${encodeURIComponent(alert.id)}`);
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    if (unreadNotificationCount === 0) return;
+    try {
+      const updatedAlerts = await markAllAlertsRead();
+      setNotifications((current) => {
+        const updatedById = new Map(updatedAlerts.map((alert) => [alert.id, alert]));
+        return current.map((alert) => updatedById.get(alert.id) || alert);
+      });
+      setUnreadNotificationCount(0);
+    } catch {
+      setNotificationError("Unable to mark notifications as read.");
+    }
   };
 
   const displayName = user?.fullName || "NexaIoT User";
@@ -212,30 +360,49 @@ export default function AppLayout() {
             <Menu size={20} />
           </button>
 
-          <div className="relative hidden h-10 w-[360px] items-center md:flex">
+          <div ref={searchRef} className="relative hidden h-10 w-[360px] items-center md:flex">
             <Search
               size={16}
               className="absolute left-[13px] text-[#9aaeba]"
             />
             <input
               type="text"
-              placeholder="Search devices, alerts, reports..."
-              className="h-full w-full rounded-[10px] border border-[#dce8ee] bg-[#f8fbfd] pl-[39px] pr-14 text-[12px] text-[#102a3a] outline-none placeholder:text-[#9aaeba] focus:border-[#08a9c4] focus:ring-2 focus:ring-[#08a9c4]/10"
+              value={globalSearch}
+              onChange={(event) => {
+                const value = event.target.value;
+                setGlobalSearch(value);
+                setSearchOpen(value.trim().length >= 2);
+                setActiveSearchIndex(-1);
+                if (value.trim().length < 2) setSearchError("");
+              }}
+              onFocus={() => normalizedSearch.length >= 2 && setSearchOpen(true)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search devices and alerts..."
+              className="h-full w-full rounded-[10px] border border-[#dce8ee] bg-[#f8fbfd] pl-[39px] pr-3 text-[12px] text-[#102a3a] outline-none placeholder:text-[#9aaeba] focus:border-[#08a9c4] focus:ring-2 focus:ring-[#08a9c4]/10"
             />
-            <span className="absolute right-[13px] rounded-md border border-[#dce8ee] bg-white px-1.5 py-[3px] text-[9px] text-[#9aaeba]">
-              ⌘ K
-            </span>
+            {searchOpen ? (
+              <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[420px] overflow-y-auto rounded-[12px] border border-[#dce8ee] bg-white p-2 shadow-[0_14px_30px_rgba(16,42,58,0.16)]">
+                {searchLoading ? <div className="px-3 py-4 text-[11px] text-[#6b8290]">Searching...</div> : searchError ? <div className="px-3 py-4 text-[11px] text-red-600">{searchError}</div> : normalizedSearch.length < 2 ? <div className="px-3 py-4 text-[11px] text-[#6b8290]">Type at least 2 characters.</div> : searchItems.length === 0 ? <div className="px-3 py-4 text-[11px] text-[#6b8290]">No devices or alerts found.</div> : <>
+                  {deviceResults.length > 0 ? <div><p className="px-2.5 pb-1.5 pt-1 text-[9px] font-semibold uppercase tracking-wide text-[#8ba0ab]">Devices ({deviceResults.length})</p>{deviceResults.map((device, index) => <button key={device.id} type="button" onClick={() => openSearchItem({ type: "device", id: device.id })} className={`flex w-full items-start gap-2.5 rounded-[8px] px-2.5 py-2 text-left ${activeSearchIndex === index ? "bg-[#eef9fb]" : "hover:bg-[#f8fbfd]"}`}><Cpu size={14} className="mt-0.5 text-[#08a9c4]" /><span className="min-w-0"><span className="block truncate text-[11px] font-medium text-[#102a3a]">{device.name}</span><span className="mt-0.5 block truncate text-[9px] text-[#6b8290]">{device.status} · {device.location || device.deviceKey}</span></span></button>)}</div> : null}
+                  {alertResults.length > 0 ? <div className="mt-2 border-t border-[#edf3f6] pt-1"><p className="px-2.5 pb-1.5 pt-1 text-[9px] font-semibold uppercase tracking-wide text-[#8ba0ab]">Alerts ({alertResults.length})</p>{alertResults.map((alert, index) => { const itemIndex = deviceResults.length + index; return <button key={alert.id} type="button" onClick={() => openSearchItem({ type: "alert", id: alert.id })} className={`flex w-full items-start gap-2.5 rounded-[8px] px-2.5 py-2 text-left ${activeSearchIndex === itemIndex ? "bg-[#eef9fb]" : "hover:bg-[#f8fbfd]"}`}><Bell size={14} className="mt-0.5 text-[#e24e5a]" /><span className="min-w-0"><span className="block truncate text-[11px] font-medium text-[#102a3a]">{formatAlertType(alert.type)}</span><span className="mt-0.5 block truncate text-[9px] text-[#6b8290]">{alert.severity || "INFO"} · {alert.deviceName || alert.deviceKey || "Device alert"} · {alert.status}</span><span className="mt-0.5 block truncate text-[9px] text-[#8ba0ab]">{alert.message || "No alert message"}</span></span></button>; })}</div> : null}
+                </>}
+              </div>
+            ) : null}
           </div>
 
           <div className="ml-auto flex items-center gap-3">
-            <button
-              type="button"
-              className="relative flex h-[38px] w-[38px] items-center justify-center rounded-[10px] text-[#6b8290] transition hover:bg-[#f4f8fb]"
-              aria-label="Notifications"
-            >
-              <Bell size={17} />
-              <span className="absolute right-[7px] top-[7px] h-[7px] w-[7px] rounded-full border border-white bg-[#e24e5a]" />
-            </button>
+            <div ref={notificationRef} className="relative">
+              <button type="button" onClick={() => setNotificationOpen((open) => !open)} className="relative flex h-[38px] w-[38px] items-center justify-center rounded-[10px] text-[#6b8290] transition hover:bg-[#f4f8fb]" aria-label="Notifications" aria-expanded={notificationOpen}>
+                <Bell size={17} />
+                {unreadNotificationCount > 0 ? <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#e24e5a] px-1 text-[8px] font-bold text-white">{unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}</span> : null}
+              </button>
+              {notificationOpen ? (
+                <div className="absolute right-0 top-full z-50 mt-2 w-[320px] rounded-[12px] border border-[#dce8ee] bg-white p-2 shadow-[0_14px_30px_rgba(16,42,58,0.16)]">
+                  <div className="flex items-center justify-between border-b border-[#edf3f6] px-2.5 pb-2 pt-1"><p className="text-[12px] font-semibold text-[#102a3a]">Notifications</p>{unreadNotificationCount > 0 ? <button type="button" onClick={handleMarkAllNotificationsRead} className="text-[9px] font-medium text-[#087f98] hover:text-[#08a9c4]">Mark all as read</button> : null}</div>
+                  {notificationLoading ? <p className="px-2.5 py-5 text-[10px] text-[#6b8290]">Loading notifications...</p> : notificationError ? <p className="px-2.5 py-5 text-[10px] text-red-600">{notificationError}</p> : notifications.length === 0 ? <p className="px-2.5 py-5 text-[10px] text-[#6b8290]">No new notifications</p> : <div className="mt-1 space-y-1">{notifications.map((alert) => <button key={alert.id} type="button" onClick={() => handleNotificationClick(alert)} className={`flex w-full items-start gap-2.5 rounded-[8px] px-2.5 py-2 text-left hover:bg-[#f8fbfd] ${alert.readAt ? "" : "bg-[#f7fcfd]"}`}><span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${alert.readAt ? "bg-[#cbd8de]" : "bg-[#e24e5a]"}`} /><span className="min-w-0"><span className={`block truncate text-[10px] ${alert.readAt ? "font-medium" : "font-semibold"} text-[#102a3a]`}>{formatAlertType(alert.type)}</span><span className="mt-0.5 block truncate text-[9px] text-[#6b8290]">{alert.deviceName || alert.deviceKey || "Device alert"} · {alert.severity || "INFO"}</span><span className="mt-0.5 block truncate text-[9px] text-[#8ba0ab]">{alert.message || "Review alert details"}</span></span></button>)}</div>}
+                </div>
+              ) : null}
+            </div>
 
             <div ref={profileMenuRef} className="relative">
               <button

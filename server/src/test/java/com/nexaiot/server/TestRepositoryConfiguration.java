@@ -10,6 +10,7 @@ import org.springframework.integration.channel.DirectChannel;
 import org.springframework.messaging.MessageChannel;
 
 import com.nexaiot.server.alert.AlertRepository;
+import com.nexaiot.server.alert.AlertRuleRepository;
 import com.nexaiot.server.device.DeviceRepository;
 import com.nexaiot.server.repository.UserRepository;
 import com.nexaiot.server.sensor.SensorReadingRepository;
@@ -40,6 +41,11 @@ class TestRepositoryConfiguration {
     @Bean
     AlertRepository alertRepository() {
         return repositoryStub(AlertRepository.class);
+    }
+
+    @Bean
+    AlertRuleRepository alertRuleRepository() {
+        return repositoryStub(AlertRuleRepository.class);
     }
 
     @SuppressWarnings("unchecked")

@@ -10,6 +10,8 @@ public interface AlertRepository extends MongoRepository<Alert, String> {
 
     List<Alert> findByOwnerEmailOrderByCreatedAtDesc(String ownerEmail);
 
+    List<Alert> findByOwnerEmailAndReadAtIsNull(String ownerEmail);
+
     Optional<Alert> findByIdAndOwnerEmail(
             String id,
             String ownerEmail
@@ -24,6 +26,13 @@ public interface AlertRepository extends MongoRepository<Alert, String> {
             String deviceId,
             String ownerEmail,
             AlertType type,
+            Set<AlertStatus> statuses
+    );
+
+    Optional<Alert> findFirstByDeviceIdAndOwnerEmailAndAlertRuleIdAndStatusIn(
+            String deviceId,
+            String ownerEmail,
+            String alertRuleId,
             Set<AlertStatus> statuses
     );
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   Bell,
@@ -20,6 +21,7 @@ import {
   clearAllAlerts,
   deleteAlert,
   getAlerts,
+  markAllAlertsRead,
   resolveAlert,
 } from "../../api/alertsApi.js";
 
@@ -206,7 +208,8 @@ function AlertRow({ alert, selected, onSelect }) {
             <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
             {alert.severity || "INFO"}
           </span>
-          <span className="truncate text-[10px] font-medium text-[#102a3a]">{formatType(alert.type)}</span>
+          {!alert.readAt ? <span className="h-1.5 w-1.5 rounded-full bg-[#08a9c4]" title="Unread" /> : null}
+          <span className={`truncate text-[10px] text-[#102a3a] ${alert.readAt ? "font-medium" : "font-semibold"}`}>{formatType(alert.type)}</span>
         </div>
         <div className="mt-1 truncate text-[11px] font-medium text-[#102a3a]">{alert.message || formatType(alert.type)}</div>
         <div className="mt-1 truncate text-[9px] text-[#8397a2]">{alert.deviceName || "Unknown device"}</div>
@@ -314,6 +317,8 @@ function AlertDetails({ alert, updatingId, deletingId, onAcknowledge, onResolve,
 }
 
 export default function Alerts() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [alerts, setAlerts] = useState([]);
   const [selectedAlertId, setSelectedAlertId] = useState("");
   const [statusTab, setStatusTab] = useState("ALL");
@@ -329,6 +334,7 @@ export default function Alerts() {
   const [deletingId, setDeletingId] = useState("");
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [clearingAll, setClearingAll] = useState(false);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
   const pollingInFlight = useRef(false);
   const alertsRequestVersion = useRef(0);
 
@@ -354,7 +360,12 @@ export default function Alerts() {
 
         setAlerts(loadedAlerts);
 
+        const requestedAlertId = searchParams.get("alertId");
         setSelectedAlertId((currentSelectedId) => {
+          if (requestedAlertId && loadedAlerts.some((alert) => alert.id === requestedAlertId)) {
+            return requestedAlertId;
+          }
+
           if (
             currentSelectedId &&
             loadedAlerts.some((alert) => alert.id === currentSelectedId)
@@ -390,7 +401,7 @@ export default function Alerts() {
       window.clearInterval(intervalId);
       pollingInFlight.current = false;
     };
-  }, []);
+  }, [searchParams]);
 
   const deviceOptions = useMemo(() => {
     const devices = new Map();
@@ -410,6 +421,7 @@ export default function Alerts() {
       resolved: alerts.filter((alert) => alert.status === "RESOLVED").length,
       all: alerts.length,
       acknowledged: alerts.filter((alert) => alert.status === "ACKNOWLEDGED").length,
+      unread: alerts.filter((alert) => !alert.readAt).length,
     };
   }, [alerts]);
 
@@ -482,6 +494,22 @@ export default function Alerts() {
     }
   }
 
+  async function handleMarkAllRead() {
+    if (markingAllRead || counts.unread === 0) return;
+
+    try {
+      setMarkingAllRead(true);
+      setActionError("");
+      const updatedAlerts = await markAllAlertsRead();
+      const updatedById = new Map(updatedAlerts.map((alert) => [alert.id, alert]));
+      setAlerts((currentAlerts) => currentAlerts.map((alert) => updatedById.get(alert.id) || alert));
+    } catch (err) {
+      setActionError(err.message || "Unable to mark alerts as read.");
+    } finally {
+      setMarkingAllRead(false);
+    }
+  }
+
   return (
     <div className="w-full px-4 pb-10 pt-[26px] md:px-[30px]">
       <div className="mx-auto w-full max-w-[1144px]">
@@ -492,8 +520,8 @@ export default function Alerts() {
           </div>
 
           <div className="flex flex-wrap gap-2.5">
-            <button type="button" disabled title="Alert rules will be available in a future release" className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#9aaeba]"><SlidersHorizontal size={14} /> Alert rules</button>
-            <button type="button" disabled title="Mark all read will be available in a future release" className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white opacity-55"><Check size={14} /> Mark all read</button>
+            <button type="button" onClick={() => navigate("/alerts/rules")} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98]"><SlidersHorizontal size={14} /> Alert rules</button>
+            <button type="button" disabled={markingAllRead || counts.unread === 0} onClick={handleMarkAllRead} title={counts.unread === 0 ? "All alerts are already read" : "Mark all alerts as read"} className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white transition hover:bg-[#0799b2] disabled:cursor-not-allowed disabled:opacity-55"><Check size={14} /> {markingAllRead ? "Marking..." : "Mark all read"}</button>
             <button type="button" disabled={loading || alerts.length === 0 || clearingAll} onClick={() => setClearAllOpen(true)} title={alerts.length === 0 ? "There is no alert history to clear" : "Clear all alert history"} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#f3cdd1] bg-[#fff7f8] px-4 text-[11px] font-medium text-[#d83f4d] transition hover:border-[#e24e5a] hover:bg-[#fdecee] disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} /> Clear alert history</button>
           </div>
         </section>

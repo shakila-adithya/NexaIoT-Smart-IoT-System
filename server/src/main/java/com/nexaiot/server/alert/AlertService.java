@@ -77,6 +77,30 @@ public class AlertService {
         alertRepository.deleteByOwnerEmail(normalizeEmail(ownerEmail));
     }
 
+    public AlertResponse markAlertRead(String alertId, String ownerEmail) {
+        Alert alert = findOwnedAlert(alertId, ownerEmail);
+
+        if (alert.getReadAt() == null) {
+            alert.setReadAt(Instant.now());
+            alert = alertRepository.save(alert);
+        }
+
+        return toResponse(alert);
+    }
+
+    public List<AlertResponse> markAllAlertsRead(String ownerEmail) {
+        List<Alert> unreadAlerts = alertRepository.findByOwnerEmailAndReadAtIsNull(
+                normalizeEmail(ownerEmail)
+        );
+        Instant now = Instant.now();
+        unreadAlerts.forEach(alert -> alert.setReadAt(now));
+
+        return alertRepository.saveAll(unreadAlerts)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     private Alert findOwnedAlert(
             String alertId,
             String ownerEmail
@@ -107,7 +131,9 @@ public class AlertService {
                 alert.getStatus(),
                 alert.getCreatedAt(),
                 alert.getAcknowledgedAt(),
-                alert.getResolvedAt()
+                alert.getResolvedAt(),
+                alert.getReadAt(),
+                alert.getAlertRuleId()
         );
     }
 
