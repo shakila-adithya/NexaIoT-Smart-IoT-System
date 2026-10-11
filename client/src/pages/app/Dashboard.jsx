@@ -180,16 +180,18 @@ export default function Dashboard() {
 
     loadDashboardData({ initial: true });
 
-    const intervalId = window.setInterval(() => {
-      loadDashboardData();
-    }, 5000);
+    const intervalId = user?.dashboardAutoRefresh === false
+      ? null
+      : window.setInterval(() => {
+          loadDashboardData();
+        }, 5000);
 
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
+      if (intervalId) window.clearInterval(intervalId);
       pollingInFlight.current = false;
     };
-  }, []);
+  }, [user?.dashboardAutoRefresh]);
 
   const stats = useMemo(() => {
     const total = devices.length;

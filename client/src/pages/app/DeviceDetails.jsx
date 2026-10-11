@@ -36,6 +36,7 @@ import {
   controlDevice,
 } from "../../api/devicesApi.js";
 import { getAlerts } from "../../api/alertsApi.js";
+import { useAuth } from "../../hooks/useAuth.js";
 import CapabilitySelector from "../../components/device/CapabilitySelector.jsx";
 import CustomCapabilityBuilder from "../../components/device/CustomCapabilityBuilder.jsx";
 import {
@@ -167,6 +168,7 @@ function TelemetryCard({
 }
 
 export default function DeviceDetails() {
+  const { user } = useAuth();
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -858,7 +860,7 @@ async function handlePowerToggle() {
                       strokeWidth={2}
                       dot={false}
                       connectNulls
-                      isAnimationActive={false}
+                      isAnimationActive={user?.liveChartAnimations !== false}
                     />
                   </LineChart>
                 </ResponsiveContainer>

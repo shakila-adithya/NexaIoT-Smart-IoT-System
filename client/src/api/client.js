@@ -9,20 +9,30 @@ function getToken() {
 
 async function request(
   path,
-  { method = "GET", body, headers = {}, cache } = {},
+  { method = "GET", body, headers = {}, cache, responseType } = {},
 ) {
   const token = getToken();
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
 
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers: {
-      "Content-Type": "application/json",
+      ...(!isFormData ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
     ...(cache ? { cache } : {}),
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
   });
+
+  if (responseType === "blob") {
+    if (!res.ok) {
+      const error = new Error(`Request failed with status ${res.status}`);
+      error.status = res.status;
+      throw error;
+    }
+    return res.blob();
+  }
 
   const contentType = res.headers.get("content-type") || "";
 

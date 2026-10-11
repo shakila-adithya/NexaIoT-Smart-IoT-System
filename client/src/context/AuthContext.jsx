@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { loginRequest, registerRequest } from "../api/authApi.js";
+import { getProfileImage } from "../api/userApi.js";
 import AuthContext from "./authContext.js";
 
 const TOKEN_KEY = "nexaiot_token";
@@ -38,6 +39,26 @@ function getStoredUser() {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => getStoredUser());
+  const [profileImageUrl, setProfileImageUrl] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!user?.hasProfileImage) return () => { active = false; };
+
+    if (profileImageUrl) return () => { active = false; };
+
+    getProfileImage()
+      .then((blob) => {
+        if (!active) return;
+        setProfileImageUrl(URL.createObjectURL(blob));
+      })
+      .catch(() => {
+        if (active) setProfileImageUrl(null);
+      });
+
+    return () => { active = false; };
+  }, [user?.hasProfileImage, profileImageUrl]);
 
   const login = async (email, password, remember = true) => {
     const { token, user: loggedInUser } = await loginRequest(
@@ -73,7 +94,31 @@ export function AuthProvider({ children }) {
   const logout = () => {
     clearStoredAuth();
     setUser(null);
+    setProfileImageUrl((currentUrl) => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      return null;
+    });
   };
+
+  const updateUser = useCallback((updatedUser, nextProfileImageUrl) => {
+    const storage = sessionStorage.getItem(TOKEN_KEY)
+      ? sessionStorage
+      : localStorage;
+    storage.setItem(USER_KEY, JSON.stringify(updatedUser));
+    setUser(updatedUser);
+
+    if (nextProfileImageUrl !== undefined) {
+      setProfileImageUrl((currentUrl) => {
+        if (currentUrl && currentUrl !== nextProfileImageUrl) URL.revokeObjectURL(currentUrl);
+        return nextProfileImageUrl;
+      });
+    } else if (!updatedUser?.hasProfileImage) {
+      setProfileImageUrl((currentUrl) => {
+        if (currentUrl) URL.revokeObjectURL(currentUrl);
+        return null;
+      });
+    }
+  }, []);
 
   return (
     <AuthContext.Provider
@@ -83,6 +128,8 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
+        updateUser,
+        profileImageUrl,
         isAuthenticated: !!user,
       }}
     >

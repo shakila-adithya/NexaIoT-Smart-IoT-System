@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -100,10 +100,12 @@ function SidebarContent({ onNavigate, unresolvedAlertCount }) {
 }
 
 export default function AppLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, profileImageUrl } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unresolvedAlertCount, setUnresolvedAlertCount] = useState(0);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -141,7 +143,19 @@ export default function AppLayout() {
     };
   }, []);
 
+  useEffect(() => {
+    function closeProfileMenu(event) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setProfileMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", closeProfileMenu);
+    return () => document.removeEventListener("mousedown", closeProfileMenu);
+  }, []);
+
   const handleLogout = () => {
+    setProfileMenuOpen(false);
     logout();
     navigate("/login", { replace: true });
   };
@@ -223,20 +237,37 @@ export default function AppLayout() {
               <span className="absolute right-[7px] top-[7px] h-[7px] w-[7px] rounded-full border border-white bg-[#e24e5a]" />
             </button>
 
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#08a9c4] to-[#087b9c] text-xs font-bold text-white">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
+            <div ref={profileMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setProfileMenuOpen((open) => !open)}
+                onKeyDown={(event) => event.key === "Escape" && setProfileMenuOpen(false)}
+                aria-expanded={profileMenuOpen}
+                aria-haspopup="menu"
+                className="flex items-center gap-2 rounded-[10px] p-1 text-left transition hover:bg-[#f4f8fb]"
+              >
+                {profileImageUrl ? (
+                  <img src={profileImageUrl} alt={`${displayName} profile`} className="h-9 w-9 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#08a9c4] to-[#087b9c] text-xs font-bold text-white">
+                    {displayName.charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span className="hidden min-w-0 sm:block">
+                  <span className="block max-w-[150px] truncate text-[12px] text-[#102a3a]">{displayName}</span>
+                  <span className="block max-w-[150px] truncate text-[10px] text-[#6b8290]">{role}</span>
+                </span>
+                <ChevronDown size={14} className="hidden text-[#6b8290] sm:block" />
+              </button>
 
-            <div className="hidden min-w-0 sm:block">
-              <div className="max-w-[150px] truncate text-[12px] text-[#102a3a]">
-                {displayName}
-              </div>
-              <div className="max-w-[150px] truncate text-[10px] text-[#6b8290]">
-                {role}
-              </div>
+              {profileMenuOpen ? (
+                <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-44 rounded-[10px] border border-[#dce8ee] bg-white p-1.5 shadow-[0_10px_24px_rgba(16,42,58,0.14)]">
+                  <Link to="/profile" onClick={() => setProfileMenuOpen(false)} className="block rounded-[7px] px-3 py-2 text-[11px] text-[#526d7b] hover:bg-[#f4f8fb] hover:text-[#102a3a]">Profile</Link>
+                  <Link to="/settings" onClick={() => setProfileMenuOpen(false)} className="block rounded-[7px] px-3 py-2 text-[11px] text-[#526d7b] hover:bg-[#f4f8fb] hover:text-[#102a3a]">Settings</Link>
+                  <button type="button" onClick={handleLogout} className="flex w-full items-center gap-2 rounded-[7px] px-3 py-2 text-[11px] text-[#e24e5a] hover:bg-red-50"><LogOut size={13} />Logout</button>
+                </div>
+              ) : null}
             </div>
-
-            <ChevronDown size={14} className="hidden text-[#6b8290] sm:block" />
 
             <div className="hidden h-[26px] w-px bg-[#dce8ee] sm:block" />
 

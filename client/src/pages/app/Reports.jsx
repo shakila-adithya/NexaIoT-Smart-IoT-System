@@ -23,6 +23,7 @@ import {
 } from "recharts";
 
 import { getAlerts } from "../../api/alertsApi.js";
+import { useAuth } from "../../hooks/useAuth.js";
 import {
   getDeviceReadings,
   getDevices,
@@ -171,6 +172,7 @@ function EnergyUsageCard() {
 }
 
 export default function Reports() {
+  const { user } = useAuth();
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [selectedRange, setSelectedRange] = useState("1h");
@@ -493,7 +495,7 @@ export default function Reports() {
                         <XAxis dataKey="time" axisLine={false} tickLine={false} minTickGap={32} tickFormatter={(value) => formatAxisTime(value, selectedRange)} tick={{ fontSize: 9, fill: "#8ba0ab" }} />
                         <YAxis axisLine={false} tickLine={false} width={34} domain={metricDomain} allowDecimals={false} tick={{ fontSize: 9, fill: "#8ba0ab" }} />
                         <Tooltip labelFormatter={formatTooltipTime} formatter={(value) => [`${value} ${selectedMetricDefinition.unit}`, selectedMetricDefinition.label]} contentStyle={{ borderRadius: 10, border: "1px solid #dce8ee", fontSize: 10 }} labelStyle={{ color: "#6b8290", fontSize: 9 }} />
-                        <Line type="monotone" dataKey="value" name={`${selectedMetricDefinition.label} (${selectedMetricDefinition.unit})`} stroke={selectedMetricDefinition.color} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+                        <Line type="monotone" dataKey="value" name={`${selectedMetricDefinition.label} (${selectedMetricDefinition.unit})`} stroke={selectedMetricDefinition.color} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={user?.liveChartAnimations !== false} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>

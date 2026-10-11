@@ -20,6 +20,8 @@ import AppLayout from "./components/layout/AppLayout.jsx";
 import DeviceDetails from "./pages/app/DeviceDetails.jsx";
 import Alerts from "./pages/app/Alerts.jsx";
 import Reports from "./pages/app/Reports.jsx";
+import Profile from "./pages/app/Profile.jsx";
+import SettingsPage from "./pages/app/Settings.jsx";
 
 export default function App() {
   const { pathname } = useLocation();
@@ -45,6 +47,8 @@ export default function App() {
           <Route path="/devices/:id" element={<DeviceDetails />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Route>
 
