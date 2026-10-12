@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LockKeyhole, Save } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, Save } from "lucide-react";
 import { changePassword } from "../../api/userApi.js";
 import { useToast } from "../../hooks/useToast.js";
 
@@ -11,6 +11,7 @@ export default function PasswordForm({ onUserUpdated }) {
     confirmPassword: "",
   });
   const [saving, setSaving] = useState(false);
+  const [visibleFields, setVisibleFields] = useState({});
 
   const updateField = (event) => {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
@@ -58,7 +59,25 @@ export default function PasswordForm({ onUserUpdated }) {
         ].map(([name, label]) => (
           <label key={name} className="text-[11px] font-medium text-[#526d7b]">
             {label}
-            <input name={name} type="password" value={form[name]} onChange={updateField} required className="mt-1.5 h-10 w-full rounded-[9px] border border-[#dce8ee] bg-[#f8fbfd] px-3 text-[12px] text-[#102a3a] outline-none focus:border-[#08a9c4] focus:ring-2 focus:ring-[#08a9c4]/10" />
+            <span className="relative mt-1.5 block">
+              <input
+                name={name}
+                type={visibleFields[name] ? "text" : "password"}
+                value={form[name]}
+                onChange={updateField}
+                required
+                className="h-10 w-full rounded-[9px] border border-[#dce8ee] bg-[#f8fbfd] px-3 pr-10 text-[12px] text-[#102a3a] outline-none focus:border-[#08a9c4] focus:ring-2 focus:ring-[#08a9c4]/10"
+              />
+              <button
+                type="button"
+                onClick={() => setVisibleFields((current) => ({ ...current, [name]: !current[name] }))}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6b8290] transition hover:text-[#102a3a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#08a9c4]/30 rounded"
+                aria-label={visibleFields[name] ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+                aria-pressed={!!visibleFields[name]}
+              >
+                {visibleFields[name] ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </span>
           </label>
         ))}
       </div>

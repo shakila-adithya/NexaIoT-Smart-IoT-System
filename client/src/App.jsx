@@ -12,6 +12,8 @@ import Privacy from "./pages/public/Privacy.jsx";
 import Terms from "./pages/public/Terms.jsx";
 import Login from "./pages/auth/Login.jsx";
 import Register from "./pages/auth/Register.jsx";
+import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
+import ResetPassword from "./pages/auth/ResetPassword.jsx";
 
 import Dashboard from "./pages/app/Dashboard.jsx";
 import Devices from "./pages/app/Devices.jsx";
@@ -42,6 +44,8 @@ export default function App() {
       </Route>
       <Route path="/login" element={<div className="auth-page-motion"><Login /></div>} />
       <Route path="/register" element={<div className="auth-page-motion"><Register /></div>} />
+      <Route path="/forgot-password" element={<div className="auth-page-motion"><ForgotPassword /></div>} />
+      <Route path="/reset-password" element={<div className="auth-page-motion"><ResetPassword /></div>} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />

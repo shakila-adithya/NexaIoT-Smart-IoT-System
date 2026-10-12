@@ -60,6 +60,15 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
+    @ExceptionHandler(InvalidPasswordResetTokenException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidPasswordResetToken(
+            InvalidPasswordResetTokenException ex
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", ex.getMessage()));
+    }
+
     @ExceptionHandler(DeviceNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleDeviceNotFound(
             DeviceNotFoundException ex

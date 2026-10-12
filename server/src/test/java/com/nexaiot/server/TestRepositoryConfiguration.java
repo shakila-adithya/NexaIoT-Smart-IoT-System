@@ -13,6 +13,7 @@ import com.nexaiot.server.alert.AlertRepository;
 import com.nexaiot.server.alert.AlertRuleRepository;
 import com.nexaiot.server.device.DeviceRepository;
 import com.nexaiot.server.repository.UserRepository;
+import com.nexaiot.server.repository.PasswordResetTokenRepository;
 import com.nexaiot.server.sensor.SensorReadingRepository;
 import com.nexaiot.server.task.MaintenanceTaskRepository;
 import com.nexaiot.server.report.GeneratedReportRepository;
@@ -58,6 +59,11 @@ class TestRepositoryConfiguration {
     @Bean
     GeneratedReportRepository generatedReportRepository() {
         return repositoryStub(GeneratedReportRepository.class);
+    }
+
+    @Bean
+    PasswordResetTokenRepository passwordResetTokenRepository() {
+        return repositoryStub(PasswordResetTokenRepository.class);
     }
 
     @SuppressWarnings("unchecked")
