@@ -39,6 +39,7 @@ public class DeviceService {
         device.setName(request.getName().trim());
         device.setType(request.getType().trim());
         device.setLocation(request.getLocation().trim());
+        device.setConnectivity(normalizeConnectivity(request.getConnectivity()));
         device.setCapabilities(request.getCapabilities());
         boolean hasTemplateId = request.getTemplateId() != null
                 && !request.getTemplateId().isBlank();
@@ -116,6 +117,10 @@ public class DeviceService {
 
         if (request.getLocation() != null && !request.getLocation().isBlank()) {
             device.setLocation(request.getLocation().trim());
+        }
+
+        if (request.getConnectivity() != null) {
+            device.setConnectivity(normalizeConnectivity(request.getConnectivity()));
         }
 
         if (request.getCapabilities() != null) {
@@ -236,9 +241,24 @@ public class DeviceService {
                 device.getCreatedAt(),
                 device.getUpdatedAt(),
                 device.getLastSeenAt(),
+                device.getConnectivity(),
                 device.getCapabilities(),
                 CapabilityManifestAdapter.effectiveManifest(device)
         );
+    }
+
+    private DeviceConnectivity normalizeConnectivity(DeviceConnectivity requested) {
+        if (requested == null) {
+            return null;
+        }
+        if (requested.getType() == null) {
+            throw new IllegalArgumentException("Connectivity type is required.");
+        }
+
+        DeviceConnectivity connectivity = new DeviceConnectivity();
+        connectivity.setType(requested.getType());
+        connectivity.setProtocol(ConnectivityProtocol.MQTT);
+        return connectivity;
     }
 
     private String getEffectiveStatus(Device device) {

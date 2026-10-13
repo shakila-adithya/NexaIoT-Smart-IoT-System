@@ -23,6 +23,7 @@ public class Device {
     private String location;
     private String status;
     private boolean powerOn;
+    private DeviceConnectivity connectivity;
     private DeviceCapabilities capabilities;
     private CapabilityManifest capabilityManifest;
 
@@ -95,6 +96,14 @@ public class Device {
 
     public void setPowerOn(boolean powerOn) {
         this.powerOn = powerOn;
+    }
+
+    public DeviceConnectivity getConnectivity() {
+        return connectivity;
+    }
+
+    public void setConnectivity(DeviceConnectivity connectivity) {
+        this.connectivity = connectivity;
     }
 
     public DeviceCapabilities getCapabilities() {

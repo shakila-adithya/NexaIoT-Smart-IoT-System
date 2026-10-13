@@ -50,6 +50,12 @@ import {
   getMetricDomain,
   getMetricValue,
 } from "../../config/deviceMetricDefinitions.js";
+import {
+  DEVICE_CONNECTIVITY_PROTOCOL,
+  DEVICE_CONNECTIVITY_TYPES,
+  deviceConnectivityLabels,
+  formatConnectivityType,
+} from "../../config/deviceConnectivity.js";
 
 const alertSeverityStyles = {
   CRITICAL: "bg-[#fdecee] text-[#d83f4d]",
@@ -209,6 +215,7 @@ export default function DeviceDetails() {
     { sensors: [], deviceMetrics: [], controls: [] },
   );
   const [editManifestCapabilities, setEditManifestCapabilities] = useState([]);
+  const [editConnectivity, setEditConnectivity] = useState("");
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -402,6 +409,7 @@ export default function DeviceDetails() {
         : [],
     });
     setEditManifestCapabilities(normalizeCapabilityManifest(device));
+    setEditConnectivity(device?.connectivity?.type || "");
 
     setEditError("");
     setShowEditModal(true);
@@ -444,6 +452,13 @@ export default function DeviceDetails() {
         type: editForm.type.trim(),
         location: editForm.location.trim(),
       };
+
+      if (editConnectivity) {
+        payload.connectivity = {
+          type: editConnectivity,
+          protocol: DEVICE_CONNECTIVITY_PROTOCOL,
+        };
+      }
 
       if (isManifestDevice(device)) {
         payload.capabilityManifest = {
@@ -1173,7 +1188,19 @@ async function handlePowerToggle() {
               <div className="flex justify-between gap-4 text-[9px]">
                 <span className="text-[#8ba0ab]">Connectivity</span>
                 <span className="font-semibold text-[#425c6b]">
-                  {isOnline ? "Telemetry reporting" : "Awaiting telemetry"}
+                  {formatConnectivityType(device.connectivity?.type)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4 text-[9px]">
+                <span className="text-[#8ba0ab]">Protocol</span>
+                <span className="font-semibold text-[#425c6b]">
+                  {device.connectivity?.protocol || "Not configured"}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4 text-[9px]">
+                <span className="text-[#8ba0ab]">Last seen</span>
+                <span className="font-semibold text-[#425c6b]">
+                  {device.lastSeenAt ? formatAlertTime(device.lastSeenAt) : "Not available"}
                 </span>
               </div>
               <div className="flex justify-between gap-4 text-[9px]">
@@ -1413,20 +1440,25 @@ async function handlePowerToggle() {
                       </h3>
                     </div>
                     <div className="mt-4 rounded-[10px] border border-[#dce8ee] bg-white p-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="text-[10px] font-medium text-[#102a3a]">
-                            MQTT configuration
-                          </p>
-                          <p className="mt-1 max-w-[350px] text-[9px] leading-4 text-[#7d929e]">
-                            Broker, topic and hardware connection settings will
-                            become editable after MQTT integration.
-                          </p>
-                        </div>
-                        <span className="w-fit shrink-0 rounded-full bg-[#fff5df] px-2.5 py-1 text-[8px] font-medium text-[#d08a11]">
-                          Coming later
-                        </span>
-                      </div>
+                      <label htmlFor="edit-device-connectivity" className="text-[10px] font-medium text-[#102a3a]">
+                        Network type
+                      </label>
+                      <select
+                        id="edit-device-connectivity"
+                        value={editConnectivity}
+                        onChange={(event) => setEditConnectivity(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-[9px] border border-[#dce8ee] bg-[#f8fbfd] px-3 text-[10px] text-[#102a3a] outline-none transition focus:border-[#08a9c4] focus:ring-2 focus:ring-[#08a9c4]/10"
+                      >
+                        <option value="">Not configured</option>
+                        {DEVICE_CONNECTIVITY_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {deviceConnectivityLabels[type]}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-3 text-[9px] text-[#7d929e]">
+                        Protocol: <span className="font-semibold text-[#425c6b]">{DEVICE_CONNECTIVITY_PROTOCOL}</span>
+                      </p>
                     </div>
                   </section>
                   {editError ? (
