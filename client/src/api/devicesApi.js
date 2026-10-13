@@ -33,3 +33,11 @@ export function controlDevice(id, power) {
     power,
   });
 }
+
+export function getDeviceDiagnostics(id) {
+  return apiClient.get(`/api/devices/${id}/diagnostics`, { cache: "no-store" });
+}
+
+export function getDeviceActivity(id) {
+  return apiClient.get(`/api/devices/${id}/activity`, { cache: "no-store" });
+}

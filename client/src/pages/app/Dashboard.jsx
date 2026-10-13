@@ -9,11 +9,13 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
+import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 
 import DashboardStatCard from "../../components/dashboard/DashboardStatCard.jsx";
 import LatestAlerts from "../../components/dashboard/LatestAlerts.jsx";
 import RecentActivity from "../../components/dashboard/RecentActivity.jsx";
 import QuickActions from "../../components/dashboard/QuickActions.jsx";
+import DeviceStatusVisual from "../../components/dashboard/DeviceStatusVisual.jsx";
 import PageHero from "../../components/common/PageHero.jsx";
 import { getDevices, getLatestDeviceReading } from "../../api/devicesApi.js";
 import { getAlerts } from "../../api/alertsApi.js";
@@ -65,6 +67,7 @@ function TelemetryMetric({ icon: Icon, label, value, unit, note, tone }) {
     </div>
   );
 }
+
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -219,6 +222,16 @@ export default function Dashboard() {
       onlinePercentage,
     };
   }, [devices]);
+
+  const deviceStatusData = [
+    { name: "Online", value: stats.online, color: "#16a57a" },
+    { name: "Offline", value: stats.offline, color: "#e24e5a" },
+    { name: "Maintenance", value: stats.maintenance, color: "#d49a24" },
+  ];
+
+  const deviceStatusChartData = stats.total > 0
+    ? deviceStatusData
+    : [{ name: "No devices", value: 1, color: "#e7eff3" }];
 
   const networkTitle =
     stats.total === 0
@@ -464,7 +477,7 @@ export default function Dashboard() {
         </section>
 
         <section className="mt-6 grid gap-4 md:grid-cols-3">
-          <div className="rounded-[14px] border border-[#dce8ee] bg-white p-5">
+          <div className="flex h-full min-h-[520px] flex-col rounded-[14px] border border-[#dce8ee] bg-white p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-[14px] font-semibold text-[#102a3a]">
                 Device status
@@ -479,46 +492,75 @@ export default function Dashboard() {
               </button>
             </div>
 
-            <div className="mt-5 space-y-4 text-[11px]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-[#16a57a]" />
-                  <span className="text-[#6b8290]">
-                    Online
+            <div className="mt-5 grid flex-none items-center gap-5 sm:grid-cols-[132px_minmax(0,1fr)]">
+              <div className="relative mx-auto h-[132px] w-[132px] shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={deviceStatusChartData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={45}
+                      outerRadius={61}
+                      paddingAngle={stats.total > 0 ? 3 : 0}
+                      stroke="none"
+                      isAnimationActive={false}
+                    >
+                      {deviceStatusChartData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-[22px] font-semibold tracking-[-0.03em] text-[#102a3a]">
+                    {loading ? "—" : stats.total}
                   </span>
+                  <span className="text-[9px] text-[#8ba0ab]">devices</span>
                 </div>
-
-                <span className="font-semibold text-[#16a57a]">
-                  {loading ? "—" : stats.online}
-                </span>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-[#e24e5a]" />
-                  <span className="text-[#6b8290]">
-                    Offline
+              <div className="space-y-3 text-[11px]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-[#16a57a]" />
+                    <span className="text-[#6b8290]">Online</span>
+                  </div>
+                  <span className="font-semibold text-[#16a57a]">
+                    {loading ? "—" : stats.online}
                   </span>
                 </div>
 
-                <span className="font-semibold text-[#e24e5a]">
-                  {loading ? "—" : stats.offline}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-[#d49a24]" />
-                  <span className="text-[#6b8290]">
-                    Maintenance
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-[#e24e5a]" />
+                    <span className="text-[#6b8290]">Offline</span>
+                  </div>
+                  <span className="font-semibold text-[#e24e5a]">
+                    {loading ? "—" : stats.offline}
                   </span>
                 </div>
 
-                <span className="font-semibold text-[#d49a24]">
-                  {loading ? "—" : stats.maintenance}
-                </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-[#d49a24]" />
+                    <span className="text-[#6b8290]">Maintenance</span>
+                  </div>
+                  <span className="font-semibold text-[#d49a24]">
+                    {loading ? "—" : stats.maintenance}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-[#edf2f4] pt-3">
+                  <span className="font-medium text-[#526d7b]">Online rate</span>
+                  <span className="font-semibold text-[#08a9c4]">
+                    {loading ? "—" : `${stats.onlinePercentage}%`}
+                  </span>
+                </div>
               </div>
             </div>
+
+            <DeviceStatusVisual />
           </div>
 
           <RecentActivity devices={devices} alerts={alerts} />
