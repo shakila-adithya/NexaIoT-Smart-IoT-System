@@ -41,3 +41,7 @@ export function getDeviceDiagnostics(id) {
 export function getDeviceActivity(id) {
   return apiClient.get(`/api/devices/${id}/activity`, { cache: "no-store" });
 }
+
+export function getDeviceEnergy(id, period = "24h") {
+  return apiClient.get(`/api/devices/${id}/energy?period=${period}`, { cache: "no-store" });
+}

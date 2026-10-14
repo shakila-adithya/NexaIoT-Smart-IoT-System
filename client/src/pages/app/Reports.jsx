@@ -30,6 +30,7 @@ import { useToast } from "../../hooks/useToast.js";
 import { downloadReportPdf, reportFilename } from "../../utils/reportPdf.js";
 import { deleteGeneratedReport, generateReport, getGeneratedReports } from "../../api/reportsApi.js";
 import {
+  getDeviceEnergy,
   getDeviceReadings,
   getDevices,
 } from "../../api/devicesApi.js";
@@ -183,21 +184,29 @@ function StatLine({ label, value, unit = "" }) {
   );
 }
 
-function EnergyUsageCard() {
+function EnergyUsageCard({ energy, loading, error }) {
+  const trend = Array.isArray(energy?.trend) ? energy.trend : [];
+  const unavailable = !loading && (!energy?.available || error);
+
   return (
     <section className="rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-[14px] font-semibold text-[#102a3a]">Energy usage</h2>
-          <p className="mt-1 text-[9px] text-[#8ba0ab]">Daily consumption in kWh</p>
+          <p className="mt-1 text-[9px] text-[#8ba0ab]">Real persisted electrical telemetry</p>
         </div>
-        <span className="text-[9px] text-[#9aadb6]">Not available</span>
+        <span className="text-[9px] text-[#9aadb6]">{loading ? "Loading..." : energy?.source || "Unavailable"}</span>
       </div>
-      <div className="mt-5 flex min-h-[138px] flex-col items-center justify-center rounded-[10px] border border-dashed border-[#e5edf1] bg-[#f8fbfd] text-center">
-        <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#fff4e5] text-[#e79a23]"><Zap size={16} /></span>
-        <p className="mt-2 text-[11px] font-semibold text-[#526b79]">—</p>
-        <p className="mt-1 text-[9px] text-[#8ba0ab]">Energy data not available yet.</p>
-      </div>
+      {loading ? <div className="mt-5 h-[138px] animate-pulse rounded-[10px] bg-[#f8fbfd]" /> : null}
+      {unavailable ? <div className="mt-5 flex min-h-[138px] flex-col items-center justify-center rounded-[10px] border border-dashed border-[#e5edf1] bg-[#f8fbfd] text-center"><span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#fff4e5] text-[#e79a23]"><Zap size={16} /></span><p className="mt-2 text-[11px] font-semibold text-[#526b79]">Energy data unavailable</p><p className="mt-1 text-[9px] text-[#8ba0ab]">{error || "No valid energy telemetry is available for this period."}</p></div> : null}
+      {!loading && !unavailable ? <>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {[['Total energy', energy.totalEnergyKWh, 'kWh'], ['Average power', energy.averagePowerW, 'W'], ['Peak power', energy.peakPowerW, 'W'], [energy.coverageBasis === "METER_SPAN" ? "Meter span" : "Data coverage", Number.isFinite(energy.coverage) ? energy.coverage * 100 : null, '%']].map(([label, value, unit]) => <div key={label} className="rounded-[10px] bg-[#f8fbfd] p-2.5"><p className="text-[8px] text-[#8ba0ab]">{label}</p><p className="mt-1 text-[15px] font-semibold text-[#102a3a]">{formatValue(value, 2)}{Number.isFinite(value) ? ` ${unit}` : ""}</p></div>)}
+        </div>
+        <div className="mt-4 h-[130px] w-full">
+          {trend.length === 0 ? <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#e5edf1] text-[9px] text-[#8ba0ab]">No energy trend points for this period.</div> : <ResponsiveContainer width="100%" height="100%"><LineChart data={trend} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e5edf1" vertical={false} /><XAxis dataKey="bucketStart" hide /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: "#8ba0ab" }} /><Tooltip labelFormatter={formatTooltipTime} formatter={(value) => [`${formatValue(value, 2)} ${energy.trendUnit || "W"}`, energy.trendUnit === "kWh" ? "Energy" : "Power"]} contentStyle={{ borderRadius: 8, border: "1px solid #dce8ee", fontSize: 9 }} /><Line type="monotone" dataKey="value" stroke="#e99a12" strokeWidth={2} dot={false} isAnimationActive={false} /></LineChart></ResponsiveContainer>}
+        </div>
+      </> : null}
     </section>
   );
 }
@@ -214,6 +223,7 @@ export default function Reports() {
   const [readingsLoading, setReadingsLoading] = useState(false);
   const [error, setError] = useState("");
   const [historyError, setHistoryError] = useState("");
+  const [energyResult, setEnergyResult] = useState({ key: "", data: null, error: "" });
   const [alerts, setAlerts] = useState([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [generatedReports, setGeneratedReports] = useState([]);
@@ -401,9 +411,32 @@ export default function Reports() {
     .filter((capability) => capability.key !== "energyConsumption")
     .map(getMetricDefinitionForCapability)
     .filter(Boolean);
-  const energyConsumptionConfigured = supportedCapabilities.some(
-    (capability) => capability.key === "energyConsumption",
+  const hasEnergyCapability = (key) => supportedCapabilities.some(
+    (capability) => (capability.key || capability.semanticType) === key,
   );
+  const energyAnalyticsConfigured = hasEnergyCapability("energyConsumption")
+    || hasEnergyCapability("power")
+    || (hasEnergyCapability("voltage") && hasEnergyCapability("current"));
+  const energyRequestKey = selectedDeviceId && energyAnalyticsConfigured
+    ? `${selectedDeviceId}:${selectedRange}`
+    : "";
+
+  useEffect(() => {
+    let mounted = true;
+    if (!selectedDeviceId || !energyAnalyticsConfigured) {
+      return () => { mounted = false; };
+    }
+
+    getDeviceEnergy(selectedDeviceId, selectedRange)
+      .then((data) => mounted && setEnergyResult({ key: energyRequestKey, data, error: "" }))
+      .catch((err) => mounted && setEnergyResult({ key: energyRequestKey, data: null, error: err.message || "Unable to load energy data." }));
+
+    return () => { mounted = false; };
+  }, [selectedDeviceId, selectedRange, energyAnalyticsConfigured, energyRequestKey]);
+
+  const energy = energyResult.key === energyRequestKey ? energyResult.data : null;
+  const energyError = energyResult.key === energyRequestKey ? energyResult.error : "";
+  const energyLoading = Boolean(energyRequestKey) && energyResult.key !== energyRequestKey;
   const effectiveSelectedMetric = supportedCapabilities.some(
     (capability) => capability.key === selectedMetric,
   )
@@ -532,7 +565,7 @@ export default function Reports() {
                     </label>
                   ) : null}
                 </div>
-                {energyConsumptionConfigured ? <div className="mt-4"><EnergyUsageCard /></div> : null}
+                {energyAnalyticsConfigured ? <div className="mt-4"><EnergyUsageCard energy={energy} loading={energyLoading} error={energyError} /></div> : null}
               </>
             ) : (
               <>
@@ -651,9 +684,9 @@ export default function Reports() {
                 </section>
                 </div>
 
-                <div className={`mt-4 grid items-start gap-4 ${energyConsumptionConfigured ? "lg:grid-cols-[1fr_1fr_0.86fr]" : "lg:grid-cols-[1fr_0.86fr]"}`}>
-                  {energyConsumptionConfigured ? (
-                  <EnergyUsageCard />
+                <div className={`mt-4 grid items-start gap-4 ${energyAnalyticsConfigured ? "lg:grid-cols-[1fr_1fr_0.86fr]" : "lg:grid-cols-[1fr_0.86fr]"}`}>
+                  {energyAnalyticsConfigured ? (
+                  <EnergyUsageCard energy={energy} loading={energyLoading} error={energyError} />
                   ) : null}
 
                   <section className="rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-5">
