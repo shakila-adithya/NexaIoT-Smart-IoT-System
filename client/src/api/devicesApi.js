@@ -24,12 +24,24 @@ export function getLatestDeviceReading(id) {
   return apiClient.get(`/api/devices/${id}/readings/latest`);
 }
 
-export function getDeviceReadings(id, range = "1h") {
-  return apiClient.get(`/api/devices/${id}/readings?range=${range}`);
+export function getDeviceReadings(id, range = "1h", raw = false) {
+  return apiClient.get(`/api/devices/${id}/readings?range=${range}${raw ? "&raw=true" : ""}`);
 }
 
 export function controlDevice(id, power) {
   return apiClient.post(`/api/devices/${id}/control`, {
     power,
   });
+}
+
+export function getDeviceDiagnostics(id) {
+  return apiClient.get(`/api/devices/${id}/diagnostics`, { cache: "no-store" });
+}
+
+export function getDeviceActivity(id) {
+  return apiClient.get(`/api/devices/${id}/activity`, { cache: "no-store" });
+}
+
+export function getDeviceEnergy(id, period = "24h") {
+  return apiClient.get(`/api/devices/${id}/energy?period=${period}`, { cache: "no-store" });
 }

@@ -92,4 +92,23 @@ public class AlertController {
 
         return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{id}/read")
+    public ResponseEntity<AlertResponse> markAlertRead(
+            @PathVariable String id,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                alertService.markAlertRead(id, authentication.getName())
+        );
+    }
+
+    @PatchMapping("/read-all")
+    public ResponseEntity<List<AlertResponse>> markAllAlertsRead(
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                alertService.markAllAlertsRead(authentication.getName())
+        );
+    }
 }

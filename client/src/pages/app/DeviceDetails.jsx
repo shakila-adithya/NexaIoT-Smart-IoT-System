@@ -34,6 +34,8 @@ import {
   getLatestDeviceReading,
   updateDevice,
   controlDevice,
+  getDeviceDiagnostics,
+  getDeviceActivity,
 } from "../../api/devicesApi.js";
 import { getAlerts } from "../../api/alertsApi.js";
 import { useAuth } from "../../hooks/useAuth.js";
@@ -48,6 +50,12 @@ import {
   getMetricDomain,
   getMetricValue,
 } from "../../config/deviceMetricDefinitions.js";
+import {
+  DEVICE_CONNECTIVITY_PROTOCOL,
+  DEVICE_CONNECTIVITY_TYPES,
+  deviceConnectivityLabels,
+  formatConnectivityType,
+} from "../../config/deviceConnectivity.js";
 
 const alertSeverityStyles = {
   CRITICAL: "bg-[#fdecee] text-[#d83f4d]",
@@ -179,6 +187,12 @@ export default function DeviceDetails() {
   const [deviceAlertsLoading, setDeviceAlertsLoading] = useState(true);
   const [deviceAlertsError, setDeviceAlertsError] = useState("");
   const alertsPollingInFlight = useRef(false);
+  const [diagnostics, setDiagnostics] = useState(null);
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+  const [diagnosticsError, setDiagnosticsError] = useState("");
+  const [deviceActivity, setDeviceActivity] = useState([]);
+  const [deviceActivityLoading, setDeviceActivityLoading] = useState(true);
+  const [deviceActivityError, setDeviceActivityError] = useState("");
 
   const [latestReading, setLatestReading] = useState(null);
   const [readings, setReadings] = useState([]);
@@ -201,6 +215,7 @@ export default function DeviceDetails() {
     { sensors: [], deviceMetrics: [], controls: [] },
   );
   const [editManifestCapabilities, setEditManifestCapabilities] = useState([]);
+  const [editConnectivity, setEditConnectivity] = useState("");
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -242,6 +257,31 @@ export default function DeviceDetails() {
     return () => {
       cancelled = true;
       clearInterval(interval);
+    };
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDeviceActivity() {
+      try {
+        const data = await getDeviceActivity(id);
+        if (!cancelled) {
+          setDeviceActivity(Array.isArray(data) ? data : []);
+          setDeviceActivityError("");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setDeviceActivityError(err.message || "Unable to load device activity.");
+        }
+      } finally {
+        if (!cancelled) setDeviceActivityLoading(false);
+      }
+    }
+
+    loadDeviceActivity();
+    return () => {
+      cancelled = true;
     };
   }, [id]);
 
@@ -369,6 +409,7 @@ export default function DeviceDetails() {
         : [],
     });
     setEditManifestCapabilities(normalizeCapabilityManifest(device));
+    setEditConnectivity(device?.connectivity?.type || "");
 
     setEditError("");
     setShowEditModal(true);
@@ -412,6 +453,13 @@ export default function DeviceDetails() {
         location: editForm.location.trim(),
       };
 
+      if (editConnectivity) {
+        payload.connectivity = {
+          type: editConnectivity,
+          protocol: DEVICE_CONNECTIVITY_PROTOCOL,
+        };
+      }
+
       if (isManifestDevice(device)) {
         payload.capabilityManifest = {
           version: 1,
@@ -451,6 +499,20 @@ export default function DeviceDetails() {
 
     setShowDeleteConfirm(false);
     setDeleteError("");
+  };
+
+  const handleRunDiagnostics = async () => {
+    if (diagnosticsLoading) return;
+
+    try {
+      setDiagnosticsLoading(true);
+      setDiagnosticsError("");
+      setDiagnostics(await getDeviceDiagnostics(id));
+    } catch (err) {
+      setDiagnosticsError(err.message || "Unable to run diagnostics.");
+    } finally {
+      setDiagnosticsLoading(false);
+    }
   };
 async function handlePowerToggle() {
     if (!device || controlLoading || !isOnline) {
@@ -579,19 +641,68 @@ async function handlePowerToggle() {
             <div className="flex w-full flex-col sm:w-auto sm:items-end">
               <button
                 type="button"
-                disabled
-                title="Diagnostics will be available after MQTT telemetry integration"
-                className="flex h-10 w-full cursor-not-allowed items-center justify-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white opacity-60 sm:w-auto"
+                onClick={handleRunDiagnostics}
+                disabled={diagnosticsLoading}
+                title="Run passive device diagnostics"
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white transition hover:bg-[#0799b2] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 <Activity size={14} />
-                Run diagnostics
+                {diagnosticsLoading ? "Checking..." : "Run diagnostics"}
               </button>
               <span className="mt-1.5 text-center text-[8px] text-[#8ba0ab] sm:text-right">
-                Requires MQTT connection
+                Passive check of known device data
               </span>
             </div>
           </div>
         </section>
+        {diagnostics || diagnosticsError ? (
+          <section className="mt-4 rounded-[14px] border border-[#dce8ee] bg-white p-5 shadow-[0_5px_18px_rgba(16,42,58,0.05)]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={16} className="text-[#08a9c4]" />
+                  <h2 className="text-[15px] font-semibold text-[#102a3a]">Device diagnostics</h2>
+                </div>
+                <p className="mt-1 text-[10px] text-[#6b8290]">
+                  Passive checks based on the latest stored device state.
+                </p>
+                {diagnostics?.checkedAt ? (
+                  <p className="mt-1 text-[8px] text-[#9aadb6]">
+                    Checked {new Date(diagnostics.checkedAt).toLocaleString()}
+                  </p>
+                ) : null}
+              </div>
+              {diagnostics ? (
+                <span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${
+                  diagnostics.overallStatus === "HEALTHY"
+                    ? "bg-[#e9f8f2] text-[#16815f]"
+                    : diagnostics.overallStatus === "WARNING"
+                      ? "bg-[#fff5df] text-[#b87808]"
+                      : diagnostics.overallStatus === "CRITICAL"
+                        ? "bg-[#fdecee] text-[#d83f4d]"
+                        : "bg-[#eef4f6] text-[#6b8290]"
+                }`}>{diagnostics.overallStatus}</span>
+              ) : null}
+            </div>
+            {diagnosticsError ? (
+              <p className="mt-4 rounded-[9px] border border-red-200 bg-red-50 px-3 py-2.5 text-[10px] text-red-600">{diagnosticsError}</p>
+            ) : (
+              <div className="mt-4 max-h-[360px] overflow-x-hidden overflow-y-auto pr-1 sm:max-h-[480px]">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(diagnostics?.checks || []).map((check) => (
+                    <div key={check.key} className="rounded-[10px] border border-[#edf2f4] bg-[#f8fbfd] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-semibold text-[#102a3a]">{check.label}</p>
+                        <span className={`text-[8px] font-semibold ${check.status === "PASS" ? "text-[#16815f]" : check.status === "WARNING" ? "text-[#b87808]" : check.status === "FAIL" ? "text-[#d83f4d]" : "text-[#6b8290]"}`}>{check.status}</span>
+                      </div>
+                      <p className="mt-1 text-[9px] leading-4 text-[#6b8290]">{check.message}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        ) : null}
         <section className="mt-5 rounded-[15px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(16,42,58,0.05)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <div className="flex h-[82px] w-full shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-[#e7f8fb] to-[#f7fbfc] sm:h-[88px] sm:w-[108px]">
@@ -623,13 +734,12 @@ async function handlePowerToggle() {
                   {device.type}
                 </span>
                 <span className="text-[9px] text-[#9aaeba]">
-                  Telemetry not connected
+                  {isOnline ? "Telemetry reporting" : "Telemetry unavailable while offline"}
                 </span>
               </div>
               <p className="mt-2 max-w-[660px] text-[10px] leading-[17px] text-[#6b8290] sm:text-[11px] sm:leading-5">
                 Registered NexaIoT device located at {device.location}. Live
-                telemetry, diagnostics and remote controls will become
-                available after MQTT integration.
+                telemetry and supported remote controls are available when the device is online.
               </p>
               <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-[8px] text-[#7d929e] sm:text-[9px]">
                 <span className="flex items-center gap-1.5">
@@ -638,7 +748,7 @@ async function handlePowerToggle() {
                 </span>
                 <span className="flex items-center gap-1.5">
                   <RadioTower size={12} />
-                  MQTT pending
+                  {isOnline ? "Telemetry reporting" : "Awaiting telemetry"}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CalendarDays size={12} />
@@ -1008,37 +1118,34 @@ async function handlePowerToggle() {
                 Activity & logs
               </h2>
               <span className="text-[9px] text-[#08a9c4]">
-                Live events later
+                Device timeline
               </span>
             </div>
-            <div className="mt-4 flex gap-3">
-              <div className="flex flex-col items-center">
-                <span className="h-2 w-2 rounded-full bg-[#08a9c4]" />
-                <span className="h-12 w-px bg-[#dce8ee]" />
+            {deviceActivityLoading ? (
+              <p className="mt-4 text-[10px] text-[#6b8290]">Loading activity...</p>
+            ) : deviceActivityError ? (
+              <p className="mt-4 rounded-[9px] border border-red-200 bg-red-50 px-3 py-2.5 text-[9px] text-red-600">{deviceActivityError}</p>
+            ) : deviceActivity.length === 0 ? (
+              <p className="mt-4 rounded-[10px] border border-dashed border-[#dce8ee] bg-[#f8fbfd] p-4 text-[10px] text-[#6b8290]">No recorded activity yet.</p>
+            ) : (
+              <div className="mt-4 max-h-[360px] overflow-x-hidden overflow-y-auto pr-1 sm:max-h-[420px]">
+                <div className="space-y-3">
+                  {deviceActivity.map((event, index) => (
+                    <div key={event.id} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <span className={`h-2 w-2 rounded-full ${index === 0 ? "bg-[#08a9c4]" : "bg-[#c7d8df]"}`} />
+                        {index < deviceActivity.length - 1 ? <span className="h-10 w-px bg-[#dce8ee]" /> : null}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium text-[#102a3a]">{event.title}</p>
+                        <p className="mt-1 text-[9px] leading-4 text-[#6b8290]">{event.description}</p>
+                        <p className="mt-1 text-[8px] text-[#9aadb6]">{formatAlertTime(event.timestamp)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-[#102a3a]">
-                  Device registered
-                </p>
-                <p className="mt-1 text-[9px] leading-4 text-[#6b8290]">
-                  Device is available in your NexaIoT workspace.
-                </p>
-                <p className="mt-1 text-[8px] text-[#9aadb6]">
-                  {createdDate}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#dce8ee]" />
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-[#102a3a]">
-                  Waiting for device events
-                </p>
-                <p className="mt-1 text-[9px] leading-4 text-[#6b8290]">
-                  MQTT activity and sensor events will appear here.
-                </p>
-              </div>
-            </div>
+            )}
           </div>
           <div className="self-start rounded-[14px] border border-[#dce8ee] bg-white p-5">
             <div className="flex items-center justify-between gap-3">
@@ -1081,7 +1188,19 @@ async function handlePowerToggle() {
               <div className="flex justify-between gap-4 text-[9px]">
                 <span className="text-[#8ba0ab]">Connectivity</span>
                 <span className="font-semibold text-[#425c6b]">
-                  MQTT pending
+                  {formatConnectivityType(device.connectivity?.type)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4 text-[9px]">
+                <span className="text-[#8ba0ab]">Protocol</span>
+                <span className="font-semibold text-[#425c6b]">
+                  {device.connectivity?.protocol || "Not configured"}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4 text-[9px]">
+                <span className="text-[#8ba0ab]">Last seen</span>
+                <span className="font-semibold text-[#425c6b]">
+                  {device.lastSeenAt ? formatAlertTime(device.lastSeenAt) : "Not available"}
                 </span>
               </div>
               <div className="flex justify-between gap-4 text-[9px]">
@@ -1131,38 +1250,40 @@ async function handlePowerToggle() {
                 No alerts recorded for this device.
               </div>
             ) : (
-              <div className="mt-4 space-y-2">
-                {deviceAlerts.map((alert) => {
-                  const status = alertStatusStyles[alert.status] || alertStatusStyles.ACTIVE;
-                  const severity = alertSeverityStyles[alert.severity] || alertSeverityStyles.INFO;
+              <div className="mt-4 max-h-[360px] overflow-x-hidden overflow-y-auto pr-1 sm:max-h-[420px]">
+                <div className="space-y-2">
+                  {deviceAlerts.map((alert) => {
+                    const status = alertStatusStyles[alert.status] || alertStatusStyles.ACTIVE;
+                    const severity = alertSeverityStyles[alert.severity] || alertSeverityStyles.INFO;
 
-                  return (
-                    <div
-                      key={alert.id}
-                      className={`rounded-[10px] border p-3 ${status.container}`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={`rounded-full px-2 py-0.5 text-[8px] font-semibold ${severity}`}>
-                          {alert.severity || "INFO"}
-                        </span>
-                        <span className={`text-[8px] font-semibold ${status.text}`}>
-                          {alert.status === "ACKNOWLEDGED" ? "Acknowledged" : alert.status === "RESOLVED" ? "Resolved" : "Active"}
-                        </span>
+                    return (
+                      <div
+                        key={alert.id}
+                        className={`rounded-[10px] border p-3 ${status.container}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[8px] font-semibold ${severity}`}>
+                            {alert.severity || "INFO"}
+                          </span>
+                          <span className={`text-[8px] font-semibold ${status.text}`}>
+                            {alert.status === "ACKNOWLEDGED" ? "Acknowledged" : alert.status === "RESOLVED" ? "Resolved" : "Active"}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex items-baseline justify-between gap-2">
+                          <span className="truncate text-[10px] font-semibold text-[#102a3a]">
+                            {formatAlertType(alert.type)}
+                          </span>
+                          <span className="shrink-0 text-[8px] text-[#8397a2]">
+                            {formatAlertTime(alert.createdAt)}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-[9px] text-[#6b8290]">
+                          {alert.message || formatAlertType(alert.type)}
+                        </p>
                       </div>
-                      <div className="mt-2 flex items-baseline justify-between gap-2">
-                        <span className="truncate text-[10px] font-semibold text-[#102a3a]">
-                          {formatAlertType(alert.type)}
-                        </span>
-                        <span className="shrink-0 text-[8px] text-[#8397a2]">
-                          {formatAlertTime(alert.createdAt)}
-                        </span>
-                      </div>
-                      <p className="mt-1 truncate text-[9px] text-[#6b8290]">
-                        {alert.message || formatAlertType(alert.type)}
-                      </p>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -1319,20 +1440,25 @@ async function handlePowerToggle() {
                       </h3>
                     </div>
                     <div className="mt-4 rounded-[10px] border border-[#dce8ee] bg-white p-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="text-[10px] font-medium text-[#102a3a]">
-                            MQTT configuration
-                          </p>
-                          <p className="mt-1 max-w-[350px] text-[9px] leading-4 text-[#7d929e]">
-                            Broker, topic and hardware connection settings will
-                            become editable after MQTT integration.
-                          </p>
-                        </div>
-                        <span className="w-fit shrink-0 rounded-full bg-[#fff5df] px-2.5 py-1 text-[8px] font-medium text-[#d08a11]">
-                          Coming later
-                        </span>
-                      </div>
+                      <label htmlFor="edit-device-connectivity" className="text-[10px] font-medium text-[#102a3a]">
+                        Network type
+                      </label>
+                      <select
+                        id="edit-device-connectivity"
+                        value={editConnectivity}
+                        onChange={(event) => setEditConnectivity(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-[9px] border border-[#dce8ee] bg-[#f8fbfd] px-3 text-[10px] text-[#102a3a] outline-none transition focus:border-[#08a9c4] focus:ring-2 focus:ring-[#08a9c4]/10"
+                      >
+                        <option value="">Not configured</option>
+                        {DEVICE_CONNECTIVITY_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {deviceConnectivityLabels[type]}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-3 text-[9px] text-[#7d929e]">
+                        Protocol: <span className="font-semibold text-[#425c6b]">{DEVICE_CONNECTIVITY_PROTOCOL}</span>
+                      </p>
                     </div>
                   </section>
                   {editError ? (

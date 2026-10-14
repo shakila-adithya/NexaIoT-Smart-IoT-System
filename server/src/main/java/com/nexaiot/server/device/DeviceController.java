@@ -20,6 +20,9 @@ import com.nexaiot.server.device.dto.CreateDeviceRequest;
 import com.nexaiot.server.device.dto.DeviceResponse;
 import com.nexaiot.server.device.dto.UpdateDeviceRequest;
 import com.nexaiot.server.mqtt.MqttCommandPublisher;
+import com.nexaiot.server.device.diagnostics.DeviceActivityResponse;
+import com.nexaiot.server.device.diagnostics.DeviceDiagnosticsResponse;
+import com.nexaiot.server.device.diagnostics.DeviceDiagnosticsService;
 
 import jakarta.validation.Valid;
 
@@ -29,13 +32,16 @@ public class DeviceController {
 
     private final DeviceService deviceService;
     private final MqttCommandPublisher mqttCommandPublisher;
+    private final DeviceDiagnosticsService deviceDiagnosticsService;
 
     public DeviceController(
             DeviceService deviceService,
-            MqttCommandPublisher mqttCommandPublisher
+            MqttCommandPublisher mqttCommandPublisher,
+            DeviceDiagnosticsService deviceDiagnosticsService
     ) {
         this.deviceService = deviceService;
         this.mqttCommandPublisher = mqttCommandPublisher;
+        this.deviceDiagnosticsService = deviceDiagnosticsService;
     }
 
     @PostMapping
@@ -130,5 +136,21 @@ public class DeviceController {
                         "deviceKey", device.getDeviceKey(),
                         "power", request.power()
                 ));
+    }
+
+    @GetMapping("/{id}/diagnostics")
+    public ResponseEntity<DeviceDiagnosticsResponse> diagnostics(
+            @PathVariable String id,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(deviceDiagnosticsService.diagnose(id, authentication.getName()));
+    }
+
+    @GetMapping("/{id}/activity")
+    public ResponseEntity<List<DeviceActivityResponse>> activity(
+            @PathVariable String id,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(deviceDiagnosticsService.activity(id, authentication.getName()));
     }
 }

@@ -7,7 +7,7 @@ const actions = [
     description: "Add hardware to this workspace",
     icon: PlusCircle,
     tone: "bg-[#e8f8fb] text-[#08a9c4]",
-    path: "/devices",
+    path: "/devices/register",
   },
   {
     title: "Generate report",

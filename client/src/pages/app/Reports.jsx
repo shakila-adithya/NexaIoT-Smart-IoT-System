@@ -9,6 +9,7 @@ import {
   FileText,
   Lightbulb,
   Plus,
+  Trash2,
   Wifi,
   Zap,
 } from "lucide-react";
@@ -24,7 +25,12 @@ import {
 
 import { getAlerts } from "../../api/alertsApi.js";
 import { useAuth } from "../../hooks/useAuth.js";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "../../hooks/useToast.js";
+import { downloadReportPdf, reportFilename } from "../../utils/reportPdf.js";
+import { deleteGeneratedReport, generateReport, getGeneratedReports } from "../../api/reportsApi.js";
 import {
+  getDeviceEnergy,
   getDeviceReadings,
   getDevices,
 } from "../../api/devicesApi.js";
@@ -110,6 +116,32 @@ function getSignalLabel(value) {
   return "Weak";
 }
 
+function csvCell(value, numeric = false) {
+  if (value === null || value === undefined) return "";
+  const raw = String(value);
+  const safe = !numeric && /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
+}
+
+function buildTelemetryCsv(device, readings, definitions) {
+  const activeDefinitions = definitions.filter((definition) => readings.some((reading) => Number.isFinite(getMetricValue(definition, reading))));
+  const headers = ["timestamp", "deviceId", "deviceName", ...activeDefinitions.map((definition) => definition.key)];
+  const rows = readings.map((reading) => [
+    csvCell(reading.receivedAt),
+    csvCell(device.id),
+    csvCell(device.name || device.deviceKey || "Device"),
+    ...activeDefinitions.map((definition) => {
+      const value = getMetricValue(definition, reading);
+      return Number.isFinite(value) ? csvCell(value, true) : "";
+    }),
+  ]);
+  return [headers.map((header) => csvCell(header)).join(","), ...rows.map((row) => row.join(","))].join("\r\n");
+}
+
+function safeFilePart(value) {
+  return String(value || "device").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "device";
+}
+
 function SummaryCard({ icon: Icon, title, latest, unit, tone, children }) {
   const tones = {
     cyan: "bg-[#e8f8fb] text-[#08a9c4]",
@@ -152,26 +184,36 @@ function StatLine({ label, value, unit = "" }) {
   );
 }
 
-function EnergyUsageCard() {
+function EnergyUsageCard({ energy, loading, error }) {
+  const trend = Array.isArray(energy?.trend) ? energy.trend : [];
+  const unavailable = !loading && (!energy?.available || error);
+
   return (
     <section className="rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-[14px] font-semibold text-[#102a3a]">Energy usage</h2>
-          <p className="mt-1 text-[9px] text-[#8ba0ab]">Daily consumption in kWh</p>
+          <p className="mt-1 text-[9px] text-[#8ba0ab]">Real persisted electrical telemetry</p>
         </div>
-        <span className="text-[9px] text-[#9aadb6]">Not available</span>
+        <span className="text-[9px] text-[#9aadb6]">{loading ? "Loading..." : energy?.source || "Unavailable"}</span>
       </div>
-      <div className="mt-5 flex min-h-[138px] flex-col items-center justify-center rounded-[10px] border border-dashed border-[#e5edf1] bg-[#f8fbfd] text-center">
-        <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#fff4e5] text-[#e79a23]"><Zap size={16} /></span>
-        <p className="mt-2 text-[11px] font-semibold text-[#526b79]">—</p>
-        <p className="mt-1 text-[9px] text-[#8ba0ab]">Energy data not available yet.</p>
-      </div>
+      {loading ? <div className="mt-5 h-[138px] animate-pulse rounded-[10px] bg-[#f8fbfd]" /> : null}
+      {unavailable ? <div className="mt-5 flex min-h-[138px] flex-col items-center justify-center rounded-[10px] border border-dashed border-[#e5edf1] bg-[#f8fbfd] text-center"><span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#fff4e5] text-[#e79a23]"><Zap size={16} /></span><p className="mt-2 text-[11px] font-semibold text-[#526b79]">Energy data unavailable</p><p className="mt-1 text-[9px] text-[#8ba0ab]">{error || "No valid energy telemetry is available for this period."}</p></div> : null}
+      {!loading && !unavailable ? <>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {[['Total energy', energy.totalEnergyKWh, 'kWh'], ['Average power', energy.averagePowerW, 'W'], ['Peak power', energy.peakPowerW, 'W'], [energy.coverageBasis === "METER_SPAN" ? "Meter span" : "Data coverage", Number.isFinite(energy.coverage) ? energy.coverage * 100 : null, '%']].map(([label, value, unit]) => <div key={label} className="rounded-[10px] bg-[#f8fbfd] p-2.5"><p className="text-[8px] text-[#8ba0ab]">{label}</p><p className="mt-1 text-[15px] font-semibold text-[#102a3a]">{formatValue(value, 2)}{Number.isFinite(value) ? ` ${unit}` : ""}</p></div>)}
+        </div>
+        <div className="mt-4 h-[130px] w-full">
+          {trend.length === 0 ? <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#e5edf1] text-[9px] text-[#8ba0ab]">No energy trend points for this period.</div> : <ResponsiveContainer width="100%" height="100%"><LineChart data={trend} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e5edf1" vertical={false} /><XAxis dataKey="bucketStart" hide /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: "#8ba0ab" }} /><Tooltip labelFormatter={formatTooltipTime} formatter={(value) => [`${formatValue(value, 2)} ${energy.trendUnit || "W"}`, energy.trendUnit === "kWh" ? "Energy" : "Power"]} contentStyle={{ borderRadius: 8, border: "1px solid #dce8ee", fontSize: 9 }} /><Line type="monotone" dataKey="value" stroke="#e99a12" strokeWidth={2} dot={false} isAnimationActive={false} /></LineChart></ResponsiveContainer>}
+        </div>
+      </> : null}
     </section>
   );
 }
 
 export default function Reports() {
+  const navigate = useNavigate();
+  const { showToast } = useToast();
   const { user } = useAuth();
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
@@ -181,8 +223,14 @@ export default function Reports() {
   const [readingsLoading, setReadingsLoading] = useState(false);
   const [error, setError] = useState("");
   const [historyError, setHistoryError] = useState("");
+  const [energyResult, setEnergyResult] = useState({ key: "", data: null, error: "" });
   const [alerts, setAlerts] = useState([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
+  const [generatedReports, setGeneratedReports] = useState([]);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [reportError, setReportError] = useState("");
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [selectedMetric, setSelectedMetric] = useState("");
   const [alertNow] = useState(() => Date.now());
   const historyInFlight = useRef(false);
@@ -225,6 +273,61 @@ export default function Reports() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    getGeneratedReports().then((data) => mounted && setGeneratedReports(Array.isArray(data) ? data : [])).catch((err) => mounted && setReportError(err.message || "Unable to load generated reports."));
+    return () => { mounted = false; };
+  }, []);
+
+  async function handleGenerateReport() {
+    if (!selectedDeviceId || generatingReport) return;
+    try {
+      setGeneratingReport(true); setReportError("");
+      const report = await generateReport({ deviceId: selectedDeviceId, range: selectedRange });
+      setGeneratedReports((current) => [report, ...current]);
+      showToast("Report generated successfully.");
+    } catch (err) { setReportError(err.message || "Unable to generate report."); }
+    finally { setGeneratingReport(false); }
+  }
+
+  async function handleDeleteReport(report) {
+    if (!window.confirm(`Delete report for “${report.deviceName}”?`)) return;
+    try { await deleteGeneratedReport(report.id); setGeneratedReports((current) => current.filter((item) => item.id !== report.id)); showToast("Report deleted."); }
+    catch (err) { setReportError(err.message || "Unable to delete report."); }
+  }
+
+  async function handleExportCsv() {
+    if (!selectedDevice || !selectedDeviceId || exportingCsv || readingsLoading) return;
+    try {
+      setExportingCsv(true); setReportError("");
+      const rawReadings = await getDeviceReadings(selectedDeviceId, selectedRange, true);
+      if (!Array.isArray(rawReadings) || rawReadings.length === 0) {
+        setReportError("No telemetry data is available for this range.");
+        return;
+      }
+      const definitions = supportedCapabilities.map(getMetricDefinitionForCapability).filter(Boolean);
+      const csv = buildTelemetryCsv(selectedDevice, rawReadings, definitions);
+      const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob); const link = document.createElement("a");
+      link.href = url; link.download = `nexaiot-${safeFilePart(selectedDevice.name || selectedDevice.deviceKey)}-${selectedRange}-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+      showToast("CSV exported successfully.");
+    } catch (err) { setReportError(err.message || "Unable to export CSV."); }
+    finally { setExportingCsv(false); }
+  }
+
+  async function handleExportPdf() {
+    if (!selectedDeviceId || exportingPdf) return;
+    try {
+      setExportingPdf(true); setReportError("");
+      const report = await generateReport({ deviceId: selectedDeviceId, range: selectedRange });
+      setGeneratedReports((current) => [report, ...current]);
+      downloadReportPdf(report, reportFilename(report));
+      showToast("PDF exported successfully.");
+    } catch (err) { setReportError(err.message || "Unable to export PDF."); }
+    finally { setExportingPdf(false); }
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -308,9 +411,32 @@ export default function Reports() {
     .filter((capability) => capability.key !== "energyConsumption")
     .map(getMetricDefinitionForCapability)
     .filter(Boolean);
-  const energyConsumptionConfigured = supportedCapabilities.some(
-    (capability) => capability.key === "energyConsumption",
+  const hasEnergyCapability = (key) => supportedCapabilities.some(
+    (capability) => (capability.key || capability.semanticType) === key,
   );
+  const energyAnalyticsConfigured = hasEnergyCapability("energyConsumption")
+    || hasEnergyCapability("power")
+    || (hasEnergyCapability("voltage") && hasEnergyCapability("current"));
+  const energyRequestKey = selectedDeviceId && energyAnalyticsConfigured
+    ? `${selectedDeviceId}:${selectedRange}`
+    : "";
+
+  useEffect(() => {
+    let mounted = true;
+    if (!selectedDeviceId || !energyAnalyticsConfigured) {
+      return () => { mounted = false; };
+    }
+
+    getDeviceEnergy(selectedDeviceId, selectedRange)
+      .then((data) => mounted && setEnergyResult({ key: energyRequestKey, data, error: "" }))
+      .catch((err) => mounted && setEnergyResult({ key: energyRequestKey, data: null, error: err.message || "Unable to load energy data." }));
+
+    return () => { mounted = false; };
+  }, [selectedDeviceId, selectedRange, energyAnalyticsConfigured, energyRequestKey]);
+
+  const energy = energyResult.key === energyRequestKey ? energyResult.data : null;
+  const energyError = energyResult.key === energyRequestKey ? energyResult.error : "";
+  const energyLoading = Boolean(energyRequestKey) && energyResult.key !== energyRequestKey;
   const effectiveSelectedMetric = supportedCapabilities.some(
     (capability) => capability.key === selectedMetric,
   )
@@ -382,13 +508,14 @@ export default function Reports() {
           </div>
 
           <div className="flex flex-wrap gap-2.5">
-            <button type="button" disabled title="CSV export will be available in a future release" className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#9aaeba] opacity-80"><Download size={14} /> Export CSV</button>
-            <button type="button" disabled title="PDF export will be available in a future release" className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#9aaeba] opacity-80"><FileText size={14} /> Export PDF</button>
-            <button type="button" disabled title="Report generation will be available in a future release" className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white opacity-55"><Plus size={14} /> Generate report</button>
+            <button type="button" disabled={!selectedDeviceId || readingsLoading || exportingCsv} onClick={handleExportCsv} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98] disabled:cursor-not-allowed disabled:opacity-55"><Download size={14} /> {exportingCsv ? "Exporting..." : "Export CSV"}</button>
+            <button type="button" disabled={!selectedDeviceId || exportingPdf} onClick={handleExportPdf} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98] disabled:cursor-not-allowed disabled:opacity-55"><FileText size={14} /> {exportingPdf ? "Exporting..." : "Export PDF"}</button>
+            <button type="button" disabled={!selectedDeviceId || generatingReport} onClick={handleGenerateReport} className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-55"><Plus size={14} /> {generatingReport ? "Generating..." : "Generate report"}</button>
           </div>
         </section>
 
         {error ? <div className="mt-5 rounded-[12px] border border-red-200 bg-red-50 p-4 text-[11px] text-red-600">{error}</div> : null}
+        {reportError ? <div className="mt-5 rounded-[12px] border border-red-200 bg-red-50 p-4 text-[11px] text-red-600">{reportError}</div> : null}
 
         {devicesLoading ? (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -438,7 +565,7 @@ export default function Reports() {
                     </label>
                   ) : null}
                 </div>
-                {energyConsumptionConfigured ? <div className="mt-4"><EnergyUsageCard /></div> : null}
+                {energyAnalyticsConfigured ? <div className="mt-4"><EnergyUsageCard energy={energy} loading={energyLoading} error={energyError} /></div> : null}
               </>
             ) : (
               <>
@@ -557,9 +684,9 @@ export default function Reports() {
                 </section>
                 </div>
 
-                <div className={`mt-4 grid items-start gap-4 ${energyConsumptionConfigured ? "lg:grid-cols-[1fr_1fr_0.86fr]" : "lg:grid-cols-[1fr_0.86fr]"}`}>
-                  {energyConsumptionConfigured ? (
-                  <EnergyUsageCard />
+                <div className={`mt-4 grid items-start gap-4 ${energyAnalyticsConfigured ? "lg:grid-cols-[1fr_1fr_0.86fr]" : "lg:grid-cols-[1fr_0.86fr]"}`}>
+                  {energyAnalyticsConfigured ? (
+                  <EnergyUsageCard energy={energy} loading={energyLoading} error={energyError} />
                   ) : null}
 
                   <section className="rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-5">
@@ -597,9 +724,9 @@ export default function Reports() {
                 <section className="mt-4 overflow-hidden rounded-[14px] border border-[#dce8ee] bg-white shadow-[0_5px_18px_rgba(10,48,72,0.05)]">
                   <div className="flex flex-col gap-3 border-b border-[#edf2f4] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
                     <div><h2 className="text-[14px] font-semibold text-[#102a3a]">Generated reports</h2><p className="mt-1 text-[9px] text-[#8ba0ab]">Saved and scheduled report files</p></div>
-                    <button type="button" disabled title="Report generation will be available in a future release" className="inline-flex h-9 cursor-not-allowed items-center justify-center gap-1.5 rounded-[9px] bg-[#08a9c4] px-3.5 text-[10px] font-medium text-white opacity-55"><Plus size={13} /> Generate report</button>
+                    <button type="button" disabled={!selectedDeviceId || generatingReport} onClick={handleGenerateReport} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] bg-[#08a9c4] px-3.5 text-[10px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-55"><Plus size={13} /> Generate report</button>
                   </div>
-                  <div className="flex min-h-[96px] items-center justify-center bg-[#fbfdfe] px-4 text-center text-[10px] text-[#8ba0ab]">No generated reports yet. Report generation is not available in this release.</div>
+                  {generatedReports.length === 0 ? <div className="flex min-h-[96px] items-center justify-center bg-[#fbfdfe] px-4 text-center text-[10px] text-[#8ba0ab]">No generated reports yet.</div> : <div className="max-h-[360px] overflow-x-hidden overflow-y-auto sm:max-h-[420px]"><div className="divide-y divide-[#edf2f4]">{generatedReports.map((report) => <div key={report.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="min-w-0 flex-1"><p className="break-words text-[11px] font-semibold text-[#102a3a]">{report.deviceName} · {report.range.toUpperCase()}</p><p className="mt-1 break-words text-[9px] text-[#8ba0ab]">Generated {formatTooltipTime(report.generatedAt)} · {report.alertCount} alerts</p></div><div className="flex shrink-0 items-center gap-2"><button type="button" onClick={() => navigate(`/reports/${report.id}`)} className="rounded-[8px] px-2.5 py-1.5 text-[10px] font-medium text-[#087f98] hover:bg-[#eef9fb]">View</button><button type="button" onClick={() => handleDeleteReport(report)} className="rounded-[8px] p-1.5 text-[#d83f4d] hover:bg-[#fdecee]" aria-label="Delete report"><Trash2 size={14} /></button></div></div>)}</div></div>}
                 </section>
               </>
             )}

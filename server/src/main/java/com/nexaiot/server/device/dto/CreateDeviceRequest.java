@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Size;
 
 import com.nexaiot.server.device.DeviceCapabilities;
 import com.nexaiot.server.device.CapabilityManifest;
+import com.nexaiot.server.device.DeviceConnectivity;
 
 public class CreateDeviceRequest {
 
@@ -20,6 +21,7 @@ public class CreateDeviceRequest {
     @Size(max = 150, message = "Device location must be at most 150 characters")
     private String location;
 
+    private DeviceConnectivity connectivity;
     private DeviceCapabilities capabilities;
     private String templateId;
     private CapabilityManifest capabilityManifest;
@@ -53,6 +55,14 @@ public class CreateDeviceRequest {
 
     public DeviceCapabilities getCapabilities() {
         return capabilities;
+    }
+
+    public DeviceConnectivity getConnectivity() {
+        return connectivity;
+    }
+
+    public void setConnectivity(DeviceConnectivity connectivity) {
+        this.connectivity = connectivity;
     }
 
     public void setCapabilities(DeviceCapabilities capabilities) {

@@ -4,6 +4,7 @@ import java.time.Instant;
 
 import com.nexaiot.server.device.DeviceCapabilities;
 import com.nexaiot.server.device.CapabilityManifest;
+import com.nexaiot.server.device.DeviceConnectivity;
 
 public class DeviceResponse {
 
@@ -17,6 +18,7 @@ public class DeviceResponse {
     private Instant createdAt;
     private Instant updatedAt;
     private Instant lastSeenAt;
+    private DeviceConnectivity connectivity;
     private DeviceCapabilities capabilities;
     private CapabilityManifest capabilityManifest;
 
@@ -37,6 +39,25 @@ public class DeviceResponse {
             DeviceCapabilities capabilities,
             CapabilityManifest capabilityManifest
     ) {
+        this(id, deviceKey, name, type, location, status, powerOn, createdAt, updatedAt,
+                lastSeenAt, null, capabilities, capabilityManifest);
+    }
+
+    public DeviceResponse(
+            String id,
+            String deviceKey,
+            String name,
+            String type,
+            String location,
+            String status,
+            boolean powerOn,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant lastSeenAt,
+            DeviceConnectivity connectivity,
+            DeviceCapabilities capabilities,
+            CapabilityManifest capabilityManifest
+    ) {
         this.id = id;
         this.deviceKey = deviceKey;
         this.name = name;
@@ -47,6 +68,7 @@ public class DeviceResponse {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.lastSeenAt = lastSeenAt;
+        this.connectivity = connectivity;
         this.capabilities = capabilities;
         this.capabilityManifest = capabilityManifest;
     }
@@ -89,6 +111,10 @@ public class DeviceResponse {
 
     public Instant getLastSeenAt() {
         return lastSeenAt;
+    }
+
+    public DeviceConnectivity getConnectivity() {
+        return connectivity;
     }
 
     public DeviceCapabilities getCapabilities() {

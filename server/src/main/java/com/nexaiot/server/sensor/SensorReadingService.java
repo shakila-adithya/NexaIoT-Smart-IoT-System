@@ -93,6 +93,21 @@ public class SensorReadingService {
             .toList();
     }
 
+    public List<SensorReadingResponse> getRawHistory(
+        String deviceId,
+        String ownerEmail,
+        String range
+    ) {
+        getOwnedDevice(deviceId, ownerEmail);
+        Instant to = Instant.now();
+        Instant from = to.minus(getRangeDuration(range));
+        return sensorReadingRepository
+            .findByDeviceIdAndReceivedAtBetweenOrderByReceivedAtAsc(deviceId, from, to)
+            .stream()
+            .map(this::toResponse)
+            .toList();
+    }
+
     private Duration getRangeDuration(String range) {
         return switch (range) {
             case "1h" -> Duration.ofHours(1);

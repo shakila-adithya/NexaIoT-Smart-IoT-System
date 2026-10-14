@@ -78,8 +78,8 @@ public class UserService {
 
         if (request.getDateFormat() != null) {
             String value = request.getDateFormat().trim();
-            if (!value.equals("DD/MM/YYYY") && !value.equals("MM/DD/YYYY")
-                    && !value.equals("YYYY-MM-DD")) {
+            if (!DEFAULT_DATE_FORMAT.equals(value) && !"MM/DD/YYYY".equals(value)
+                    && !"YYYY-MM-DD".equals(value)) {
                 throw new IllegalArgumentException("Unsupported date format");
             }
             user.setDateFormat(value);

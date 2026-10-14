@@ -7,5 +7,6 @@ public enum AlertType {
     HUMIDITY_LOW,
     BATTERY_LOW,
     DEVICE_OFFLINE,
-    RSSI_WEAK
+    RSSI_WEAK,
+    CUSTOM_THRESHOLD
 }

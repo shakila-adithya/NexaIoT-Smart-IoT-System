@@ -16,10 +16,12 @@ import {
   Wrench,
 } from "lucide-react";
 
-import { getDevices } from "../../api/devicesApi.js";
+import { controlDevice, deleteDevice, getDevices } from "../../api/devicesApi.js";
+import { normalizeCapabilityManifest } from "../../config/capabilityManifest.js";
 import DeviceCard from "../../components/device/DeviceCard.jsx";
 import DeviceSummaryCard from "../../components/device/DeviceSummaryCard.jsx";
 import PageHero from "../../components/common/PageHero.jsx";
+import { useToast } from "../../hooks/useToast.js";
 
 function getDeviceIcon(type = "") {
   const value = type.toLowerCase();
@@ -35,6 +37,7 @@ function getDeviceIcon(type = "") {
 
 export default function Devices() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [devices, setDevices] = useState([]);
   const [search, setSearch] = useState("");
@@ -42,6 +45,10 @@ export default function Devices() {
   const [view, setView] = useState("grid");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [controlLoadingId, setControlLoadingId] = useState("");
+  const [pendingPower, setPendingPower] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +125,51 @@ export default function Devices() {
       return matchesStatus && matchesSearch;
     });
   }, [devices, search, statusFilter]);
+
+  const supportsPowerControl = (device) => normalizeCapabilityManifest(device).some(
+    (capability) => capability.category === "CONTROL"
+      && ["power", "digitalOutput"].includes(capability.key || capability.semanticType),
+  );
+
+  const handlePowerToggle = async (device) => {
+    if (!supportsPowerControl(device) || controlLoadingId || device.status !== "ONLINE") return;
+
+    const targetPower = !device.powerOn;
+    setControlLoadingId(device.id);
+    setPendingPower(targetPower);
+    try {
+      await controlDevice(device.id, targetPower);
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const updatedDevices = await getDevices();
+        const updatedDevice = updatedDevices.find((item) => item.id === device.id);
+        if (updatedDevice) {
+          setDevices(updatedDevices);
+          if (updatedDevice.powerOn === targetPower) break;
+        }
+      }
+    } catch (requestError) {
+      showToast(requestError.message || "Unable to send device command.", "error");
+    } finally {
+      setControlLoadingId("");
+      setPendingPower(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteDevice(deleteTarget.id);
+      setDevices((current) => current.filter((device) => device.id !== deleteTarget.id));
+      showToast("Device deleted successfully.");
+      setDeleteTarget(null);
+    } catch (requestError) {
+      showToast(requestError.message || "Unable to delete device.", "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="w-full px-4 pb-9 pt-[26px] md:px-[30px]">
@@ -287,11 +339,29 @@ export default function Devices() {
                 status={device.status}
                 powerOn={device.powerOn}
                 onOpen={() => navigate(`/devices/${device.id}`)}
+                onEdit={() => navigate(`/devices/${device.id}`)}
+                onDelete={() => setDeleteTarget(device)}
+                supportsPowerControl={supportsPowerControl(device)}
+                controlLoading={controlLoadingId === device.id}
+                pendingPower={controlLoadingId === device.id ? pendingPower : null}
+                onToggle={() => handlePowerToggle(device)}
                 />
             ))}
           </div>
         )}
       </div>
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#102a3a]/45 px-4 py-5 backdrop-blur-[2px]" onClick={() => !deleting && setDeleteTarget(null)}>
+          <div className="w-full max-w-[420px] rounded-[16px] border border-[#e4ecef] bg-white p-5 shadow-[0_28px_80px_rgba(16,42,58,0.28)]" onClick={(event) => event.stopPropagation()}>
+            <h2 className="text-[15px] font-semibold text-[#102a3a]">Delete device?</h2>
+            <p className="mt-2 text-[11px] leading-5 text-[#6b8290]">This will permanently remove {deleteTarget.name} and its device configuration.</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" disabled={deleting} onClick={() => setDeleteTarget(null)} className="h-9 rounded-[9px] border border-[#dce8ee] px-4 text-[11px] text-[#526b79] disabled:opacity-60">Cancel</button>
+              <button type="button" disabled={deleting} onClick={handleDelete} className="h-9 rounded-[9px] bg-[#e24e5a] px-4 text-[11px] font-medium text-white disabled:opacity-60">{deleting ? "Deleting..." : "Delete device"}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

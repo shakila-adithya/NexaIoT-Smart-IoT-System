@@ -21,3 +21,11 @@ export async function registerRequest({ fullName, email, password }) {
     password,
   });
 }
+
+export async function forgotPasswordRequest(email) {
+  return apiClient.post("/api/auth/forgot-password", { email });
+}
+
+export async function resetPasswordRequest(token, newPassword) {
+  return apiClient.post("/api/auth/reset-password", { token, newPassword });
+}

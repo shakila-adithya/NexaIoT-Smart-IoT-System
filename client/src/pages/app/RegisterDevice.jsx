@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Bluetooth,
   Cable,
   Check,
   CircleCheck,
   Cpu,
   MapPin,
   RadioTower,
+  Smartphone,
   Tag,
   Wifi,
   X,
@@ -18,31 +18,28 @@ import { getDeviceTemplates } from "../../api/deviceTemplatesApi.js";
 import PageHero from "../../components/common/PageHero.jsx";
 import CustomCapabilityBuilder from "../../components/device/CustomCapabilityBuilder.jsx";
 import TemplateCapabilityPreview from "../../components/device/TemplateCapabilityPreview.jsx";
+import {
+  DEVICE_CONNECTIVITY_PROTOCOL,
+} from "../../config/deviceConnectivity.js";
 
 const connectivityOptions = [
   {
-    id: "wifi",
+    id: "WIFI",
     label: "Wi-Fi",
     description: "Wireless network",
     icon: Wifi,
   },
   {
-    id: "bluetooth",
-    label: "Bluetooth",
-    description: "Short-range connection",
-    icon: Bluetooth,
-  },
-  {
-    id: "mqtt",
-    label: "MQTT",
-    description: "IoT messaging",
-    icon: RadioTower,
-  },
-  {
-    id: "ethernet",
+    id: "ETHERNET",
     label: "Ethernet",
     description: "Wired network",
     icon: Cable,
+  },
+  {
+    id: "CELLULAR",
+    label: "Cellular",
+    description: "Mobile network",
+    icon: Smartphone,
   },
 ];
 
@@ -61,7 +58,7 @@ export default function RegisterDevice() {
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [templatesError, setTemplatesError] = useState("");
 
-  const [connectivity, setConnectivity] = useState("wifi");
+  const [connectivity, setConnectivity] = useState("WIFI");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -154,6 +151,10 @@ export default function RegisterDevice() {
         name: form.name.trim(),
         type: form.type.trim(),
         location: form.location.trim(),
+        connectivity: {
+          type: connectivity,
+          protocol: DEVICE_CONNECTIVITY_PROTOCOL,
+        },
       };
 
       if (registrationMode === "template") {
@@ -424,11 +425,11 @@ export default function RegisterDevice() {
                 </h2>
 
                 <p className="mt-1 text-[10px] text-[#6b8290]">
-                  Choose how this device will communicate with NexaIoT.
+                  Choose how this device reaches the network. NexaIoT uses MQTT as its device protocol.
                 </p>
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {connectivityOptions.map((option) => {
                   const Icon = option.icon;
                   const selected = connectivity === option.id;
@@ -474,6 +475,11 @@ export default function RegisterDevice() {
                 })}
               </div>
 
+              <div className="mt-4 flex items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-[#f8fbfd] px-3 py-2.5 text-[10px] text-[#526d7b]">
+                <RadioTower size={14} className="text-[#08a9c4]" />
+                <span>Protocol: <strong className="font-semibold text-[#102a3a]">{DEVICE_CONNECTIVITY_PROTOCOL}</strong></span>
+              </div>
+
               <div className="mt-4 rounded-[10px] border border-[#dce8ee] bg-[#f8fbfd] px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[#e7f7f9] text-[#08a9c4]">
@@ -486,8 +492,7 @@ export default function RegisterDevice() {
                     </p>
 
                     <p className="mt-0.5 text-[9px] text-[#6b8290]">
-                      MQTT and physical-device connection settings will be
-                      enabled during the IoT integration stage.
+                      Physical-device provisioning will be handled in a later integration stage.
                     </p>
                   </div>
                 </div>

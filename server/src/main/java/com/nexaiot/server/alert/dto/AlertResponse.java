@@ -19,6 +19,8 @@ public record AlertResponse(
         AlertStatus status,
         Instant createdAt,
         Instant acknowledgedAt,
-        Instant resolvedAt
+        Instant resolvedAt,
+        Instant readAt,
+        String alertRuleId
 ) {
 }

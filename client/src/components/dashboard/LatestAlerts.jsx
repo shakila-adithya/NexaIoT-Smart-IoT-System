@@ -58,8 +58,7 @@ function formatRelativeTime(value) {
 export default function LatestAlerts({ alerts = [], loading = false, error = "" }) {
   const navigate = useNavigate();
   const latestAlerts = [...alerts]
-    .sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt))
-    .slice(0, 5);
+    .sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt));
 
   return (
     <section className="rounded-[14px] border border-[#dce8ee] bg-white p-[18px] shadow-[0_6px_20px_rgba(10,48,72,0.07)]">
@@ -92,38 +91,44 @@ export default function LatestAlerts({ alerts = [], loading = false, error = "" 
           <div className="rounded-[10px] bg-[#f8fbfd] p-4 text-[10px] text-[#6b8290]">
             No alerts yet
           </div>
-        ) : latestAlerts.map((alert) => {
-          const style = severityStyles[alert.severity] || severityStyles.INFO;
-          const status = statusStyles[alert.status] || statusStyles.ACTIVE;
+        ) : (
+          <div className="max-h-[360px] overflow-x-hidden overflow-y-auto sm:max-h-[480px]">
+            <div className="space-y-3">
+              {latestAlerts.map((alert) => {
+                const style = severityStyles[alert.severity] || severityStyles.INFO;
+                const status = statusStyles[alert.status] || statusStyles.ACTIVE;
 
-          return (
-            <div
-              key={alert.id}
-              className={`rounded-[10px] border p-3 ${status.container}`}
-            >
-              <div className="flex items-center justify-between">
-                <span
-                  className={`inline-flex h-[22px] items-center gap-1.5 rounded-full px-2 text-[10px] font-semibold ${style.badge}`}
-                >
-                  <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
-                  {alert.severity || "INFO"}
-                </span>
+                return (
+                  <div
+                    key={alert.id}
+                    className={`rounded-[10px] border p-3 ${status.container}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`inline-flex h-[22px] items-center gap-1.5 rounded-full px-2 text-[10px] font-semibold ${style.badge}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                        {alert.severity || "INFO"}
+                      </span>
 
-                <span className={`text-[9px] font-medium ${status.text}`}>
-                  {alert.status === "ACKNOWLEDGED" ? "Acknowledged" : alert.status === "RESOLVED" ? "Resolved" : "Active"}
-                </span>
-              </div>
+                      <span className={`text-[9px] font-medium ${status.text}`}>
+                        {alert.status === "ACKNOWLEDGED" ? "Acknowledged" : alert.status === "RESOLVED" ? "Resolved" : "Active"}
+                      </span>
+                    </div>
 
-              <div className="mt-2 text-[11px] font-medium text-[#102a3a]">
-                {formatType(alert.type)}
-              </div>
+                    <div className="mt-2 text-[11px] font-medium text-[#102a3a]">
+                      {formatType(alert.type)}
+                    </div>
 
-              <div className="mt-1 text-[9px] text-[#8397a2]">
-                {alert.deviceName || "Unknown device"} · {formatRelativeTime(alert.createdAt)}
-              </div>
+                    <div className="mt-1 text-[9px] text-[#8397a2]">
+                      {alert.deviceName || "Unknown device"} · {formatRelativeTime(alert.createdAt)}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        )}
       </div>
     </section>
   );

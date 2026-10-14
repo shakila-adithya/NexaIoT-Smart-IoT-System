@@ -120,7 +120,7 @@ export default function Login() {
                 />
                 Remember me
               </label>
-              <Link to="#" className="text-sm text-primary font-medium hover:underline">
+              <Link to="/forgot-password" className="text-sm text-primary font-medium hover:underline">
                 Forgot password?
               </Link>
             </div>

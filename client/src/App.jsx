@@ -12,6 +12,8 @@ import Privacy from "./pages/public/Privacy.jsx";
 import Terms from "./pages/public/Terms.jsx";
 import Login from "./pages/auth/Login.jsx";
 import Register from "./pages/auth/Register.jsx";
+import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
+import ResetPassword from "./pages/auth/ResetPassword.jsx";
 
 import Dashboard from "./pages/app/Dashboard.jsx";
 import Devices from "./pages/app/Devices.jsx";
@@ -19,9 +21,12 @@ import RegisterDevice from "./pages/app/RegisterDevice.jsx";
 import AppLayout from "./components/layout/AppLayout.jsx";
 import DeviceDetails from "./pages/app/DeviceDetails.jsx";
 import Alerts from "./pages/app/Alerts.jsx";
+import AlertRules from "./pages/app/AlertRules.jsx";
 import Reports from "./pages/app/Reports.jsx";
 import Profile from "./pages/app/Profile.jsx";
 import SettingsPage from "./pages/app/Settings.jsx";
+import Tasks from "./pages/app/Tasks.jsx";
+import ReportDetails from "./pages/app/ReportDetails.jsx";
 
 export default function App() {
   const { pathname } = useLocation();
@@ -39,6 +44,8 @@ export default function App() {
       </Route>
       <Route path="/login" element={<div className="auth-page-motion"><Login /></div>} />
       <Route path="/register" element={<div className="auth-page-motion"><Register /></div>} />
+      <Route path="/forgot-password" element={<div className="auth-page-motion"><ForgotPassword /></div>} />
+      <Route path="/reset-password" element={<div className="auth-page-motion"><ResetPassword /></div>} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
@@ -46,9 +53,12 @@ export default function App() {
           <Route path="/devices/register" element={<RegisterDevice />} />
           <Route path="/devices/:id" element={<DeviceDetails />} />
           <Route path="/alerts" element={<Alerts />} />
+          <Route path="/alerts/rules" element={<AlertRules />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/reports/:id" element={<ReportDetails />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/tasks" element={<Tasks />} />
         </Route>
       </Route>
 

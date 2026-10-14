@@ -79,8 +79,7 @@ function buildActivity(devices, alerts) {
 
   return activities
     .filter((activity) => !Number.isNaN(new Date(activity.timestamp).getTime()))
-    .sort((first, second) => new Date(second.timestamp) - new Date(first.timestamp))
-    .slice(0, 5);
+    .sort((first, second) => new Date(second.timestamp) - new Date(first.timestamp));
 }
 
 export default function RecentActivity({ devices = [], alerts = [] }) {
@@ -100,7 +99,7 @@ export default function RecentActivity({ devices = [], alerts = [] }) {
 
       </div>
 
-      <div className="mt-3.5 space-y-[14px]">
+      <div className="mt-3.5">
         {activities.length === 0 ? (
           <div className="rounded-[10px] bg-[#f8fbfd] p-4">
             <p className="text-[11px] font-medium text-[#102a3a]">
@@ -110,30 +109,36 @@ export default function RecentActivity({ devices = [], alerts = [] }) {
               Activity will appear after devices or alerts are recorded.
             </p>
           </div>
-        ) : activities.map((item) => {
-          const Icon = item.icon || WifiOff;
+        ) : (
+          <div className="max-h-[360px] overflow-x-hidden overflow-y-auto sm:max-h-[480px]">
+            <div className="space-y-[14px]">
+              {activities.map((item, index) => {
+                const Icon = item.icon || WifiOff;
 
-          return (
-            <div key={item.title} className="flex items-center">
-              <div
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] ${
-                  toneMap[item.tone] || toneMap.cyan
-                }`}
-              >
-                <Icon size={14} strokeWidth={1.9} />
-              </div>
+                return (
+                  <div key={`${item.title}-${item.timestamp}-${index}`} className="flex items-center">
+                    <div
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] ${
+                        toneMap[item.tone] || toneMap.cyan
+                      }`}
+                    >
+                      <Icon size={14} strokeWidth={1.9} />
+                    </div>
 
-              <div className="ml-[11px] min-w-0">
-                <div className="truncate text-[11px] font-medium text-[#102a3a]">
-                  {item.title}
-                </div>
-                <div className="mt-1 truncate text-[9px] text-[#8397a2]">
-                  {item.meta}
-                </div>
-              </div>
+                    <div className="ml-[11px] min-w-0">
+                      <div className="truncate text-[11px] font-medium text-[#102a3a]">
+                        {item.title}
+                      </div>
+                      <div className="mt-1 truncate text-[9px] text-[#8397a2]">
+                        {item.meta}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        )}
       </div>
     </section>
   );

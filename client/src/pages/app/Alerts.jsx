@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   Bell,
@@ -6,7 +7,6 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
-  Filter,
   ListFilter,
   Search,
   SlidersHorizontal,
@@ -20,6 +20,7 @@ import {
   clearAllAlerts,
   deleteAlert,
   getAlerts,
+  markAllAlertsRead,
   resolveAlert,
 } from "../../api/alertsApi.js";
 
@@ -206,7 +207,8 @@ function AlertRow({ alert, selected, onSelect }) {
             <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
             {alert.severity || "INFO"}
           </span>
-          <span className="truncate text-[10px] font-medium text-[#102a3a]">{formatType(alert.type)}</span>
+          {!alert.readAt ? <span className="h-1.5 w-1.5 rounded-full bg-[#08a9c4]" title="Unread" /> : null}
+          <span className={`truncate text-[10px] text-[#102a3a] ${alert.readAt ? "font-medium" : "font-semibold"}`}>{formatType(alert.type)}</span>
         </div>
         <div className="mt-1 truncate text-[11px] font-medium text-[#102a3a]">{alert.message || formatType(alert.type)}</div>
         <div className="mt-1 truncate text-[9px] text-[#8397a2]">{alert.deviceName || "Unknown device"}</div>
@@ -224,7 +226,7 @@ function AlertRow({ alert, selected, onSelect }) {
   );
 }
 
-function AlertDetails({ alert, updatingId, deletingId, onAcknowledge, onResolve, onDelete }) {
+function AlertDetails({ alert, updatingId, deletingId, onAcknowledge, onResolve, onDelete, onCreateTask }) {
   if (!alert) {
     return (
       <aside className="flex min-h-[360px] items-center justify-center rounded-[14px] border border-[#dce8ee] bg-white p-5 text-center shadow-[0_5px_18px_rgba(10,48,72,0.05)]">
@@ -295,7 +297,7 @@ function AlertDetails({ alert, updatingId, deletingId, onAcknowledge, onResolve,
           </button>
         ) : null}
 
-        <button type="button" disabled title="Task creation will be available in a future release" className="inline-flex min-h-[44px] w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-[9px] border border-[#dce8ee] bg-white px-3.5 text-[10px] font-semibold text-[#9aaeba]">
+        <button type="button" onClick={() => onCreateTask(alert.id)} className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[9px] border border-[#dce8ee] bg-white px-3.5 text-[10px] font-semibold text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98]">
           <ClipboardCheck size={13} /> Create task
         </button>
 
@@ -314,6 +316,8 @@ function AlertDetails({ alert, updatingId, deletingId, onAcknowledge, onResolve,
 }
 
 export default function Alerts() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [alerts, setAlerts] = useState([]);
   const [selectedAlertId, setSelectedAlertId] = useState("");
   const [statusTab, setStatusTab] = useState("ALL");
@@ -329,6 +333,7 @@ export default function Alerts() {
   const [deletingId, setDeletingId] = useState("");
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [clearingAll, setClearingAll] = useState(false);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
   const pollingInFlight = useRef(false);
   const alertsRequestVersion = useRef(0);
 
@@ -354,7 +359,12 @@ export default function Alerts() {
 
         setAlerts(loadedAlerts);
 
+        const requestedAlertId = searchParams.get("alertId");
         setSelectedAlertId((currentSelectedId) => {
+          if (requestedAlertId && loadedAlerts.some((alert) => alert.id === requestedAlertId)) {
+            return requestedAlertId;
+          }
+
           if (
             currentSelectedId &&
             loadedAlerts.some((alert) => alert.id === currentSelectedId)
@@ -390,7 +400,7 @@ export default function Alerts() {
       window.clearInterval(intervalId);
       pollingInFlight.current = false;
     };
-  }, []);
+  }, [searchParams]);
 
   const deviceOptions = useMemo(() => {
     const devices = new Map();
@@ -410,6 +420,7 @@ export default function Alerts() {
       resolved: alerts.filter((alert) => alert.status === "RESOLVED").length,
       all: alerts.length,
       acknowledged: alerts.filter((alert) => alert.status === "ACKNOWLEDGED").length,
+      unread: alerts.filter((alert) => !alert.readAt).length,
     };
   }, [alerts]);
 
@@ -482,6 +493,22 @@ export default function Alerts() {
     }
   }
 
+  async function handleMarkAllRead() {
+    if (markingAllRead || counts.unread === 0) return;
+
+    try {
+      setMarkingAllRead(true);
+      setActionError("");
+      const updatedAlerts = await markAllAlertsRead();
+      const updatedById = new Map(updatedAlerts.map((alert) => [alert.id, alert]));
+      setAlerts((currentAlerts) => currentAlerts.map((alert) => updatedById.get(alert.id) || alert));
+    } catch (err) {
+      setActionError(err.message || "Unable to mark alerts as read.");
+    } finally {
+      setMarkingAllRead(false);
+    }
+  }
+
   return (
     <div className="w-full px-4 pb-10 pt-[26px] md:px-[30px]">
       <div className="mx-auto w-full max-w-[1144px]">
@@ -492,8 +519,8 @@ export default function Alerts() {
           </div>
 
           <div className="flex flex-wrap gap-2.5">
-            <button type="button" disabled title="Alert rules will be available in a future release" className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#9aaeba]"><SlidersHorizontal size={14} /> Alert rules</button>
-            <button type="button" disabled title="Mark all read will be available in a future release" className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white opacity-55"><Check size={14} /> Mark all read</button>
+            <button type="button" onClick={() => navigate("/alerts/rules")} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98]"><SlidersHorizontal size={14} /> Alert rules</button>
+            <button type="button" disabled={markingAllRead || counts.unread === 0} onClick={handleMarkAllRead} title={counts.unread === 0 ? "All alerts are already read" : "Mark all alerts as read"} className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white transition hover:bg-[#0799b2] disabled:cursor-not-allowed disabled:opacity-55"><Check size={14} /> {markingAllRead ? "Marking..." : "Mark all read"}</button>
             <button type="button" disabled={loading || alerts.length === 0 || clearingAll} onClick={() => setClearAllOpen(true)} title={alerts.length === 0 ? "There is no alert history to clear" : "Clear all alert history"} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#f3cdd1] bg-[#fff7f8] px-4 text-[11px] font-medium text-[#d83f4d] transition hover:border-[#e24e5a] hover:bg-[#fdecee] disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} /> Clear alert history</button>
           </div>
         </section>
@@ -515,7 +542,6 @@ export default function Alerts() {
             <select value={deviceFilter} onChange={(event) => setDeviceFilter(event.target.value)} className="h-10 rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[10px] text-[#526b79] outline-none focus:border-[#08a9c4]"><option value="ALL">All devices</option>{deviceOptions.map((device) => <option key={device.value} value={device.value}>{device.label}</option>)}</select>
             <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)} className="h-10 rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[10px] text-[#526b79] outline-none focus:border-[#08a9c4]"><option value="ALL">All severities</option><option value="INFO">Info</option><option value="WARNING">Warning</option><option value="CRITICAL">Critical</option></select>
             <select value={dateRange} onChange={(event) => setDateRange(event.target.value)} className="h-10 rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[10px] text-[#526b79] outline-none focus:border-[#08a9c4]"><option value="ALL">All time</option><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select>
-            <button type="button" disabled title="More filters will be available in a future release" className="inline-flex h-10 cursor-not-allowed items-center justify-center gap-2 rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[10px] font-medium text-[#9aaeba]"><Filter size={14} /> More filters</button>
           </div>
 
           <div className="mt-3 flex items-center gap-1 overflow-x-auto border-t border-[#edf3f6] pt-3">
@@ -536,11 +562,11 @@ export default function Alerts() {
           <section className="mt-6 grid items-start gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
             <div className="overflow-hidden rounded-[14px] border border-[#dce8ee] bg-white shadow-[0_5px_18px_rgba(10,48,72,0.05)]">
               <div className="flex items-center justify-between gap-3 border-b border-[#edf3f6] px-4 py-3.5"><div className="flex items-center gap-2"><h2 className="text-[13px] font-semibold text-[#102a3a]">Recent alerts</h2><span className="rounded-full bg-[#fdecee] px-2 py-0.5 text-[9px] font-semibold text-[#d83f4d]">{counts.totalActive} active</span></div><span className="hidden items-center gap-1 text-[9px] text-[#7d929e] sm:flex"><ListFilter size={12} /> Newest first</span></div>
-              {filteredAlerts.length > 0 ? filteredAlerts.map((alert) => <AlertRow key={alert.id} alert={alert} selected={selectedAlert?.id === alert.id} onSelect={setSelectedAlertId} />) : <div className="px-5 py-16 text-center"><CheckCircle2 size={26} className="mx-auto text-[#16a57a]" /><p className="mt-3 text-[12px] font-semibold text-[#102a3a]">No matching alerts</p><p className="mt-1 text-[10px] text-[#6b8290]">Try changing the filters to see more alerts.</p></div>}
+              {filteredAlerts.length > 0 ? <div className="max-h-[360px] overflow-x-hidden overflow-y-auto sm:max-h-[480px]">{filteredAlerts.map((alert) => <AlertRow key={alert.id} alert={alert} selected={selectedAlert?.id === alert.id} onSelect={setSelectedAlertId} />)}</div> : <div className="px-5 py-16 text-center"><CheckCircle2 size={26} className="mx-auto text-[#16a57a]" /><p className="mt-3 text-[12px] font-semibold text-[#102a3a]">No matching alerts</p><p className="mt-1 text-[10px] text-[#6b8290]">Try changing the filters to see more alerts.</p></div>}
               {filteredAlerts.length > 0 && counts.totalActive === 0 ? <div className="flex items-center gap-3 border-t border-[#d9eee7] bg-[#eaf8f3] px-4 py-3"><CheckCircle2 size={18} className="text-[#16a57a]" /><div><p className="text-[10px] font-medium text-[#16815f]">No other urgent alerts</p><p className="text-[9px] text-[#6b8290]">All monitored conditions are within safe limits.</p></div></div> : null}
             </div>
 
-            <AlertDetails alert={selectedAlert} updatingId={updatingId} deletingId={deletingId} onAcknowledge={(id) => updateAlert(id, "acknowledge")} onResolve={(id) => updateAlert(id, "resolve")} onDelete={setDeleteTargetId} />
+            <AlertDetails alert={selectedAlert} updatingId={updatingId} deletingId={deletingId} onAcknowledge={(id) => updateAlert(id, "acknowledge")} onResolve={(id) => updateAlert(id, "resolve")} onDelete={setDeleteTargetId} onCreateTask={(id) => navigate(`/tasks?alertId=${encodeURIComponent(id)}`)} />
           </section>
         )}
 

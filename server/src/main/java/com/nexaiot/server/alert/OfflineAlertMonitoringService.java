@@ -23,16 +23,19 @@ public class OfflineAlertMonitoringService {
 
     private final DeviceRepository deviceRepository;
     private final AlertRepository alertRepository;
+    private final AlertRuleRepository alertRuleRepository;
     private final Duration offlineTimeout;
 
     public OfflineAlertMonitoringService(
             DeviceRepository deviceRepository,
             AlertRepository alertRepository,
+            AlertRuleRepository alertRuleRepository,
             @Value("${alerts.device-offline-timeout-seconds}")
             long offlineTimeoutSeconds
     ) {
         this.deviceRepository = deviceRepository;
         this.alertRepository = alertRepository;
+        this.alertRuleRepository = alertRuleRepository;
         this.offlineTimeout = Duration.ofSeconds(offlineTimeoutSeconds);
     }
 
@@ -53,6 +56,15 @@ public class OfflineAlertMonitoringService {
         Instant lastSeenAt = device.getLastSeenAt();
 
         if (lastSeenAt == null) {
+            return;
+        }
+
+        var customRules = alertRuleRepository
+                .findByDeviceIdAndOwnerEmailAndRuleTypeAndEnabledTrue(
+                        device.getId(), device.getOwnerEmail(), AlertRuleType.DEVICE_OFFLINE);
+
+        if (!customRules.isEmpty()) {
+            customRules.forEach(rule -> evaluateOfflineRule(device, rule, lastSeenAt, now));
             return;
         }
 
@@ -83,6 +95,41 @@ public class OfflineAlertMonitoringService {
             alert.setStatus(AlertStatus.ACTIVE);
             alert.setCreatedAt(now);
 
+            alertRepository.save(alert);
+            return;
+        }
+
+        existingAlert.ifPresent(alert -> {
+            alert.setStatus(AlertStatus.RESOLVED);
+            alert.setResolvedAt(now);
+            alertRepository.save(alert);
+        });
+    }
+
+    private void evaluateOfflineRule(Device device, AlertRule rule, Instant lastSeenAt, Instant now) {
+        Duration timeout = Duration.ofMinutes(rule.getOfflineDurationMinutes());
+        boolean offline = lastSeenAt.plus(timeout).isBefore(now);
+        var existingAlert = alertRepository
+                .findFirstByDeviceIdAndOwnerEmailAndAlertRuleIdAndStatusIn(
+                        device.getId(), device.getOwnerEmail(), rule.getId(), UNRESOLVED_STATUSES);
+
+        if (offline) {
+            if (existingAlert.isPresent()) {
+                return;
+            }
+
+            Alert alert = new Alert();
+            alert.setOwnerEmail(device.getOwnerEmail());
+            alert.setDeviceId(device.getId());
+            alert.setDeviceKey(device.getDeviceKey());
+            alert.setDeviceName(device.getName());
+            alert.setType(AlertType.DEVICE_OFFLINE);
+            alert.setAlertRuleId(rule.getId());
+            alert.setSeverity(rule.getSeverity());
+            alert.setMessage("Alert rule \"" + rule.getName() + "\" detected an offline device.");
+            alert.setThreshold(timeout.toSeconds() * 1.0);
+            alert.setStatus(AlertStatus.ACTIVE);
+            alert.setCreatedAt(now);
             alertRepository.save(alert);
             return;
         }

@@ -10,9 +10,13 @@ import org.springframework.integration.channel.DirectChannel;
 import org.springframework.messaging.MessageChannel;
 
 import com.nexaiot.server.alert.AlertRepository;
+import com.nexaiot.server.alert.AlertRuleRepository;
 import com.nexaiot.server.device.DeviceRepository;
 import com.nexaiot.server.repository.UserRepository;
+import com.nexaiot.server.repository.PasswordResetTokenRepository;
 import com.nexaiot.server.sensor.SensorReadingRepository;
+import com.nexaiot.server.task.MaintenanceTaskRepository;
+import com.nexaiot.server.report.GeneratedReportRepository;
 
 @TestConfiguration(proxyBeanMethods = false)
 class TestRepositoryConfiguration {
@@ -40,6 +44,26 @@ class TestRepositoryConfiguration {
     @Bean
     AlertRepository alertRepository() {
         return repositoryStub(AlertRepository.class);
+    }
+
+    @Bean
+    AlertRuleRepository alertRuleRepository() {
+        return repositoryStub(AlertRuleRepository.class);
+    }
+
+    @Bean
+    MaintenanceTaskRepository maintenanceTaskRepository() {
+        return repositoryStub(MaintenanceTaskRepository.class);
+    }
+
+    @Bean
+    GeneratedReportRepository generatedReportRepository() {
+        return repositoryStub(GeneratedReportRepository.class);
+    }
+
+    @Bean
+    PasswordResetTokenRepository passwordResetTokenRepository() {
+        return repositoryStub(PasswordResetTokenRepository.class);
     }
 
     @SuppressWarnings("unchecked")
