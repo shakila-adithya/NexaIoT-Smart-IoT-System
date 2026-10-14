@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
-  Filter,
   ListFilter,
   Search,
   SlidersHorizontal,
@@ -543,7 +542,6 @@ export default function Alerts() {
             <select value={deviceFilter} onChange={(event) => setDeviceFilter(event.target.value)} className="h-10 rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[10px] text-[#526b79] outline-none focus:border-[#08a9c4]"><option value="ALL">All devices</option>{deviceOptions.map((device) => <option key={device.value} value={device.value}>{device.label}</option>)}</select>
             <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)} className="h-10 rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[10px] text-[#526b79] outline-none focus:border-[#08a9c4]"><option value="ALL">All severities</option><option value="INFO">Info</option><option value="WARNING">Warning</option><option value="CRITICAL">Critical</option></select>
             <select value={dateRange} onChange={(event) => setDateRange(event.target.value)} className="h-10 rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[10px] text-[#526b79] outline-none focus:border-[#08a9c4]"><option value="ALL">All time</option><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select>
-            <button type="button" disabled title="More filters will be available in a future release" className="inline-flex h-10 cursor-not-allowed items-center justify-center gap-2 rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[10px] font-medium text-[#9aaeba]"><Filter size={14} /> More filters</button>
           </div>
 
           <div className="mt-3 flex items-center gap-1 overflow-x-auto border-t border-[#edf3f6] pt-3">

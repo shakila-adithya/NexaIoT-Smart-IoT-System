@@ -18,6 +18,7 @@ import {
 import { useAuth } from "../../hooks/useAuth.js";
 import { getAlerts, markAlertRead, markAllAlertsRead } from "../../api/alertsApi.js";
 import { getDevices } from "../../api/devicesApi.js";
+import { getHealth } from "../../api/healthApi.js";
 
 const navigation = [
   { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -28,7 +29,7 @@ const navigation = [
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 
-function SidebarContent({ onNavigate, unresolvedAlertCount }) {
+function SidebarContent({ onNavigate, unresolvedAlertCount, health }) {
   return (
     <>
       <div className="px-[18px] pt-7">
@@ -85,16 +86,14 @@ function SidebarContent({ onNavigate, unresolvedAlertCount }) {
       <div className="mt-auto px-[18px] pb-6">
         <div className="rounded-[14px] border border-[#1d4a5e] bg-[#103447] p-3.5">
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-white">System health</span>
-            <span className="font-bold text-[#16a57a]">99.9%</span>
-          </div>
-
-          <div className="mt-2.5 h-[5px] overflow-hidden rounded-full bg-[#315366]">
-            <div className="h-full w-[93%] rounded-full bg-[#16a57a]" />
+            <span className="text-white">Backend health</span>
+            <span className={`font-bold ${health.loading ? "text-[#f0c36a]" : health.error ? "text-[#f08b95]" : "text-[#16a57a]"}`}>
+              {health.loading ? "Checking..." : health.error ? "Unavailable" : "Operational"}
+            </span>
           </div>
 
           <div className="mt-2 text-[9px] text-[#8fb0c1]">
-            All services operational · 1m ago
+            {health.loading ? "Checking the NexaIoT backend..." : health.error ? "Backend health could not be confirmed." : "The NexaIoT backend is responding."}
           </div>
         </div>
       </div>
@@ -130,6 +129,7 @@ export default function AppLayout() {
   const profileMenuRef = useRef(null);
   const notificationRef = useRef(null);
   const searchRef = useRef(null);
+  const [health, setHealth] = useState({ loading: true, error: false });
 
   useEffect(() => {
     let mounted = true;
@@ -173,6 +173,17 @@ export default function AppLayout() {
     return () => {
       mounted = false;
       window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    getHealth()
+      .then(() => mounted && setHealth({ loading: false, error: false }))
+      .catch(() => mounted && setHealth({ loading: false, error: true }));
+
+    return () => {
+      mounted = false;
     };
   }, []);
 
@@ -325,7 +336,7 @@ export default function AppLayout() {
       }}
     >
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[236px] flex-col bg-[#0b2535] lg:flex">
-        <SidebarContent unresolvedAlertCount={unresolvedAlertCount} />
+        <SidebarContent unresolvedAlertCount={unresolvedAlertCount} health={health} />
       </aside>
 
       {mobileOpen ? (
@@ -347,6 +358,7 @@ export default function AppLayout() {
             <SidebarContent
               onNavigate={() => setMobileOpen(false)}
               unresolvedAlertCount={unresolvedAlertCount}
+              health={health}
             />
           </aside>
         </div>
