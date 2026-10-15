@@ -3,12 +3,28 @@ import random
 import time
 import os
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 import paho.mqtt.client as mqtt
 
 
-BROKER_HOST = "localhost"
-BROKER_PORT = 1883
+BROKER_URL = os.getenv("MQTT_BROKER_URL", "tcp://localhost:1883")
+broker_uri = urlparse(BROKER_URL)
+BROKER_HOST = broker_uri.hostname or os.getenv("MQTT_BROKER_HOST", "localhost")
+BROKER_PORT = broker_uri.port or int(os.getenv("MQTT_BROKER_PORT", "1883"))
+MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
+MQTT_AUTH_REQUIRED = os.getenv("MQTT_AUTH_REQUIRED", "false").lower() == "true"
+MQTT_TLS_REQUIRED = os.getenv("MQTT_TLS_REQUIRED", "false").lower() == "true"
+
+if MQTT_AUTH_REQUIRED and (not MQTT_USERNAME or not MQTT_PASSWORD):
+    raise RuntimeError("MQTT authentication requires credentials.")
+
+if MQTT_USERNAME and not MQTT_PASSWORD or MQTT_PASSWORD and not MQTT_USERNAME:
+    raise RuntimeError("MQTT username and password must be configured together.")
+
+if MQTT_TLS_REQUIRED and broker_uri.scheme.lower() != "ssl":
+    raise RuntimeError("MQTT TLS is required for this deployment.")
 
 DEVICE_KEY = os.getenv(
     "NEXAIOT_DEVICE_KEY",
@@ -134,6 +150,12 @@ client = mqtt.Client(
     callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
     client_id=f"simulator-{DEVICE_KEY}"
 )
+
+if MQTT_USERNAME:
+    client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+
+if broker_uri.scheme.lower() == "ssl" or MQTT_TLS_REQUIRED:
+    client.tls_set()
 
 client.on_connect = on_connect
 client.on_message = on_message

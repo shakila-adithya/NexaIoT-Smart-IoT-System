@@ -5,6 +5,8 @@ import java.time.Instant;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.nexaiot.server.device.Device;
 import com.nexaiot.server.device.DeviceRepository;
@@ -13,6 +15,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 @Component
 public class MqttStateHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(MqttStateHandler.class);
 
     private final JsonMapper jsonMapper;
     private final DeviceRepository deviceRepository;
@@ -28,29 +32,16 @@ public class MqttStateHandler {
     @ServiceActivator(inputChannel = "mqttStateInputChannel")
     public void handleMessage(Message<?> message) {
         try {
-            String topic = (String) message
-                    .getHeaders()
-                    .get("mqtt_receivedTopic");
+            Object topicHeader = message.getHeaders().get("mqtt_receivedTopic");
 
             String payload = message.getPayload().toString();
 
-            if (topic == null || topic.isBlank()) {
-                System.err.println(
-                        "MQTT state message received without topic."
-                );
+            if (!(topicHeader instanceof String topic)) {
+                log.warn("Rejected MQTT state message with no valid topic.");
                 return;
             }
 
-            String[] parts = topic.split("/");
-
-            if (parts.length != 4) {
-                System.err.println(
-                        "Invalid MQTT state topic: " + topic
-                );
-                return;
-            }
-
-            String deviceKey = parts[2];
+            String deviceKey = MqttTopicSecurity.parseInboundDeviceKey(topic, "state");
 
             DeviceStatePayload state =
                     jsonMapper.readValue(
@@ -59,9 +50,7 @@ public class MqttStateHandler {
                     );
 
             if (state.power() == null) {
-                System.err.println(
-                        "MQTT state message missing power value."
-                );
+                log.warn("Rejected MQTT state message without a power value.");
                 return;
             }
 
@@ -69,7 +58,7 @@ public class MqttStateHandler {
                     .findByDeviceKey(deviceKey)
                     .orElseThrow(
                             () -> new IllegalArgumentException(
-                                    "Device not found: " + deviceKey
+                                    "Device not found"
                             )
                     );
 
@@ -81,18 +70,10 @@ public class MqttStateHandler {
 
             deviceRepository.save(device);
 
-            System.out.println(
-                    "MQTT device state updated: "
-                            + deviceKey
-                            + " power="
-                            + state.power()
-            );
+            log.debug("MQTT device state accepted.");
 
         } catch (Exception ex) {
-            System.err.println(
-                    "Failed to process MQTT device state: "
-                            + ex.getMessage()
-            );
+            log.warn("Rejected MQTT state message.");
         }
     }
 

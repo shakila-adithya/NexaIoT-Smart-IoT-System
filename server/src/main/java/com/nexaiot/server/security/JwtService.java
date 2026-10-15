@@ -14,11 +14,16 @@ import java.util.Date;
 @Service
 public class JwtService {
 
-    @Value("${jwt.secret}")
-    private String jwtSecret;
+    private final String jwtSecret;
+    private final long jwtExpiration;
 
-    @Value("${jwt.expiration}")
-    private long jwtExpiration;
+    public JwtService(
+            @Value("${jwt.secret}") String jwtSecret,
+            @Value("${jwt.expiration}") long jwtExpiration
+    ) {
+        this.jwtSecret = jwtSecret;
+        this.jwtExpiration = jwtExpiration;
+    }
 
     public String generateToken(User user) {
 
@@ -28,6 +33,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(user.getEmail())
                 .claim("role", user.getRole())
+                .claim("tokenVersion", user.getTokenVersion() == null ? 0 : user.getTokenVersion())
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(getSigningKey())
@@ -38,17 +44,20 @@ public class JwtService {
         return extractAllClaims(token).getSubject();
     }
 
-    public boolean isTokenValid(String token, String email) {
-        String tokenEmail = extractEmail(token);
+    public boolean isTokenValid(String token, String email, int expectedTokenVersion) {
+        Claims claims = extractAllClaims(token);
+        String tokenEmail = claims.getSubject();
+        Object versionClaim = claims.get("tokenVersion");
+        if (versionClaim != null && !(versionClaim instanceof Number)) {
+            return false;
+        }
+        int tokenVersion = versionClaim == null ? 0 : ((Number) versionClaim).intValue();
 
-        return tokenEmail.equals(email)
-                && !isTokenExpired(token);
-    }
-
-    private boolean isTokenExpired(String token) {
-        return extractAllClaims(token)
-                .getExpiration()
-                .before(new Date());
+        return tokenEmail != null
+                && tokenEmail.equals(email)
+                && tokenVersion == expectedTokenVersion
+                && claims.getExpiration() != null
+                && !claims.getExpiration().before(new Date());
     }
 
     private Claims extractAllClaims(String token) {

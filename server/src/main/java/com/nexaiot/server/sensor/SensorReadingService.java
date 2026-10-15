@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
@@ -11,6 +12,11 @@ import com.nexaiot.server.alert.AlertEvaluationService;
 import com.nexaiot.server.device.Device;
 import com.nexaiot.server.device.DeviceNotFoundException;
 import com.nexaiot.server.device.DeviceRepository;
+import com.nexaiot.server.device.CapabilityCategory;
+import com.nexaiot.server.device.CapabilityDataType;
+import com.nexaiot.server.device.CapabilityDefinition;
+import com.nexaiot.server.device.CapabilityManifest;
+import com.nexaiot.server.device.CapabilityManifestAdapter;
 import com.nexaiot.server.sensor.dto.CreateSensorReadingRequest;
 import com.nexaiot.server.sensor.dto.SensorReadingResponse;
 
@@ -140,6 +146,8 @@ public class SensorReadingService {
         Device device,
         CreateSensorReadingRequest request
     ) {
+        validateReading(device, request);
+
         Instant now = Instant.now();
 
         device.setLastSeenAt(now);
@@ -161,6 +169,91 @@ public class SensorReadingService {
         alertEvaluationService.evaluate(device, saved);
 
         return toResponse(saved);
+    }
+
+    private void validateReading(Device device, CreateSensorReadingRequest request) {
+        CapabilityManifest manifest = CapabilityManifestAdapter.effectiveManifest(device);
+        Map<String, Double> metrics = request.metrics();
+        boolean hasDeclaredValue = false;
+
+        if (metrics != null) {
+            for (Map.Entry<String, Double> entry : metrics.entrySet()) {
+                String key = entry.getKey();
+                Double value = entry.getValue();
+                CapabilityDefinition definition = findCapability(manifest, key);
+
+                if (definition == null || definition.getCategory() == CapabilityCategory.CONTROL) {
+                    throw new IllegalArgumentException(
+                        "Telemetry metric is not declared by this device: " + key
+                    );
+                }
+                if (definition.getDataType() != CapabilityDataType.NUMBER) {
+                    throw new IllegalArgumentException(
+                        "Telemetry metric must be numeric: " + key
+                    );
+                }
+                validateNumericValue(key, value, definition);
+                hasDeclaredValue = true;
+            }
+        }
+
+        if (request.battery() != null) {
+            validateDeviceMetric(manifest, "battery", request.battery().doubleValue());
+            hasDeclaredValue = true;
+        }
+        if (request.rssi() != null) {
+            validateDeviceMetric(manifest, "rssi", request.rssi().doubleValue());
+            hasDeclaredValue = true;
+        }
+
+        if (!hasDeclaredValue) {
+            throw new IllegalArgumentException("At least one declared telemetry value is required.");
+        }
+    }
+
+    private void validateDeviceMetric(
+        CapabilityManifest manifest,
+        String key,
+        double value
+    ) {
+        CapabilityDefinition definition = findCapability(manifest, key);
+        if (definition == null || definition.getCategory() == CapabilityCategory.CONTROL) {
+            throw new IllegalArgumentException(
+                "Telemetry metric is not declared by this device: " + key
+            );
+        }
+        if (definition.getDataType() != CapabilityDataType.NUMBER) {
+            throw new IllegalArgumentException("Telemetry metric must be numeric: " + key);
+        }
+        validateNumericValue(key, value, definition);
+    }
+
+    private void validateNumericValue(
+        String key,
+        Double value,
+        CapabilityDefinition definition
+    ) {
+        if (value == null || !Double.isFinite(value)) {
+            throw new IllegalArgumentException("Telemetry metric must be a finite number: " + key);
+        }
+
+        if (definition.getConstraints() != null) {
+            Double min = definition.getConstraints().getMin();
+            Double max = definition.getConstraints().getMax();
+            if (min != null && value < min || max != null && value > max) {
+                throw new IllegalArgumentException("Telemetry metric is outside its declared range: " + key);
+            }
+        }
+    }
+
+    private CapabilityDefinition findCapability(CapabilityManifest manifest, String key) {
+        if (key == null || key.isBlank() || manifest.getCapabilities() == null) {
+            return null;
+        }
+        return manifest.getCapabilities().stream()
+            .filter(definition -> key.equals(definition.getKey()))
+            .findFirst()
+            .orElse(null);
     }
 
     private Device getOwnedDevice(

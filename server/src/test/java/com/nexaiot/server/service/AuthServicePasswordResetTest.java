@@ -24,6 +24,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AuthServicePasswordResetTest {
 
+    private static final String TEST_JWT_SECRET = "c2VjdXJlLXRlc3Qta2V5LWZvci1qd3Qtc2lnbmluZy0xMjM0";
+
     @Test
     void resetUsesSingleUseHashedTokenAndUpdatesPassword() throws Exception {
         User user = user();
@@ -33,12 +35,16 @@ class AuthServicePasswordResetTest {
         tokens.add(token);
 
         AuthService service = service(user, tokens, null);
+        JwtService jwtService = new JwtService(TEST_JWT_SECRET, 3600000);
+        String oldToken = jwtService.generateToken(user);
         ResetPasswordRequest request = new ResetPasswordRequest();
         request.setToken(rawToken);
         request.setNewPassword("new-password");
 
         assertEquals("Password reset successfully.", service.resetPassword(request));
         assertTrue(new BCryptPasswordEncoder().matches("new-password", user.getPasswordHash()));
+        assertEquals(1, user.getTokenVersion());
+        assertFalse(jwtService.isTokenValid(oldToken, user.getEmail(), user.getTokenVersion()));
         assertNotNull(token.getUsedAt());
         assertNull(token.getRevokedAt());
         assertEquals(sha256(rawToken), token.getTokenHash());
@@ -72,7 +78,8 @@ class AuthServicePasswordResetTest {
         PasswordResetEmailService emailService = new PasswordResetEmailService(
                 mailSender, "noreply@nexaiot.local", "http://localhost:5173", 30);
         return new AuthService(
-                userRepository(user), new BCryptPasswordEncoder(), new JwtService(),
+                userRepository(user), new BCryptPasswordEncoder(),
+                new JwtService(TEST_JWT_SECRET, 3600000),
                 tokenRepository(tokens), emailService, 30);
     }
 

@@ -9,15 +9,34 @@ import com.nexaiot.server.device.template.DeviceTemplateNotFoundException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import com.nexaiot.server.security.RateLimitExceededException;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
+import org.springframework.core.convert.ConversionFailedException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Map<String, String>> handleRateLimit(
+            RateLimitExceededException ex
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(Map.of("message", ex.getMessage()));
+    }
 
     @ExceptionHandler(EmailAlreadyExistsException.class)
     public ResponseEntity<Map<String, String>> handleEmailAlreadyExists(
@@ -46,6 +65,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(errors);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, String>> handleUnreadableRequest(
+            HttpMessageNotReadableException ex
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", "Request body contains invalid values."));
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
@@ -128,8 +156,40 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleIllegalArgument(
             IllegalArgumentException ex
     ) {
+        String message = ex.getMessage();
+        if (message == null || containsInternalDetail(message)) {
+            return unexpectedResponse(ex);
+        }
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(Map.of("message", ex.getMessage()));
+                .body(Map.of("message", message));
+    }
+
+    @ExceptionHandler({InvalidDataAccessApiUsageException.class, ConversionFailedException.class})
+    public ResponseEntity<Map<String, String>> handleMalformedIdentifier(RuntimeException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", "The supplied identifier is invalid."));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleUnexpected(Exception ex) {
+        return unexpectedResponse(ex);
+    }
+
+    private ResponseEntity<Map<String, String>> unexpectedResponse(Exception ex) {
+        log.error("Unhandled API exception.", ex);
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("message", "An unexpected error occurred."));
+    }
+
+    private boolean containsInternalDetail(String message) {
+        String lower = message.toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("mongodb") || lower.contains("mongo")
+                || lower.contains("smtp") || lower.contains("mqtt")
+                || lower.contains("java.") || lower.contains("org.springframework")
+                || lower.contains("credentials") || lower.contains("password hash")
+                || lower.contains("file:");
     }
 }

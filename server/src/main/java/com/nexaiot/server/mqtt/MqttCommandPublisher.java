@@ -21,10 +21,7 @@ public class MqttCommandPublisher {
 
     public void publishCommand(String deviceKey, String payload) {
 
-        String topic =
-                "nexaiot/devices/"
-                + deviceKey
-                + "/commands";
+        String topic = MqttTopicSecurity.commandTopic(deviceKey);
 
         Message<String> message =
                 MessageBuilder

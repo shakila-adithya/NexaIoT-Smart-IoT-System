@@ -42,6 +42,20 @@ export function AuthProvider({ children }) {
   const [profileImageUrl, setProfileImageUrl] = useState(null);
 
   useEffect(() => {
+    const handleUnauthorized = () => {
+      clearStoredAuth();
+      setUser(null);
+      setProfileImageUrl((currentUrl) => {
+        if (currentUrl) URL.revokeObjectURL(currentUrl);
+        return null;
+      });
+    };
+
+    window.addEventListener("nexaiot:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("nexaiot:unauthorized", handleUnauthorized);
+  }, []);
+
+  useEffect(() => {
     let active = true;
 
     if (!user?.hasProfileImage) return () => { active = false; };

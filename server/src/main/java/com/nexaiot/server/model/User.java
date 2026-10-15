@@ -20,6 +20,7 @@ public class User {
     private String passwordHash;
 
     private String role;
+    private Integer tokenVersion = 0;
     private String profileImageId;
 
     private String firstName;
@@ -66,6 +67,14 @@ public class User {
 
     public String getRole() {
         return role;
+    }
+
+    public Integer getTokenVersion() {
+        return tokenVersion;
+    }
+
+    public void setTokenVersion(Integer tokenVersion) {
+        this.tokenVersion = tokenVersion;
     }
 
     public void setId(String id) {

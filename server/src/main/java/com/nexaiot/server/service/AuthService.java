@@ -147,6 +147,7 @@ public class AuthService {
         User user = userRepository.findById(resetToken.getUserId())
                 .orElseThrow(this::invalidResetToken);
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setTokenVersion(nextTokenVersion(user));
         userRepository.save(user);
 
         resetToken.setUsedAt(now);
@@ -162,6 +163,10 @@ public class AuthService {
 
     private String normalizeEmail(String email) {
         return email.trim().toLowerCase();
+    }
+
+    private int nextTokenVersion(User user) {
+        return (user.getTokenVersion() == null ? 0 : user.getTokenVersion()) + 1;
     }
 
     private String generateRawToken() {

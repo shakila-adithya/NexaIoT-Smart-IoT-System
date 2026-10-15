@@ -16,14 +16,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Iterator;
 
 @Service
 public class ProfileImageService {
+
+    private static final Logger log = LoggerFactory.getLogger(ProfileImageService.class);
 
     private static final long MAX_IMAGE_SIZE = 5L * 1024L * 1024L;
 
@@ -50,7 +57,8 @@ public class ProfileImageService {
 
         try (InputStream inputStream = image.getInputStream()) {
             Document metadata = new Document("contentType", image.getContentType())
-                    .append("ownerEmail", user.getEmail());
+                    .append("ownerEmail", user.getEmail())
+                    .append("ownerUserId", user.getId());
             newImageId = gridFsTemplate.store(inputStream, "profile-image", image.getContentType(), metadata);
         } catch (IOException exception) {
             throw new IllegalArgumentException("Unable to read the profile image");
@@ -59,10 +67,10 @@ public class ProfileImageService {
         try {
             user.setProfileImageId(newImageId.toHexString());
             User savedUser = userRepository.save(user);
-            deleteGridFsImage(previousImageId);
+            deleteGridFsImage(previousImageId, user);
             return UserResponse.from(savedUser);
         } catch (RuntimeException exception) {
-            deleteGridFsImage(newImageId.toHexString());
+            deleteGridFsImage(newImageId.toHexString(), user);
             throw exception;
         }
     }
@@ -75,7 +83,7 @@ public class ProfileImageService {
         ObjectId objectId = parseObjectId(imageId);
         requireGridFs();
         GridFSFile file = gridFsTemplate.findOne(Query.query(Criteria.where("_id").is(objectId)));
-        if (file == null) return null;
+        if (file == null || !isOwnedOrLegacyFile(file, user)) return null;
 
         GridFsResource resource = gridFsTemplate.getResource(file);
         String contentType = file.getMetadata() == null ? null : file.getMetadata().getString("contentType");
@@ -87,7 +95,7 @@ public class ProfileImageService {
         String imageId = user.getProfileImageId();
         user.setProfileImageId(null);
         User savedUser = userRepository.save(user);
-        deleteGridFsImage(imageId);
+        deleteGridFsImage(imageId, user);
         return UserResponse.from(savedUser);
     }
 
@@ -104,13 +112,27 @@ public class ProfileImageService {
             throw new IllegalArgumentException("Only JPEG and PNG images are supported");
         }
 
-        try (InputStream inputStream = image.getInputStream()) {
-            BufferedImage decodedImage = ImageIO.read(inputStream);
-            if (decodedImage == null) {
+        try (InputStream inputStream = image.getInputStream();
+             ImageInputStream imageInputStream = ImageIO.createImageInputStream(inputStream)) {
+            if (imageInputStream == null || !matchesDeclaredFormat(image.getContentType(), imageInputStream)) {
                 throw new IllegalArgumentException("The selected file is not a valid image");
             }
         } catch (IOException exception) {
             throw new IllegalArgumentException("The selected file could not be read");
+        }
+    }
+
+    private boolean matchesDeclaredFormat(String contentType, ImageInputStream imageInputStream) throws IOException {
+        Iterator<ImageReader> readers = ImageIO.getImageReadersByMIMEType(contentType);
+        if (!readers.hasNext()) return false;
+
+        ImageReader reader = readers.next();
+        try {
+            reader.setInput(imageInputStream, true, true);
+            BufferedImage decodedImage = reader.read(0);
+            return decodedImage != null && decodedImage.getWidth() > 0 && decodedImage.getHeight() > 0;
+        } finally {
+            reader.dispose();
         }
     }
 
@@ -127,13 +149,28 @@ public class ProfileImageService {
         }
     }
 
-    private void deleteGridFsImage(String imageId) {
+    private void deleteGridFsImage(String imageId, User user) {
         if (imageId == null || imageId.isBlank() || gridFsTemplate == null) return;
         try {
-            gridFsTemplate.delete(Query.query(Criteria.where("_id").is(new ObjectId(imageId))));
-        } catch (IllegalArgumentException ignored) {
-            // Do not fail a profile update because an old orphaned id is malformed.
+            ObjectId objectId = new ObjectId(imageId);
+            GridFSFile file = gridFsTemplate.findOne(Query.query(Criteria.where("_id").is(objectId)));
+            if (file != null && isOwnedOrLegacyFile(file, user)) {
+                gridFsTemplate.delete(Query.query(Criteria.where("_id").is(objectId)));
+            }
+        } catch (RuntimeException exception) {
+            log.warn("Profile image cleanup did not complete; the image may remain orphaned.");
         }
+    }
+
+    private boolean isOwnedOrLegacyFile(GridFSFile file, User user) {
+        Document metadata = file.getMetadata();
+        if (metadata == null) return true;
+
+        String ownerEmail = metadata.getString("ownerEmail");
+        String ownerUserId = metadata.getString("ownerUserId");
+        boolean emailMatches = ownerEmail == null || ownerEmail.equalsIgnoreCase(user.getEmail());
+        boolean idMatches = ownerUserId == null || ownerUserId.equals(user.getId());
+        return emailMatches && idMatches;
     }
 
     private void requireGridFs() {

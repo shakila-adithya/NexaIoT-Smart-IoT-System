@@ -1,5 +1,6 @@
 package com.nexaiot.server.dto;
 
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public class UpdateProfileRequest {
@@ -11,6 +12,7 @@ public class UpdateProfileRequest {
     private String lastName;
 
     @Size(max = 30, message = "Phone number must be 30 characters or fewer")
+    @Pattern(regexp = "(?=.*\\d)^\\s*\\+?[0-9()\\-\\s]{7,30}\\s*$", message = "Phone number contains invalid characters")
     private String phoneNumber;
 
     @Size(max = 100, message = "Job title must be 100 characters or fewer")
