@@ -21,6 +21,31 @@ import org.springframework.messaging.MessageHandler;
 @Profile("!test")
 public class MqttConfig {
 
+    public MqttConfig() {
+    }
+
+    MqttConfig(
+            String brokerUrl,
+            String clientId,
+            String telemetryTopic,
+            String stateTopic,
+            int qos,
+            String username,
+            String password,
+            boolean authRequired,
+            boolean tlsRequired
+    ) {
+        this.brokerUrl = brokerUrl;
+        this.clientId = clientId;
+        this.telemetryTopic = telemetryTopic;
+        this.stateTopic = stateTopic;
+        this.qos = qos;
+        this.username = username;
+        this.password = password;
+        this.authRequired = authRequired;
+        this.tlsRequired = tlsRequired;
+    }
+
     @Value("${mqtt.broker-url}")
     private String brokerUrl;
 
@@ -36,10 +61,38 @@ public class MqttConfig {
     @Value("${mqtt.qos}")
     private int qos;
 
+    @Value("${mqtt.username:}")
+    private String username;
+
+    @Value("${mqtt.password:}")
+    private String password;
+
+    @Value("${mqtt.auth-required:false}")
+    private boolean authRequired;
+
+    @Value("${mqtt.tls-required:false}")
+    private boolean tlsRequired;
+
     @Bean
     public MqttPahoClientFactory mqttClientFactory() {
         DefaultMqttPahoClientFactory factory =
                 new DefaultMqttPahoClientFactory();
+
+        MqttConnectOptions options = createConnectOptions();
+
+        factory.setConnectionOptions(options);
+
+        return factory;
+    }
+
+    MqttConnectOptions createConnectOptions() {
+        MqttConfigurationValidator.validate(
+                brokerUrl,
+                username,
+                password,
+                authRequired,
+                tlsRequired
+        );
 
         MqttConnectOptions options = new MqttConnectOptions();
 
@@ -47,9 +100,12 @@ public class MqttConfig {
         options.setAutomaticReconnect(true);
         options.setCleanSession(true);
 
-        factory.setConnectionOptions(options);
+        if (username != null && !username.isBlank()) {
+            options.setUserName(username);
+            options.setPassword(password.toCharArray());
+        }
 
-        return factory;
+        return options;
     }
 
     // =========================

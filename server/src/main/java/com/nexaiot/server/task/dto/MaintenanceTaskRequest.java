@@ -1,9 +1,15 @@
 package com.nexaiot.server.task.dto;
 import com.nexaiot.server.task.TaskPriority;
 import com.nexaiot.server.task.TaskStatus;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 public class MaintenanceTaskRequest {
+    @NotBlank(message = "Task title is required")
+    @Size(max = 160, message = "Task title must be 160 characters or fewer")
     private String title;
+    @Size(max = 2000, message = "Task description must be 2000 characters or fewer")
     private String description;
+    @NotBlank(message = "A device is required")
     private String deviceId;
     private String alertId;
     private TaskPriority priority;

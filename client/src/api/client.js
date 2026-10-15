@@ -7,6 +7,20 @@ function getToken() {
   );
 }
 
+function clearStoredAuth() {
+  localStorage.removeItem("nexaiot_token");
+  localStorage.removeItem("nexaiot_user");
+  sessionStorage.removeItem("nexaiot_token");
+  sessionStorage.removeItem("nexaiot_user");
+}
+
+function handleUnauthorized() {
+  clearStoredAuth();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("nexaiot:unauthorized"));
+  }
+}
+
 async function request(
   path,
   { method = "GET", body, headers = {}, cache, responseType } = {},
@@ -24,6 +38,8 @@ async function request(
     ...(cache ? { cache } : {}),
     body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
   });
+
+  if (res.status === 401) handleUnauthorized();
 
   if (responseType === "blob") {
     if (!res.ok) {

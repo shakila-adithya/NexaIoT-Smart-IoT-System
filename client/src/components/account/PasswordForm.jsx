@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Eye, EyeOff, LockKeyhole, Save } from "lucide-react";
 import { changePassword } from "../../api/userApi.js";
 import { useToast } from "../../hooks/useToast.js";
+import { useAuth } from "../../hooks/useAuth.js";
 
 export default function PasswordForm({ onUserUpdated }) {
   const { showToast } = useToast();
+  const { logout } = useAuth();
   const [form, setForm] = useState({
     currentPassword: "",
     newPassword: "",
@@ -34,7 +36,8 @@ export default function PasswordForm({ onUserUpdated }) {
       const updatedUser = await changePassword(form);
       onUserUpdated(updatedUser);
       setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
-      showToast("Password changed successfully.");
+      showToast("Password changed successfully. Please sign in again.");
+      logout();
     } catch (error) {
       showToast(error.message || "Unable to change your password.", "error");
     } finally {

@@ -7,6 +7,7 @@ import com.nexaiot.server.dto.UserResponse;
 import com.nexaiot.server.exception.InvalidCredentialsException;
 import com.nexaiot.server.model.User;
 import com.nexaiot.server.repository.UserRepository;
+import com.nexaiot.server.security.JwtService;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
@@ -16,6 +17,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 class UserServiceTest {
+
+    private static final String TEST_JWT_SECRET = "c2VjdXJlLXRlc3Qta2V5LWZvci1qd3Qtc2lnbmluZy0xMjM0";
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -53,10 +56,14 @@ class UserServiceTest {
                 () -> service.changePassword("owner@example.com", wrong));
 
         ChangePasswordRequest valid = passwordRequest("old-password", "new-password", "new-password");
+        String oldToken = new JwtService(TEST_JWT_SECRET, 3600000).generateToken(user);
         service.changePassword("owner@example.com", valid);
 
         assertTrue(passwordEncoder.matches("new-password", user.getPasswordHash()));
         assertFalse(passwordEncoder.matches("old-password", user.getPasswordHash()));
+        assertEquals(1, user.getTokenVersion());
+        assertFalse(new JwtService(TEST_JWT_SECRET, 3600000)
+                .isTokenValid(oldToken, user.getEmail(), user.getTokenVersion()));
     }
 
     private User user() {

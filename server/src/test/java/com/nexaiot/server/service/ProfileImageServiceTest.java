@@ -8,6 +8,9 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import java.lang.reflect.Proxy;
 import java.util.Optional;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import javax.imageio.ImageIO;
 
 import static org.junit.jupiter.api.Assertions.*;
 class ProfileImageServiceTest {
@@ -31,6 +34,28 @@ class ProfileImageServiceTest {
         User user = user();
         assertFalse(com.nexaiot.server.dto.UserResponse.from(user).isHasProfileImage());
         assertNull(user.getProfileImageId());
+    }
+
+    @Test
+    void validPngIsDecodedBeforeStorageIsRequired() throws Exception {
+        BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", bytes);
+        MockMultipartFile png = new MockMultipartFile("image", "avatar.png", "image/png", bytes.toByteArray());
+        ProfileImageService service = new ProfileImageService(repositoryFor(user()), (GridFsTemplate) null);
+
+        assertThrows(IllegalStateException.class, () -> service.upload("owner@example.com", png));
+    }
+
+    @Test
+    void declaredMimeMustMatchDecodedImageFormat() throws Exception {
+        BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", bytes);
+        MockMultipartFile mislabeled = new MockMultipartFile("image", "avatar.jpg", "image/jpeg", bytes.toByteArray());
+        ProfileImageService service = new ProfileImageService(repositoryFor(user()), (GridFsTemplate) null);
+
+        assertThrows(IllegalArgumentException.class, () -> service.upload("owner@example.com", mislabeled));
     }
 
     private User user() {

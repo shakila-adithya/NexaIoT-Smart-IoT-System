@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.CacheControl;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
@@ -71,7 +72,10 @@ public class UserController {
 
         MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
         if (image.contentType() != null) mediaType = MediaType.parseMediaType(image.contentType());
-        return ResponseEntity.ok().contentType(mediaType).body(image.resource());
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .contentType(mediaType)
+                .body(image.resource());
     }
 
     @DeleteMapping("/me/profile-image")

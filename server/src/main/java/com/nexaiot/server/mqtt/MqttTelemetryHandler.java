@@ -6,11 +6,15 @@ import com.nexaiot.server.sensor.dto.CreateSensorReadingRequest;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import tools.jackson.databind.json.JsonMapper;
 
 @Component
 public class MqttTelemetryHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(MqttTelemetryHandler.class);
 
     private final JsonMapper jsonMapper;
     private final SensorReadingService sensorReadingService;
@@ -26,29 +30,16 @@ public class MqttTelemetryHandler {
     @ServiceActivator(inputChannel = "mqttInputChannel")
     public void handleMessage(Message<?> message) {
         try {
-            String topic = (String) message
-                .getHeaders()
-                .get("mqtt_receivedTopic");
+            Object topicHeader = message.getHeaders().get("mqtt_receivedTopic");
 
             String payload = message.getPayload().toString();
 
-            if (topic == null || topic.isBlank()) {
-                System.err.println(
-                    "MQTT message received without topic."
-                );
+            if (!(topicHeader instanceof String topic)) {
+                log.warn("Rejected MQTT telemetry message with no valid topic.");
                 return;
             }
 
-            String[] parts = topic.split("/");
-
-            if (parts.length != 4) {
-                System.err.println(
-                    "Invalid MQTT topic: " + topic
-                );
-                return;
-            }
-
-            String deviceKey = parts[2];
+            String deviceKey = MqttTopicSecurity.parseInboundDeviceKey(topic, "telemetry");
 
             CreateSensorReadingRequest request =
                 jsonMapper.readValue(
@@ -61,16 +52,10 @@ public class MqttTelemetryHandler {
                 request
             );
 
-            System.out.println(
-                "MQTT telemetry saved for device: "
-                    + deviceKey
-            );
+            log.debug("MQTT telemetry accepted.");
 
         } catch (Exception ex) {
-            System.err.println(
-                "Failed to process MQTT telemetry: "
-                    + ex.getMessage()
-            );
+            log.warn("Rejected MQTT telemetry message.");
         }
     }
 }

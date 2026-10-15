@@ -25,6 +25,8 @@ import com.nexaiot.server.device.diagnostics.DeviceDiagnosticsResponse;
 import com.nexaiot.server.device.diagnostics.DeviceDiagnosticsService;
 
 import jakarta.validation.Valid;
+import com.nexaiot.server.security.RateLimitProperties;
+import com.nexaiot.server.security.RateLimitService;
 
 @RestController
 @RequestMapping("/api/devices")
@@ -33,15 +35,21 @@ public class DeviceController {
     private final DeviceService deviceService;
     private final MqttCommandPublisher mqttCommandPublisher;
     private final DeviceDiagnosticsService deviceDiagnosticsService;
+    private final RateLimitService rateLimitService;
+    private final RateLimitProperties rateLimitProperties;
 
     public DeviceController(
             DeviceService deviceService,
             MqttCommandPublisher mqttCommandPublisher,
-            DeviceDiagnosticsService deviceDiagnosticsService
+            DeviceDiagnosticsService deviceDiagnosticsService,
+            RateLimitService rateLimitService,
+            RateLimitProperties rateLimitProperties
     ) {
         this.deviceService = deviceService;
         this.mqttCommandPublisher = mqttCommandPublisher;
         this.deviceDiagnosticsService = deviceDiagnosticsService;
+        this.rateLimitService = rateLimitService;
+        this.rateLimitProperties = rateLimitProperties;
     }
 
     @PostMapping
@@ -119,6 +127,12 @@ public class DeviceController {
                 id,
                 authentication.getName()
         );
+
+        rateLimitService.requireAllowed(
+                "device-command-user-device",
+                authentication.getName() + ":" + device.getId(),
+                rateLimitProperties.getDeviceCommandMax(),
+                rateLimitProperties.getDeviceCommandWindowSeconds());
 
         String payload =
                 "{\"power\":" + request.power() + "}";
