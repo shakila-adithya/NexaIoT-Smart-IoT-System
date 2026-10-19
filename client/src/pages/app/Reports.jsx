@@ -23,10 +23,10 @@ import {
   YAxis,
 } from "recharts";
 
-import { getAlerts } from "../../api/alertsApi.js";
 import { useAuth } from "../../hooks/useAuth.js";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../../hooks/useToast.js";
+import { getAlerts } from "../../api/alertsApi.js";
 import { downloadReportPdf, reportFilename } from "../../utils/reportPdf.js";
 import { deleteGeneratedReport, generateReport, getGeneratedReports } from "../../api/reportsApi.js";
 import {
@@ -35,6 +35,9 @@ import {
   getDevices,
 } from "../../api/devicesApi.js";
 import { normalizeCapabilityManifest } from "../../config/capabilityManifest.js";
+import ErrorState from "../../components/ui/ErrorState.jsx";
+import PageHeader from "../../components/ui/PageHeader.jsx";
+import Select from "../../components/ui/Select.jsx";
 import {
   DEVICE_METRIC_DEFINITIONS,
   getMetricDefinitionForCapability,
@@ -499,23 +502,23 @@ export default function Reports() {
   const latestSignalLabel = getSignalLabel(latestRssi);
 
   return (
-    <div className="w-full px-4 pb-10 pt-[26px] md:px-[30px]">
-      <div className="mx-auto w-full max-w-[1144px]">
-        <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-[26px] font-normal leading-tight text-[#102a3a]">Reports &amp; analytics</h1>
-            <p className="mt-[5px] text-[12px] text-[#6b8290]">Analyze trends, compare performance, and export operational insights.</p>
-          </div>
-
-          <div className="flex flex-wrap gap-2.5">
+    <div className="w-full px-4 pb-10 pt-7 md:px-8 lg:px-[30px]">
+      <div className="mx-auto w-full max-w-[1240px]">
+        <PageHeader
+          tone="analytics"
+          title="Reports & analytics"
+          description="Analyze trends, compare performance, and export operational insights."
+          actions={(
+            <div className="flex flex-wrap gap-2.5">
             <button type="button" disabled={!selectedDeviceId || readingsLoading || exportingCsv} onClick={handleExportCsv} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98] disabled:cursor-not-allowed disabled:opacity-55"><Download size={14} /> {exportingCsv ? "Exporting..." : "Export CSV"}</button>
             <button type="button" disabled={!selectedDeviceId || exportingPdf} onClick={handleExportPdf} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98] disabled:cursor-not-allowed disabled:opacity-55"><FileText size={14} /> {exportingPdf ? "Exporting..." : "Export PDF"}</button>
             <button type="button" disabled={!selectedDeviceId || generatingReport} onClick={handleGenerateReport} className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-55"><Plus size={14} /> {generatingReport ? "Generating..." : "Generate report"}</button>
-          </div>
-        </section>
+            </div>
+          )}
+        />
 
-        {error ? <div className="mt-5 rounded-[12px] border border-red-200 bg-red-50 p-4 text-[11px] text-red-600">{error}</div> : null}
-        {reportError ? <div className="mt-5 rounded-[12px] border border-red-200 bg-red-50 p-4 text-[11px] text-red-600">{reportError}</div> : null}
+        {error ? <ErrorState className="mt-5" message={error} /> : null}
+        {reportError ? <ErrorState className="mt-5" message={reportError} /> : null}
 
         {devicesLoading ? (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -525,17 +528,13 @@ export default function Reports() {
           <div className="mt-6 rounded-[14px] border border-dashed border-[#dce8ee] bg-white p-12 text-center text-[12px] text-[#6b8290]">No devices available</div>
         ) : (
           <>
-            <section className="mt-6 rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-5">
+            <section className="relative z-20 mt-6 overflow-visible rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-5">
               <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
                 <div className="flex items-center gap-2.5 xl:mr-2">
                   <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#e8f8fb] text-[#08a9c4]"><CalendarDays size={17} /></span>
                   <span className="text-[10px] font-semibold text-[#526b79]">Reporting period</span>
                 </div>
-                <label htmlFor="report-device" className="sr-only">Device</label>
-                <select id="report-device" value={selectedDeviceId} disabled={devicesLoading || devices.length === 0} onChange={(event) => setSelectedDeviceId(event.target.value)} className="h-10 min-w-0 flex-1 rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[10px] text-[#102a3a] outline-none transition focus:border-[#08a9c4] disabled:cursor-not-allowed disabled:bg-[#f8fbfd] xl:max-w-[300px]">
-                  {devices.length === 0 ? <option value="">No devices available</option> : null}
-                  {devices.map((device) => <option key={device.id} value={device.id}>{device.name || device.deviceKey}</option>)}
-                </select>
+                <Select id="report-device" value={selectedDeviceId} disabled={devicesLoading || devices.length === 0} onChange={setSelectedDeviceId} aria-label="Device" className="min-w-0 flex-1 xl:max-w-[300px]" buttonClassName="h-10 text-[10px]" options={[...(devices.length === 0 ? [{ value: "", label: "No devices available" }] : []), ...devices.map((device) => ({ value: device.id, label: device.name || device.deviceKey }))]} />
                 <div className="flex w-fit rounded-[9px] border border-[#e5edf1] bg-[#f8fbfd] p-1">
                   {ranges.map((range) => <button key={range.value} type="button" onClick={() => setSelectedRange(range.value)} className={`h-7 min-w-[42px] rounded-[7px] px-2 text-[9px] font-semibold transition ${selectedRange === range.value ? "bg-white text-[#08a9c4] shadow-sm" : "text-[#8ca0ab] hover:text-[#526b79]"}`}>{range.label}</button>)}
                 </div>
@@ -559,9 +558,7 @@ export default function Reports() {
                   {metricDefinitions.length > 0 ? (
                     <label className="mx-auto mt-4 flex h-9 w-fit items-center gap-2 rounded-[9px] border border-[#dce8ee] bg-white px-2.5 text-[9px] text-[#6b8290]">
                       <span>Metric</span>
-                      <select value={effectiveSelectedMetric} onChange={(event) => setSelectedMetric(event.target.value)} className="max-w-[140px] bg-transparent text-[9px] font-medium text-[#102a3a] outline-none">
-                        {metricDefinitions.map((definition) => <option key={definition.key} value={definition.key}>{definition.label}</option>)}
-                      </select>
+                      <Select value={effectiveSelectedMetric} onChange={setSelectedMetric} aria-label="Metric" className="max-w-[140px]" buttonClassName="min-h-8 rounded-[8px] bg-transparent px-2 text-[9px] font-medium" options={metricDefinitions.map((definition) => ({ value: definition.key, label: definition.label }))} />
                     </label>
                   ) : null}
                 </div>
@@ -605,14 +602,12 @@ export default function Reports() {
                 <section className="rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <h2 className="text-[15px] font-semibold text-[#102a3a]">{selectedMetricDefinition?.label || "Telemetry"} history</h2>
+                      <h2 className="topic-heading topic-telemetry text-[15px] font-semibold text-[#102a3a]">{selectedMetricDefinition?.label || "Telemetry"} history</h2>
                       <p className="mt-1 text-[10px] text-[#6b8290]">{selectedDevice?.name || "Selected device"} · {chartData.length} available samples</p>
                     </div>
                     <label className="flex h-9 items-center gap-2 rounded-[9px] border border-[#dce8ee] bg-white px-2.5 text-[9px] text-[#6b8290]">
                       <span>Metric</span>
-                      <select value={effectiveSelectedMetric} onChange={(event) => setSelectedMetric(event.target.value)} className="max-w-[140px] bg-transparent text-[9px] font-medium text-[#102a3a] outline-none">
-                        {metricDefinitions.map((definition) => <option key={definition.key} value={definition.key}>{definition.label}</option>)}
-                      </select>
+                      <Select value={effectiveSelectedMetric} onChange={setSelectedMetric} aria-label="Metric" className="max-w-[140px]" buttonClassName="min-h-8 rounded-[8px] bg-transparent px-2 text-[9px] font-medium" options={metricDefinitions.map((definition) => ({ value: definition.key, label: definition.label }))} />
                     </label>
                   </div>
                   <div className="mt-4 h-[300px] w-full">
@@ -634,7 +629,7 @@ export default function Reports() {
                       <Cpu size={17} />
                     </span>
                     <div>
-                      <h2 className="text-[15px] font-semibold text-[#102a3a]">Device health</h2>
+                      <h2 className="topic-heading topic-health text-[15px] font-semibold text-[#102a3a]">Device health</h2>
                       <p className="mt-0.5 text-[9px] text-[#8ba0ab]">Current device status and telemetry health</p>
                     </div>
                   </div>
@@ -692,7 +687,7 @@ export default function Reports() {
                   <section className="rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h2 className="text-[14px] font-semibold text-[#102a3a]">Alert frequency</h2>
+                        <h2 className="topic-heading topic-warning text-[14px] font-semibold text-[#102a3a]">Alert frequency</h2>
                         <p className="mt-1 text-[9px] text-[#8ba0ab]">Alerts from the last 7 days</p>
                       </div>
                       <span className="flex items-center gap-1.5 text-[9px] text-[#087f98]"><Bell size={12} /> Alert history</span>
@@ -711,7 +706,7 @@ export default function Reports() {
                   </section>
 
                   <section className="rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-5">
-                    <div className="flex items-center gap-2"><Lightbulb size={15} className="text-[#08a9c4]" /><h2 className="text-[14px] font-semibold text-[#102a3a]">Efficiency insights</h2></div>
+                    <div className="flex items-center gap-2"><Lightbulb size={15} className="text-[var(--topic-analytics)]" /><h2 className="topic-heading topic-analytics text-[14px] font-semibold text-[#102a3a]">Efficiency insights</h2></div>
                     <p className="mt-1 text-[9px] text-[#8ba0ab]">Automated findings from available telemetry</p>
                     <div className="mt-4 space-y-2">
                       {hasConfiguredCapability("battery") ? <div className="rounded-[10px] bg-[#eaf8f3] p-3"><p className="text-[9px] font-medium text-[#16815f]">Battery telemetry</p><p className="mt-1 text-[8px] text-[#6b8290]">{Number.isFinite(latestBattery) ? `Latest reported level: ${formatValue(latestBattery)}%` : "No battery reading available"}</p></div> : null}
@@ -723,7 +718,7 @@ export default function Reports() {
 
                 <section className="mt-4 overflow-hidden rounded-[14px] border border-[#dce8ee] bg-white shadow-[0_5px_18px_rgba(10,48,72,0.05)]">
                   <div className="flex flex-col gap-3 border-b border-[#edf2f4] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                    <div><h2 className="text-[14px] font-semibold text-[#102a3a]">Generated reports</h2><p className="mt-1 text-[9px] text-[#8ba0ab]">Saved and scheduled report files</p></div>
+                    <div><h2 className="topic-heading topic-analytics text-[14px] font-semibold text-[#102a3a]">Generated reports</h2><p className="mt-1 text-[9px] text-[#8ba0ab]">Saved and scheduled report files</p></div>
                     <button type="button" disabled={!selectedDeviceId || generatingReport} onClick={handleGenerateReport} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] bg-[#08a9c4] px-3.5 text-[10px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-55"><Plus size={13} /> Generate report</button>
                   </div>
                   {generatedReports.length === 0 ? <div className="flex min-h-[96px] items-center justify-center bg-[#fbfdfe] px-4 text-center text-[10px] text-[#8ba0ab]">No generated reports yet.</div> : <div className="max-h-[360px] overflow-x-hidden overflow-y-auto sm:max-h-[420px]"><div className="divide-y divide-[#edf2f4]">{generatedReports.map((report) => <div key={report.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="min-w-0 flex-1"><p className="break-words text-[11px] font-semibold text-[#102a3a]">{report.deviceName} · {report.range.toUpperCase()}</p><p className="mt-1 break-words text-[9px] text-[#8ba0ab]">Generated {formatTooltipTime(report.generatedAt)} · {report.alertCount} alerts</p></div><div className="flex shrink-0 items-center gap-2"><button type="button" onClick={() => navigate(`/reports/${report.id}`)} className="rounded-[8px] px-2.5 py-1.5 text-[10px] font-medium text-[#087f98] hover:bg-[#eef9fb]">View</button><button type="button" onClick={() => handleDeleteReport(report)} className="rounded-[8px] p-1.5 text-[#d83f4d] hover:bg-[#fdecee]" aria-label="Delete report"><Trash2 size={14} /></button></div></div>)}</div></div>}

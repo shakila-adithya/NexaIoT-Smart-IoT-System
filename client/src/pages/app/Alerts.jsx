@@ -23,6 +23,10 @@ import {
   markAllAlertsRead,
   resolveAlert,
 } from "../../api/alertsApi.js";
+import ErrorState from "../../components/ui/ErrorState.jsx";
+import PageHeader from "../../components/ui/PageHeader.jsx";
+import SectionCard from "../../components/ui/SectionCard.jsx";
+import Select from "../../components/ui/Select.jsx";
 
 const statusTabs = [
   { id: "ALL", label: "All alerts" },
@@ -510,20 +514,20 @@ export default function Alerts() {
   }
 
   return (
-    <div className="w-full px-4 pb-10 pt-[26px] md:px-[30px]">
-      <div className="mx-auto w-full max-w-[1144px]">
-        <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-[26px] font-normal leading-tight text-[#102a3a]">Alerts</h1>
-            <p className="mt-[5px] text-[12px] text-[#6b8290]">Review, acknowledge, and resolve events across your network.</p>
-          </div>
-
-          <div className="flex flex-wrap gap-2.5">
+    <div className="w-full px-4 pb-10 pt-7 md:px-8 lg:px-[30px]">
+      <div className="mx-auto w-full max-w-[1240px]">
+        <PageHeader
+          tone="warning"
+          title="Alerts"
+          description="Review, acknowledge, and resolve events across your network."
+          actions={(
+            <div className="flex flex-wrap gap-2.5">
             <button type="button" onClick={() => navigate("/alerts/rules")} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98]"><SlidersHorizontal size={14} /> Alert rules</button>
             <button type="button" disabled={markingAllRead || counts.unread === 0} onClick={handleMarkAllRead} title={counts.unread === 0 ? "All alerts are already read" : "Mark all alerts as read"} className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white transition hover:bg-[#0799b2] disabled:cursor-not-allowed disabled:opacity-55"><Check size={14} /> {markingAllRead ? "Marking..." : "Mark all read"}</button>
             <button type="button" disabled={loading || alerts.length === 0 || clearingAll} onClick={() => setClearAllOpen(true)} title={alerts.length === 0 ? "There is no alert history to clear" : "Clear all alert history"} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#f3cdd1] bg-[#fff7f8] px-4 text-[11px] font-medium text-[#d83f4d] transition hover:border-[#e24e5a] hover:bg-[#fdecee] disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} /> Clear alert history</button>
-          </div>
-        </section>
+            </div>
+          )}
+        />
 
         <section className="mt-6 grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
           <SummaryCard icon={Bell} value={counts.totalActive} label="Total active" note={counts.totalActive > 0 ? "Across your network" : "No active alerts"} tone="cyan" />
@@ -532,16 +536,16 @@ export default function Alerts() {
           <SummaryCard icon={CheckCircle2} value={counts.resolved} label="Resolved" note={counts.resolved > 0 ? "Resolved alerts" : "No resolved alerts"} tone="green" />
         </section>
 
-        <section className="mt-6 rounded-[14px] border border-[#dce8ee] bg-white p-3 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-[14px]">
+        <SectionCard className="mt-6 p-3" compact>
           <div className="grid gap-2.5 xl:grid-cols-[minmax(240px,1fr)_180px_170px_170px_auto]">
             <label className="relative block">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8298a4]" />
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search alerts or devices..." className="h-10 w-full rounded-[9px] border border-[#dce8ee] bg-white pl-9 pr-3 text-[11px] text-[#102a3a] outline-none placeholder:text-[#9aaeba] focus:border-[#08a9c4] focus:ring-2 focus:ring-[#08a9c4]/10" />
             </label>
 
-            <select value={deviceFilter} onChange={(event) => setDeviceFilter(event.target.value)} className="h-10 rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[10px] text-[#526b79] outline-none focus:border-[#08a9c4]"><option value="ALL">All devices</option>{deviceOptions.map((device) => <option key={device.value} value={device.value}>{device.label}</option>)}</select>
-            <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)} className="h-10 rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[10px] text-[#526b79] outline-none focus:border-[#08a9c4]"><option value="ALL">All severities</option><option value="INFO">Info</option><option value="WARNING">Warning</option><option value="CRITICAL">Critical</option></select>
-            <select value={dateRange} onChange={(event) => setDateRange(event.target.value)} className="h-10 rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[10px] text-[#526b79] outline-none focus:border-[#08a9c4]"><option value="ALL">All time</option><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select>
+            <Select value={deviceFilter} onChange={setDeviceFilter} options={[{ value: "ALL", label: "All devices" }, ...deviceOptions]} aria-label="Filter by device" buttonClassName="h-10 text-[10px]" className="w-auto min-w-[150px]" />
+            <Select value={severityFilter} onChange={setSeverityFilter} options={[{ value: "ALL", label: "All severities" }, { value: "INFO", label: "Info" }, { value: "WARNING", label: "Warning" }, { value: "CRITICAL", label: "Critical" }]} aria-label="Filter by severity" buttonClassName="h-10 text-[10px]" className="w-auto min-w-[140px]" />
+            <Select value={dateRange} onChange={setDateRange} options={[{ value: "ALL", label: "All time" }, { value: "1", label: "Last 24 hours" }, { value: "7", label: "Last 7 days" }, { value: "30", label: "Last 30 days" }]} aria-label="Filter by date" buttonClassName="h-10 text-[10px]" className="w-auto min-w-[140px]" />
           </div>
 
           <div className="mt-3 flex items-center gap-1 overflow-x-auto border-t border-[#edf3f6] pt-3">
@@ -551,17 +555,17 @@ export default function Alerts() {
               return <button type="button" key={tab.id} onClick={() => setStatusTab(tab.id)} className={`relative flex h-9 shrink-0 items-center gap-1.5 px-3 text-[10px] transition ${selected ? "font-bold text-[#087f98]" : "font-medium text-[#7d929e] hover:text-[#102a3a]"}`}>{tab.label}<span className={`rounded-full px-1.5 py-0.5 text-[9px] ${selected ? "bg-[#e8f8fb] text-[#087f98]" : "bg-[#f4f8fb] text-[#8ba0aa]"}`}>{count}</span>{selected ? <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[#08a9c4]" /> : null}</button>;
             })}
           </div>
-        </section>
+        </SectionCard>
 
-        {error ? <div className="mt-5 rounded-[12px] border border-red-200 bg-red-50 p-4 text-[11px] text-red-600">{error}</div> : null}
+        {error ? <ErrorState className="mt-5" message={error} /> : null}
         {actionError ? <div className="mt-5 rounded-[12px] border border-red-200 bg-red-50 p-4 text-[11px] text-red-600">{actionError}</div> : null}
 
         {loading ? (
           <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]"><div className="h-[380px] animate-pulse rounded-[14px] border border-[#dce8ee] bg-white" /><div className="h-[500px] animate-pulse rounded-[14px] border border-[#dce8ee] bg-white" /></div>
         ) : (
           <section className="mt-6 grid items-start gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
-            <div className="overflow-hidden rounded-[14px] border border-[#dce8ee] bg-white shadow-[0_5px_18px_rgba(10,48,72,0.05)]">
-              <div className="flex items-center justify-between gap-3 border-b border-[#edf3f6] px-4 py-3.5"><div className="flex items-center gap-2"><h2 className="text-[13px] font-semibold text-[#102a3a]">Recent alerts</h2><span className="rounded-full bg-[#fdecee] px-2 py-0.5 text-[9px] font-semibold text-[#d83f4d]">{counts.totalActive} active</span></div><span className="hidden items-center gap-1 text-[9px] text-[#7d929e] sm:flex"><ListFilter size={12} /> Newest first</span></div>
+            <div className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)]">
+              <div className="flex items-center justify-between gap-3 border-b border-[#edf3f6] px-4 py-3.5"><div className="flex items-center gap-2"><h2 className="topic-heading topic-warning text-[13px] font-semibold text-[#102a3a]">Recent alerts</h2><span className="rounded-full bg-[#fdecee] px-2 py-0.5 text-[9px] font-semibold text-[#d83f4d]">{counts.totalActive} active</span></div><span className="hidden items-center gap-1 text-[9px] text-[#7d929e] sm:flex"><ListFilter size={12} /> Newest first</span></div>
               {filteredAlerts.length > 0 ? <div className="max-h-[360px] overflow-x-hidden overflow-y-auto sm:max-h-[480px]">{filteredAlerts.map((alert) => <AlertRow key={alert.id} alert={alert} selected={selectedAlert?.id === alert.id} onSelect={setSelectedAlertId} />)}</div> : <div className="px-5 py-16 text-center"><CheckCircle2 size={26} className="mx-auto text-[#16a57a]" /><p className="mt-3 text-[12px] font-semibold text-[#102a3a]">No matching alerts</p><p className="mt-1 text-[10px] text-[#6b8290]">Try changing the filters to see more alerts.</p></div>}
               {filteredAlerts.length > 0 && counts.totalActive === 0 ? <div className="flex items-center gap-3 border-t border-[#d9eee7] bg-[#eaf8f3] px-4 py-3"><CheckCircle2 size={18} className="text-[#16a57a]" /><div><p className="text-[10px] font-medium text-[#16815f]">No other urgent alerts</p><p className="text-[9px] text-[#6b8290]">All monitored conditions are within safe limits.</p></div></div> : null}
             </div>

@@ -2,21 +2,25 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChartNoAxesCombined,
+  Clock3,
   Cpu,
   Plus,
   RadioTower,
   TriangleAlert,
   Wifi,
   WifiOff,
+  Wrench,
 } from "lucide-react";
-import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 
-import DashboardStatCard from "../../components/dashboard/DashboardStatCard.jsx";
 import LatestAlerts from "../../components/dashboard/LatestAlerts.jsx";
+import NetworkOverviewAnimation from "../../components/dashboard/NetworkOverviewAnimation.jsx";
 import RecentActivity from "../../components/dashboard/RecentActivity.jsx";
-import QuickActions from "../../components/dashboard/QuickActions.jsx";
-import DeviceStatusVisual from "../../components/dashboard/DeviceStatusVisual.jsx";
-import PageHero from "../../components/common/PageHero.jsx";
+import Button from "../../components/ui/Button.jsx";
+import PageHeader from "../../components/ui/PageHeader.jsx";
+import BentoCard from "../../components/ui/BentoCard.jsx";
+import StatusBadge from "../../components/ui/StatusBadge.jsx";
+import networkOverviewImage from "../../assets/dashboard/device-status/robot-iot-car.png";
+import shakingHandsIllustration from "../../assets/dashboard/device-status/shaking-hands.png";
 import { getDevices, getLatestDeviceReading } from "../../api/devicesApi.js";
 import { getAlerts } from "../../api/alertsApi.js";
 import { useAuth } from "../../hooks/useAuth.js";
@@ -223,16 +227,6 @@ export default function Dashboard() {
     };
   }, [devices]);
 
-  const deviceStatusData = [
-    { name: "Online", value: stats.online, color: "#16a57a" },
-    { name: "Offline", value: stats.offline, color: "#e24e5a" },
-    { name: "Maintenance", value: stats.maintenance, color: "#d49a24" },
-  ];
-
-  const deviceStatusChartData = stats.total > 0
-    ? deviceStatusData
-    : [{ name: "No devices", value: 1, color: "#e7eff3" }];
-
   const networkTitle =
     stats.total === 0
       ? "Start building your IoT network."
@@ -240,10 +234,23 @@ export default function Dashboard() {
         ? "Your registered devices are online."
         : "Your IoT network needs attention.";
 
-  const networkDescription =
-    stats.total === 0
-      ? "Register your first IoT device to begin monitoring your connected environment."
-      : `${stats.total} devices registered · ${stats.online} online · ${stats.offline} offline · ${stats.maintenance} maintenance`;
+  const networkStatus = loading
+    ? "Checking"
+    : error
+      ? "Unavailable"
+      : stats.total === 0
+        ? "No devices"
+        : stats.offline === 0 && stats.maintenance === 0
+          ? "Healthy"
+          : "Needs attention";
+  const networkStatusTone = loading || stats.total === 0 ? "neutral" : error ? "danger" : stats.offline === 0 && stats.maintenance === 0 ? "success" : "warning";
+  const networkInsightMessage = stats.maintenance > 0
+    ? `${stats.maintenance} device${stats.maintenance === 1 ? " is" : "s are"} currently under maintenance.`
+    : stats.offline > 0
+      ? `${stats.offline} device${stats.offline === 1 ? "" : "s"} currently needs attention.`
+      : stats.total > 0 && stats.online === stats.total
+        ? "All registered devices are currently online."
+        : "No registered devices yet.";
 
   const dashboardMetricDefinitions = normalizeCapabilityManifest(telemetry?.device)
     .filter((capability) => capability.category !== "CONTROL")
@@ -251,67 +258,79 @@ export default function Dashboard() {
     .filter(Boolean);
 
   return (
-    <div className="w-full px-4 pb-9 pt-[26px] md:px-[30px]">
-      <div className="mx-auto w-full max-w-[1144px]">
-        <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-[26px] font-normal leading-tight text-[#102a3a]">
-              {greeting}, {firstName}
-            </h1>
+    <div className="min-w-0 max-w-full px-4 pb-9 pt-7 md:px-8 lg:px-[30px]">
+      <div className="mx-auto min-w-0 w-full max-w-[1240px]">
+        <PageHeader
+          title={<><span>{greeting}, </span><span className="text-[var(--topic-telemetry)]">{firstName}</span></>}
+          description={loading ? "Checking your registered devices..." : "Monitor your connected devices and recent activity."}
+          actions={(
+            <>
+              <Button type="button" onClick={() => navigate("/devices/register")} icon={Plus}>Add device</Button>
+              <Button type="button" variant="secondary" onClick={() => navigate("/reports")} icon={ChartNoAxesCombined}>View reports</Button>
+            </>
+          )}
+        />
 
-            <p className="mt-[5px] text-[12px] text-[#6b8290]">
-              Here&apos;s what&apos;s happening across your IoT network today.
-            </p>
+        <section className="network-overview-card mt-6" aria-labelledby="network-overview-title">
+          <div className="network-overview-content">
+            <NetworkOverviewAnimation />
+            <header className="network-overview-header">
+              <div className="network-overview-heading">
+                <span className="network-overview-icon" aria-hidden="true">
+                  <img src={shakingHandsIllustration} alt="" className="network-overview-hand h-9 w-9 object-contain" />
+                </span>
+                <div className="min-w-0">
+                  <div className="network-overview-title-row">
+                    <h2 id="network-overview-title" className="topic-heading topic-telemetry">Network overview</h2>
+                    <StatusBadge tone={networkStatusTone}>{networkStatus}</StatusBadge>
+                  </div>
+                  <p className="network-overview-support">{loading ? "Loading your IoT network..." : error ? "Unable to load your current device information." : networkTitle}</p>
+                </div>
+              </div>
+            </header>
+
+            <div className="network-overview-insights" aria-label="Operational network insights">
+              <p className="network-overview-insight-message">
+                {loading ? "Loading network insights..." : error ? "Network insights are temporarily unavailable." : networkInsightMessage}
+              </p>
+              <div className="network-overview-insight-row">
+                <span className={`network-overview-insight-chip insight-alert ${activeAlertCount > 0 ? "insight-danger" : "insight-neutral"}`}>
+                  <TriangleAlert size={14} aria-hidden="true" />
+                  <strong>{activeAlertCount === null || loading || error ? "—" : activeAlertCount}</strong>
+                  <span>{activeAlertCount === 1 ? "active alert" : "active alerts"}</span>
+                </span>
+                <span className="network-overview-insight-chip insight-neutral insight-updated">
+                  <Clock3 size={14} aria-hidden="true" />
+                  <strong>Updated</strong>
+                  <span>{loading || error ? "—" : formatTelemetryTime(telemetry?.reading?.receivedAt)}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="network-overview-metrics" aria-label="Network status summary">
+              <div className="network-overview-metric metric-registered">
+                <span className="network-overview-metric-icon" aria-hidden="true"><Cpu size={16} /></span>
+                <div><strong>{loading || error ? "—" : stats.total}</strong><span>Registered</span></div>
+              </div>
+              <div className="network-overview-metric metric-online">
+                <span className="network-overview-metric-icon" aria-hidden="true"><Wifi size={16} /></span>
+                <div><strong>{loading || error ? "—" : stats.online}</strong><span>Online</span></div>
+              </div>
+              <div className="network-overview-metric metric-offline">
+                <span className="network-overview-metric-icon" aria-hidden="true"><WifiOff size={16} /></span>
+                <div><strong>{loading || error ? "—" : stats.offline}</strong><span>Offline</span></div>
+              </div>
+              <div className="network-overview-metric metric-maintenance">
+                <span className="network-overview-metric-icon" aria-hidden="true"><Wrench size={16} /></span>
+                <div><strong>{loading || error ? "—" : stats.maintenance}</strong><span>Maintenance</span></div>
+              </div>
+            </div>
           </div>
-
-          <div className="flex gap-2.5">
-            <button
-              type="button"
-              onClick={() => navigate("/devices/register")}
-              className="flex h-10 items-center justify-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[12px] font-medium text-white transition hover:bg-[#0799b2]"
-            >
-              <Plus size={15} />
-              Add device
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate("/reports")}
-              className="flex h-10 items-center justify-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[12px] font-medium text-[#102a3a] transition hover:bg-[#f8fbfd]"
-            >
-              <ChartNoAxesCombined size={15} />
-              View reports
-            </button>
+          <div className="network-overview-image">
+            <img src={networkOverviewImage} alt="Autonomous IoT inspection robot car in a smart factory" />
+            <span className="network-overview-image-badge" aria-hidden="true"><ChartNoAxesCombined size={22} /></span>
           </div>
         </section>
-
-        <div className="mt-6">
-          <PageHero
-            eyebrow="Network overview"
-            title={
-              loading
-                ? "Loading your IoT network..."
-                : networkTitle
-            }
-            description={
-              loading
-                ? "Checking your registered devices..."
-                : error
-                  ? "Unable to load your current device information."
-                  : networkDescription
-            }
-            image="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1400&q=85"
-            imageAlt="Connected IoT network infrastructure"
-          >
-            <button
-              type="button"
-              onClick={() => navigate("/devices")}
-              className="flex h-9 items-center rounded-[9px] border border-white/30 bg-white/15 px-4 text-[11px] font-medium text-white transition hover:bg-white/25"
-            >
-              View devices
-            </button>
-          </PageHero>
-        </div>
 
         {error ? (
           <div className="mt-6 rounded-[14px] border border-red-200 bg-red-50 p-4 text-[12px] text-red-600">
@@ -319,97 +338,9 @@ export default function Dashboard() {
           </div>
         ) : null}
 
-        <section className="mt-6 grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-          <DashboardStatCard
-            icon={Cpu}
-            value={loading || error ? "—" : stats.total}
-            label="Total devices"
-            trend={
-              loading
-                ? "Checking..."
-                : error
-                  ? "Unavailable"
-                : stats.total === 1
-                  ? "1 registered device"
-                  : `${stats.total} registered devices`
-            }
-            tone="cyan"
-          />
-
-          <DashboardStatCard
-            icon={Wifi}
-            value={loading || error ? "—" : stats.online}
-            label="Online devices"
-            trend={
-              loading
-                ? "Checking..."
-                : error
-                  ? "Unavailable"
-                : `${stats.onlinePercentage}% online`
-            }
-            tone="green"
-          />
-
-          <DashboardStatCard
-            icon={WifiOff}
-            value={loading || error ? "—" : stats.offline}
-            label="Offline devices"
-            trend={
-              loading
-                ? "Checking..."
-                : error
-                  ? "Unavailable"
-                : stats.offline > 0
-                  ? "Needs attention"
-                  : "No offline devices"
-            }
-            tone="amber"
-          />
-
-          <DashboardStatCard
-            icon={TriangleAlert}
-            value={loading || activeAlertCount === null ? "—" : activeAlertCount}
-            label="Active alerts"
-            trend={
-              loading
-                ? "Checking..."
-                : alertsError || activeAlertCount === null
-                  ? "Unavailable"
-                : activeAlertCount > 0
-                  ? "Needs attention"
-                  : "No active alerts"
-            }
-            tone="red"
-          />
-        </section>
-
-        <section className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,760px)_minmax(300px,368px)]">
-          <div className="relative overflow-hidden rounded-[14px] border border-[#dce8ee] bg-gradient-to-br from-white via-white to-[#f3fbfd] p-5 shadow-[0_6px_20px_rgba(10,48,72,0.07)]">
+        <section className="mt-6 min-w-0">
+          <BentoCard icon={RadioTower} title="Live telemetry" description="Latest reading from your most recently reporting device." action={<StatusBadge tone={telemetry ? "success" : "neutral"}>{telemetry ? "Latest reading" : "Waiting"}</StatusBadge>} className="min-w-0">
             <div className="pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full bg-[#dff6fa]/60 blur-2xl" />
-            <div className="flex items-start justify-between gap-4">
-              <div className="relative">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#e8f8fb] text-[#08a9c4] shadow-[0_4px_10px_rgba(8,169,196,0.12)]">
-                    <RadioTower size={17} />
-                  </span>
-                  <div>
-                    <h2 className="text-[15px] font-semibold text-[#102a3a]">
-                      Live telemetry
-                    </h2>
-
-                    <p className="mt-1 text-[11px] text-[#6b8290]">
-                      Latest reading from your most recently reporting device.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <span className={`relative inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] font-semibold ${telemetry ? "bg-[#eaf8f3] text-[#16815f]" : "bg-[#edf4f6] text-[#6b8290]"}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${telemetry ? "bg-[#16a57a]" : "bg-[#9aadb6]"}`} />
-                {telemetry ? "Latest reading" : "Waiting"}
-              </span>
-            </div>
-
             {loading ? (
               <div className="mt-5 grid min-h-[180px] animate-pulse grid-cols-2 gap-3 rounded-[12px] border border-dashed border-[#dce8ee] bg-[#f8fbfd] p-4 sm:grid-cols-4">
                 {[1, 2, 3, 4].map((item) => (
@@ -471,105 +402,19 @@ export default function Dashboard() {
                 )}
               </div>
             )}
-          </div>
+          </BentoCard>
 
-          <QuickActions />
         </section>
 
-        <section className="mt-6 grid gap-4 md:grid-cols-3">
-          <div className="flex h-full min-h-[520px] flex-col rounded-[14px] border border-[#dce8ee] bg-white p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-[14px] font-semibold text-[#102a3a]">
-                Device status
-              </h2>
+        <section className="mt-6 grid min-w-0 gap-5 lg:grid-cols-2">
+          <div className="min-w-0"><RecentActivity devices={devices} alerts={alerts} /></div>
 
-              <button
-                type="button"
-                onClick={() => navigate("/devices")}
-                className="text-[10px] font-medium text-[#08a9c4] hover:text-[#0799b2]"
-              >
-                View all
-              </button>
-            </div>
-
-            <div className="mt-5 grid flex-none items-center gap-5 sm:grid-cols-[132px_minmax(0,1fr)]">
-              <div className="relative mx-auto h-[132px] w-[132px] shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={deviceStatusChartData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={45}
-                      outerRadius={61}
-                      paddingAngle={stats.total > 0 ? 3 : 0}
-                      stroke="none"
-                      isAnimationActive={false}
-                    >
-                      {deviceStatusChartData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.color} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-[22px] font-semibold tracking-[-0.03em] text-[#102a3a]">
-                    {loading ? "—" : stats.total}
-                  </span>
-                  <span className="text-[9px] text-[#8ba0ab]">devices</span>
-                </div>
-              </div>
-
-              <div className="space-y-3 text-[11px]">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[#16a57a]" />
-                    <span className="text-[#6b8290]">Online</span>
-                  </div>
-                  <span className="font-semibold text-[#16a57a]">
-                    {loading ? "—" : stats.online}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[#e24e5a]" />
-                    <span className="text-[#6b8290]">Offline</span>
-                  </div>
-                  <span className="font-semibold text-[#e24e5a]">
-                    {loading ? "—" : stats.offline}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[#d49a24]" />
-                    <span className="text-[#6b8290]">Maintenance</span>
-                  </div>
-                  <span className="font-semibold text-[#d49a24]">
-                    {loading ? "—" : stats.maintenance}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between border-t border-[#edf2f4] pt-3">
-                  <span className="font-medium text-[#526d7b]">Online rate</span>
-                  <span className="font-semibold text-[#08a9c4]">
-                    {loading ? "—" : `${stats.onlinePercentage}%`}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <DeviceStatusVisual />
-          </div>
-
-          <RecentActivity devices={devices} alerts={alerts} />
-
-          <LatestAlerts
+          <div className="min-w-0"><LatestAlerts
             alerts={alerts}
             loading={alertsLoading}
             error={alertsError}
-          />
+            activeAlertCount={activeAlertCount}
+          /></div>
         </section>
       </div>
     </div>

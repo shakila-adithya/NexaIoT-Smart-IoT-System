@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
+import Select from "../ui/Select.jsx";
 
 const categories = [
   ["MEASUREMENT", "Measurement"],
@@ -292,8 +293,8 @@ export default function CustomCapabilityBuilder({ capabilities, onChange }) {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="text-[9px] font-medium text-[#526b79]">Name<input value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} disabled={draft.category === "CONTROL"} placeholder="e.g. Water Level" className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4] disabled:bg-[#f8fbfd] disabled:text-[#6b8290]" /></label>
             <label className="text-[9px] font-medium text-[#526b79]">Generated key<div className="mt-1.5 flex h-9 items-center rounded-[9px] border border-[#dce8ee] bg-[#f8fbfd] px-3 font-mono text-[10px] text-[#6b8290]">{draft.category === "CONTROL" ? draft.key : toCapabilityKey(draft.name) || "—"}</div></label>
-            <label className="text-[9px] font-medium text-[#526b79]">Category<select value={draft.category} onChange={(event) => changeCategory(event.target.value)} className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4]">{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-            <label className="text-[9px] font-medium text-[#526b79]">Data type<select value={draft.dataType} onChange={(event) => changeDataType(event.target.value)} disabled={draft.category === "CONTROL"} className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4] disabled:bg-[#f8fbfd] disabled:text-[#6b8290]">{(draft.category === "CONTROL" ? [["BOOLEAN", "Boolean"]] : dataTypes).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <Select label="Category" value={draft.category} onChange={changeCategory} options={categories.map(([value, label]) => ({ value, label }))} buttonClassName="min-h-9 text-[11px]" />
+            <Select label="Data type" value={draft.dataType} onChange={changeDataType} disabled={draft.category === "CONTROL"} options={(draft.category === "CONTROL" ? [["BOOLEAN", "Boolean"]] : dataTypes).map(([value, label]) => ({ value, label }))} buttonClassName="min-h-9 text-[11px]" />
             <label className="text-[9px] font-medium text-[#526b79]">Unit <span className="font-normal text-[#9aadb6]">(optional)</span><input value={draft.unit} onChange={(event) => updateDraft("unit", event.target.value)} placeholder="e.g. % or °C" className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4]" /></label>
             <label className="text-[9px] font-medium text-[#526b79]">Semantic type <span className="font-normal text-[#9aadb6]">(optional)</span><input value={draft.semanticType} onChange={(event) => updateDraft("semanticType", event.target.value)} placeholder="e.g. waterLevel" className="mt-1.5 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 py-2 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4]" /></label>
           </div>
@@ -309,7 +310,7 @@ export default function CustomCapabilityBuilder({ capabilities, onChange }) {
 
           {draft.category === "CONTROL" ? (
             <div className="mt-3 rounded-[9px] border border-[#dce8ee] bg-white p-3">
-              <label className="text-[9px] font-medium text-[#526b79]">Control type<select value={draft.controlType} disabled className="mt-1.5 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-[#f8fbfd] px-3 text-[11px] text-[#6b8290] outline-none">{controlOptions(draft.dataType, draft.category).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              <Select label="Control type" value={draft.controlType} disabled options={controlOptions(draft.dataType, draft.category).map(([value, label]) => ({ value, label }))} buttonClassName="min-h-9 text-[11px]" />
             </div>
           ) : null}
 

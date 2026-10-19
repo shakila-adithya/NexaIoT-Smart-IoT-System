@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, LockKeyhole, Mail, Satellite } from "lucide-react";
+import { ArrowLeft, LockKeyhole, Mail } from "lucide-react";
+import smartDeviceImage from "../../assets/dashboard/device-status/smart-home-controller.jpg";
+import AuthShell from "../../components/auth/AuthShell.jsx";
 import Input from "../../components/ui/Input.jsx";
 import Button from "../../components/ui/Button.jsx";
 import { forgotPasswordRequest } from "../../api/authApi.js";
@@ -36,39 +38,16 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
-      <div className="hidden lg:flex flex-col justify-center bg-slate-950 px-14 text-white relative overflow-hidden">
-        <img
-          src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1600&q=85"
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-slate-950/70" />
-        <div className="relative z-10">
-          <Link to="/" className="flex items-center gap-2 font-bold text-xl">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15">
-              <Satellite size={18} />
-            </span>
-            NexaIoT
-          </Link>
-          <h1 className="mt-10 text-4xl font-bold leading-tight max-w-md">Secure access starts here.</h1>
-          <p className="mt-4 text-blue-100 max-w-sm">
-            Reset your password securely and get back to monitoring your IoT devices.
-          </p>
-        </div>
-        <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-white/10" />
-        <div className="absolute -top-16 -left-10 h-52 w-52 rounded-full bg-white/10" />
-      </div>
-
-      <div className="flex items-center justify-center px-6 py-16">
-        <div className="w-full max-w-sm">
-          <div className="lg:hidden flex items-center gap-2 font-bold text-ink text-lg mb-8">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
-              <Satellite size={18} />
-            </span>
-            NexaIoT
-          </div>
+    <AuthShell
+      image={smartDeviceImage}
+      imageTone="bright"
+      ghost="Reset"
+      headline="Locked out? It happens."
+      blurb="Tell us your email and we'll send a secure link to set a new password."
+      title="Secure access starts here."
+      description="Reset your password securely and get back to monitoring your IoT devices."
+      formContent={(
+        <>
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <LockKeyhole size={22} />
           </div>
@@ -103,12 +82,12 @@ export default function ForgotPassword() {
               Login
             </Link>
           </p>
-          <Link to="/" className="mt-4 mx-auto inline-flex items-center gap-2 text-sm text-muted hover:text-ink">
+          <Link to="/" className="auth-back-link mt-4 mx-auto inline-flex items-center gap-2 text-sm text-muted hover:text-primary">
             <ArrowLeft size={15} />
             Back to home
           </Link>
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    />
   );
 }

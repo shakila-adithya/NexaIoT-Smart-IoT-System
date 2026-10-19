@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Satellite, Mail, Lock, Thermometer, Radio, Bell, BarChart3 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Mail, Lock } from "lucide-react";
+import AuthShell from "../../components/auth/AuthShell.jsx";
 import Input from "../../components/ui/Input.jsx";
 import Button from "../../components/ui/Button.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
@@ -11,10 +12,18 @@ export default function Login() {
   const { login } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [form, setForm] = useState({ email: "", password: "", remember: true });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+
+  useEffect(() => {
+    if (!location.state?.registrationSuccess) return;
+
+    showToast("Account created successfully. Please sign in.");
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location, navigate, showToast]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -36,52 +45,25 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
-      <div className="hidden lg:flex flex-col justify-center bg-slate-950 px-14 text-white relative overflow-hidden">
-        <img
-          src="https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1600&q=85"
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-slate-950/70" />
-        <div className="relative z-10">
-          <Link to="/" className="flex items-center gap-2 font-bold text-xl">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15">
-              <Satellite size={18} />
-            </span>
-            NexaIoT
-          </Link>
-          <h1 className="mt-10 text-4xl font-bold leading-tight max-w-md">Smarter Monitoring, Better Control.</h1>
-          <p className="mt-4 text-blue-100 max-w-sm">
-            Track your devices, monitor real-time data, and control your IoT devices from anywhere.
-          </p>
-          <div className="mt-10 grid grid-cols-2 gap-4 max-w-sm">
-            {[
-              { icon: Thermometer, label: "Real-time Monitoring" },
-              { icon: Radio, label: "Remote Control" },
-              { icon: Bell, label: "Smart Alerts" },
-              { icon: BarChart3, label: "Reports & Analytics" },
-            ].map((f) => (
-              <div key={f.label} className="flex items-center gap-2.5 bg-white/10 rounded-xl px-3.5 py-3">
-                <f.icon size={16} />
-                <span className="text-sm font-medium">{f.label}</span>
-              </div>
-            ))}
-          </div>
+    <AuthShell
+      image="https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=1800&q=88"
+      imageTone="bright"
+      ghost="Sign in"
+      headline="Smarter monitoring, better control."
+      blurb="Track your devices, watch real-time data, and control your IoT fleet from anywhere."
+      title="Smarter Monitoring, Better Control."
+      description="Track your devices, monitor real-time data, and control your IoT devices from anywhere."
+      visualContent={(
+        <div className="mt-10 grid max-w-sm grid-cols-2 gap-3">
+          {["Real-time Monitoring", "Remote Control", "Smart Alerts", "Reports & Analytics"].map((label) => (
+            <div key={label} className="rounded-xl border border-white/10 bg-white/10 px-3.5 py-3 text-sm font-medium">
+              {label}
+            </div>
+          ))}
         </div>
-        <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-white/10" />
-        <div className="absolute -top-16 -left-10 h-52 w-52 rounded-full bg-white/10" />
-      </div>
-
-      <div className="flex items-center justify-center px-6 py-16">
-        <div className="w-full max-w-sm">
-          <div className="lg:hidden flex items-center gap-2 font-bold text-ink text-lg mb-8">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
-              <Satellite size={18} />
-            </span>
-            NexaIoT
-          </div>
+      )}
+      formContent={(
+        <>
           <h2 className="text-2xl font-bold text-ink">Welcome back</h2>
           <p className="text-sm text-muted mt-1.5">Sign in to your account to continue</p>
 
@@ -135,8 +117,8 @@ export default function Login() {
               Register
             </Link>
           </p>
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    />
   );
 }

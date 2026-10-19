@@ -86,20 +86,20 @@ export default function RecentActivity({ devices = [], alerts = [] }) {
   const activities = buildActivity(devices, alerts);
 
   return (
-    <section className="rounded-[14px] border border-[#dce8ee] bg-white p-[18px] shadow-[0_6px_20px_rgba(10,48,72,0.07)]">
+    <section className="min-w-0 flex h-full min-h-[420px] flex-col rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-[15px] font-semibold text-[#102a3a]">
+          <h2 className="topic-heading topic-activity text-[18px] font-semibold text-[var(--color-text-primary)]">
             Recent activity
           </h2>
-          <p className="mt-1 text-[11px] text-[#6b8290]">
+          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
             Latest events from your workspace
           </p>
         </div>
 
       </div>
 
-      <div className="mt-3.5">
+      <div className="mt-4 min-h-0 flex-1">
         {activities.length === 0 ? (
           <div className="rounded-[10px] bg-[#f8fbfd] p-4">
             <p className="text-[11px] font-medium text-[#102a3a]">
@@ -110,13 +110,13 @@ export default function RecentActivity({ devices = [], alerts = [] }) {
             </p>
           </div>
         ) : (
-          <div className="max-h-[360px] overflow-x-hidden overflow-y-auto sm:max-h-[480px]">
+          <div className="h-full max-h-[420px] overflow-x-hidden overflow-y-auto pr-1">
             <div className="space-y-[14px]">
               {activities.map((item, index) => {
                 const Icon = item.icon || WifiOff;
 
                 return (
-                  <div key={`${item.title}-${item.timestamp}-${index}`} className="flex items-center">
+                  <div key={`${item.title}-${item.timestamp}-${index}`} className="grid grid-cols-[32px_minmax(0,1fr)] items-start gap-[11px]">
                     <div
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] ${
                         toneMap[item.tone] || toneMap.cyan
@@ -125,11 +125,11 @@ export default function RecentActivity({ devices = [], alerts = [] }) {
                       <Icon size={14} strokeWidth={1.9} />
                     </div>
 
-                    <div className="ml-[11px] min-w-0">
-                      <div className="truncate text-[11px] font-medium text-[#102a3a]">
+                    <div className="min-w-0 pt-0.5">
+                      <div className="truncate text-[11px] font-medium leading-4 text-[#102a3a]">
                         {item.title}
                       </div>
-                      <div className="mt-1 truncate text-[9px] text-[#8397a2]">
+                      <div className="mt-1 truncate text-[9px] leading-3 text-[#8397a2]">
                         {item.meta}
                       </div>
                     </div>

@@ -5,6 +5,10 @@ import { createAlertRule, deleteAlertRule, getAlertRules, updateAlertRule } from
 import { getDevices } from "../../api/devicesApi.js";
 import { normalizeCapabilityManifest } from "../../config/capabilityManifest.js";
 import { useToast } from "../../hooks/useToast.js";
+import Button from "../../components/ui/Button.jsx";
+import PageHeader from "../../components/ui/PageHeader.jsx";
+import SectionCard from "../../components/ui/SectionCard.jsx";
+import Select from "../../components/ui/Select.jsx";
 
 const emptyForm = {
   name: "",
@@ -174,37 +178,36 @@ export default function AlertRules() {
   }
 
   return (
-    <div className="w-full px-4 pb-10 pt-[26px] md:px-[30px]">
-      <div className="mx-auto w-full max-w-[1144px]">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <button type="button" onClick={() => navigate("/alerts")} className="mb-3 inline-flex items-center gap-1.5 text-[10px] font-medium text-[#6b8290] hover:text-[#087f98]"><ArrowLeft size={13} /> Back to alerts</button>
-            <h1 className="text-[26px] font-normal leading-tight text-[#102a3a]">Alert rules</h1>
-            <p className="mt-[5px] text-[12px] text-[#6b8290]">Create device-specific thresholds that generate real alerts.</p>
-          </div>
-          <button type="button" onClick={startCreate} className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white hover:bg-[#0799b2]"><Plus size={14} /> New rule</button>
-        </div>
+    <div className="w-full px-4 pb-10 pt-7 md:px-8 lg:px-[30px]">
+      <div className="mx-auto w-full max-w-[1240px]">
+        <PageHeader
+          tone="automation"
+          breadcrumb={<button type="button" onClick={() => navigate("/alerts")} className="inline-flex items-center gap-1.5 font-medium hover:text-[var(--color-primary)]"><ArrowLeft size={13} /> Back to alerts</button>}
+          title="Alert rules"
+          description="Create device-specific thresholds that generate real alerts."
+          actions={<Button type="button" onClick={startCreate} icon={Plus}>New rule</Button>}
+        />
 
         {error ? <div className="mt-5 rounded-[12px] border border-red-200 bg-red-50 p-4 text-[11px] text-red-600">{error}</div> : null}
 
         <div className="mt-6 grid items-start gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(330px,0.8fr)]">
-          <section className="rounded-[14px] border border-[#dce8ee] bg-white shadow-[0_5px_18px_rgba(10,48,72,0.05)]">
-            <div className="flex items-center justify-between border-b border-[#edf3f6] px-4 py-3.5"><div><h2 className="text-[13px] font-semibold text-[#102a3a]">Your rules</h2><p className="mt-1 text-[10px] text-[#6b8290]">Rules stay scoped to their selected device.</p></div><SlidersHorizontal size={18} className="text-[#08a9c4]" /></div>
+          <SectionCard className="p-0">
+            <div className="flex items-center justify-between border-b border-[#edf3f6] px-4 py-3.5"><div><h2 className="topic-heading topic-maintenance text-[13px] font-semibold text-[#102a3a]">Your rules</h2><p className="mt-1 text-[10px] text-[#6b8290]">Rules stay scoped to their selected device.</p></div><SlidersHorizontal size={18} className="text-[var(--topic-maintenance)]" /></div>
             {loading ? <div className="p-5 text-[11px] text-[#6b8290]">Loading rules...</div> : rules.length === 0 ? <div className="p-10 text-center"><SlidersHorizontal size={25} className="mx-auto text-[#9bb0bb]" /><p className="mt-3 text-[12px] font-semibold text-[#102a3a]">No alert rules yet.</p><p className="mt-1 text-[10px] text-[#6b8290]">Create a rule to monitor a device capability.</p></div> : <div className="divide-y divide-[#edf3f6]">{rules.map((rule) => <div key={rule.id} className="p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="text-[12px] font-semibold text-[#102a3a]">{rule.name}</h3><span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${rule.enabled ? "bg-[#e8f8f2] text-[#16815f]" : "bg-[#f4f8fb] text-[#8ba0ab]"}`}>{rule.enabled ? "Enabled" : "Disabled"}</span><span className="rounded-full bg-[#fff5df] px-2 py-0.5 text-[9px] font-semibold text-[#b97805]">{rule.severity}</span></div><p className="mt-1 text-[10px] text-[#6b8290]">{deviceName(devices, rule.deviceId)}</p><p className="mt-2 text-[11px] font-medium text-[#102a3a]">{rule.ruleType === "DEVICE_OFFLINE" ? `Offline for ${rule.offlineDurationMinutes} min` : metricDisplay(devices, rule)}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" onClick={() => toggleRule(rule)} className="rounded-[8px] px-2 py-1.5 text-[10px] font-medium text-[#087f98] hover:bg-[#eef9fb]">{rule.enabled ? "Disable" : "Enable"}</button><button type="button" onClick={() => startEdit(rule)} className="rounded-[8px] p-1.5 text-[#6b8290] hover:bg-[#f4f8fb]" aria-label="Edit rule"><Pencil size={14} /></button><button type="button" disabled={deletingId === rule.id} onClick={() => removeRule(rule)} className="rounded-[8px] p-1.5 text-[#d83f4d] hover:bg-[#fdecee]" aria-label="Delete rule"><Trash2 size={14} /></button></div></div></div>)}</div>}
-          </section>
+          </SectionCard>
 
-          <section className="rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(10,48,72,0.05)]">
+          <SectionCard className="p-4">
             <div className="mb-4"><h2 className="text-[13px] font-semibold text-[#102a3a]">{editingId ? "Edit alert rule" : "Create alert rule"}</h2><p className="mt-1 text-[10px] text-[#6b8290]">Enabled rules are evaluated against incoming telemetry.</p></div>
             <form onSubmit={saveRule} className="space-y-3">
               <label className="block text-[10px] font-medium text-[#526b79]">Rule name<input name="name" value={form.name} onChange={updateField} maxLength={100} className="mt-1 h-9 w-full rounded-[9px] border border-[#dce8ee] px-3 text-[11px] outline-none focus:border-[#08a9c4]" placeholder="Temperature too high" /></label>
-              <label className="block text-[10px] font-medium text-[#526b79]">Device<select name="deviceId" value={form.deviceId} onChange={(event) => setForm((current) => ({ ...current, deviceId: event.target.value, metricKey: metricCapabilities(devices.find((device) => device.id === event.target.value))[0]?.key || "" }))} className="mt-1 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] outline-none focus:border-[#08a9c4]"><option value="">Select a device</option>{devices.map((device) => <option key={device.id} value={device.id}>{device.name}</option>)}</select></label>
-              <label className="block text-[10px] font-medium text-[#526b79]">Rule type<select name="ruleType" value={form.ruleType} onChange={updateField} className="mt-1 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] outline-none focus:border-[#08a9c4]"><option value="METRIC_THRESHOLD">Metric threshold</option><option value="DEVICE_OFFLINE">Device offline</option></select></label>
-              {form.ruleType === "METRIC_THRESHOLD" ? <><label className="block text-[10px] font-medium text-[#526b79]">Metric<select name="metricKey" value={form.metricKey} onChange={updateField} className="mt-1 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] outline-none focus:border-[#08a9c4]"><option value="">Select a numeric capability</option>{metrics.map((metric) => <option key={metric.key} value={metric.key}>{metric.name || metric.key}{metric.unit ? ` · ${metric.unit}` : ""}</option>)}</select></label><div className="grid grid-cols-2 gap-2"><label className="block text-[10px] font-medium text-[#526b79]">Operator<select name="operator" value={form.operator} onChange={updateField} className="mt-1 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] outline-none focus:border-[#08a9c4]"><option value="GREATER_THAN">Greater than</option><option value="GREATER_THAN_OR_EQUAL">Greater than or equal</option><option value="LESS_THAN">Less than</option><option value="LESS_THAN_OR_EQUAL">Less than or equal</option></select></label><label className="block text-[10px] font-medium text-[#526b79]">Threshold<input name="threshold" type="number" step="any" value={form.threshold} onChange={updateField} className="mt-1 h-9 w-full rounded-[9px] border border-[#dce8ee] px-3 text-[11px] outline-none focus:border-[#08a9c4]" /></label></div></> : <label className="block text-[10px] font-medium text-[#526b79]">Offline duration (minutes)<input name="offlineDurationMinutes" type="number" min="1" max="10080" value={form.offlineDurationMinutes} onChange={updateField} className="mt-1 h-9 w-full rounded-[9px] border border-[#dce8ee] px-3 text-[11px] outline-none focus:border-[#08a9c4]" /></label>}
-              <label className="block text-[10px] font-medium text-[#526b79]">Severity<select name="severity" value={form.severity} onChange={updateField} className="mt-1 h-9 w-full rounded-[9px] border border-[#dce8ee] bg-white px-3 text-[11px] outline-none focus:border-[#08a9c4]"><option value="INFO">Info</option><option value="WARNING">Warning</option><option value="CRITICAL">Critical</option></select></label>
+              <Select name="deviceId" label="Device" value={form.deviceId} onChange={(value) => setForm((current) => ({ ...current, deviceId: value, metricKey: metricCapabilities(devices.find((device) => device.id === value))[0]?.key || "" }))} placeholder="Select a device" options={devices.map((device) => ({ value: device.id, label: device.name }))} />
+              <Select name="ruleType" label="Rule type" value={form.ruleType} onChange={(value) => updateField({ target: { name: "ruleType", value } })} options={[{ value: "METRIC_THRESHOLD", label: "Metric threshold" }, { value: "DEVICE_OFFLINE", label: "Device offline" }]} />
+              {form.ruleType === "METRIC_THRESHOLD" ? <><Select name="metricKey" label="Metric" value={form.metricKey} onChange={(value) => updateField({ target: { name: "metricKey", value } })} placeholder="Select a numeric capability" options={metrics.map((metric) => ({ value: metric.key, label: `${metric.name || metric.key}${metric.unit ? ` · ${metric.unit}` : ""}` }))} /><div className="grid grid-cols-2 gap-2"><Select name="operator" label="Operator" value={form.operator} onChange={(value) => updateField({ target: { name: "operator", value } })} options={[{ value: "GREATER_THAN", label: "Greater than" }, { value: "GREATER_THAN_OR_EQUAL", label: "Greater than or equal" }, { value: "LESS_THAN", label: "Less than" }, { value: "LESS_THAN_OR_EQUAL", label: "Less than or equal" }]} /><label className="block text-[10px] font-medium text-[#526b79]">Threshold<input name="threshold" type="number" step="any" value={form.threshold} onChange={updateField} className="mt-1 h-9 w-full rounded-[9px] border border-[#dce8ee] px-3 text-[11px] outline-none focus:border-[#08a9c4]" /></label></div></> : <label className="block text-[10px] font-medium text-[#526b79]">Offline duration (minutes)<input name="offlineDurationMinutes" type="number" min="1" max="10080" value={form.offlineDurationMinutes} onChange={updateField} className="mt-1 h-9 w-full rounded-[9px] border border-[#dce8ee] px-3 text-[11px] outline-none focus:border-[#08a9c4]" /></label>}
+              <Select name="severity" label="Severity" value={form.severity} onChange={(value) => updateField({ target: { name: "severity", value } })} options={[{ value: "INFO", label: "Info" }, { value: "WARNING", label: "Warning" }, { value: "CRITICAL", label: "Critical" }]} />
               <label className="flex items-center gap-2 pt-1 text-[10px] font-medium text-[#526b79]"><input type="checkbox" name="enabled" checked={form.enabled} onChange={updateField} className="accent-[#08a9c4]" /> Enabled</label>
               <div className="flex gap-2 pt-2"><button type="submit" disabled={saving || devices.length === 0} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[9px] bg-[#08a9c4] text-[10px] font-semibold text-white hover:bg-[#0799b2] disabled:cursor-not-allowed disabled:opacity-50"><Check size={14} />{saving ? "Saving..." : editingId ? "Save changes" : "Create rule"}</button>{editingId ? <button type="button" onClick={startCreate} className="h-9 rounded-[9px] border border-[#dce8ee] px-3 text-[10px] font-semibold text-[#526b79]">Cancel</button> : null}</div>
             </form>
-          </section>
+          </SectionCard>
         </div>
       </div>
     </div>

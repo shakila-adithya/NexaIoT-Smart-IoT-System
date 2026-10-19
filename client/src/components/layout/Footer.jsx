@@ -31,7 +31,7 @@ export default function Footer() {
       <div className="site-footer-inner max-w-7xl mx-auto px-4 sm:px-6 py-9 grid gap-7 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Link to="/" className="flex items-center gap-2 font-bold text-ink text-lg">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
+            <span className="footer-logo-mark flex h-8 w-8 items-center justify-center rounded-lg text-white">
               <Satellite size={18} />
             </span>
             NexaIoT
@@ -39,7 +39,7 @@ export default function Footer() {
           <p className="mt-3 text-sm text-muted max-w-xs">
             Connect devices, monitor sensors, and manage your IoT infrastructure from one intelligent platform.
           </p>
-          <span className="footer-status mt-5"><i /> All systems operational</span>
+          <span className="footer-status mt-5"><i /> Built for connected operations</span>
         </div>
         {columns.map((col) => (
           <div key={col.title}>
