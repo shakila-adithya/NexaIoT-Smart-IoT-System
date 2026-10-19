@@ -29,12 +29,12 @@ export default function QuickActions() {
   const navigate = useNavigate();
 
   return (
-    <section className="rounded-[14px] border border-[#dce8ee] bg-white p-[18px] shadow-[0_6px_20px_rgba(10,48,72,0.07)]">
+    <section className="min-w-0 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
       <div>
-        <h2 className="text-[15px] font-semibold text-[#102a3a]">
+        <h2 className="topic-heading topic-maintenance text-[18px] font-semibold text-[var(--color-text-primary)]">
           Quick actions
         </h2>
-        <p className="mt-1 text-[11px] text-[#6b8290]">
+        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
           Common network tasks
         </p>
       </div>

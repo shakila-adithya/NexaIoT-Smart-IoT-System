@@ -20,7 +20,13 @@ import { controlDevice, deleteDevice, getDevices } from "../../api/devicesApi.js
 import { normalizeCapabilityManifest } from "../../config/capabilityManifest.js";
 import DeviceCard from "../../components/device/DeviceCard.jsx";
 import DeviceSummaryCard from "../../components/device/DeviceSummaryCard.jsx";
-import PageHero from "../../components/common/PageHero.jsx";
+import Button from "../../components/ui/Button.jsx";
+import EmptyState from "../../components/ui/EmptyState.jsx";
+import ErrorState from "../../components/ui/ErrorState.jsx";
+import Select from "../../components/ui/Select.jsx";
+import LoadingSkeleton from "../../components/ui/LoadingSkeleton.jsx";
+import PageHeader from "../../components/ui/PageHeader.jsx";
+import SectionCard from "../../components/ui/SectionCard.jsx";
 import { useToast } from "../../hooks/useToast.js";
 
 function getDeviceIcon(type = "") {
@@ -172,38 +178,14 @@ export default function Devices() {
   };
 
   return (
-    <div className="w-full px-4 pb-9 pt-[26px] md:px-[30px]">
-      <div className="mx-auto w-full max-w-[1144px]">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-[26px] font-normal text-[#102a3a]">
-              Devices
-            </h1>
-
-            <p className="mt-[5px] text-[12px] text-[#6b8290]">
-              Monitor, organize, and control every connected device.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => navigate("/devices/register")}
-            className="flex h-10 items-center justify-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[12px] font-medium text-white transition hover:bg-[#0798b1]"
-          >
-            <Plus size={15} />
-            Add device
-          </button>
-        </div>
-
-        <div className="mt-6">
-          <PageHero
-            eyebrow="Device fleet"
-            title="Manage every connected device from one place."
-            description={`${summary.all} devices registered · ${summary.online} online · ${summary.offline} offline`}
-            image="https://images.unsplash.com/photo-1553406830-ef2513450d76?auto=format&fit=crop&w=1400&q=85"
-            imageAlt="Connected IoT and network hardware"
-          />
-        </div>
+    <div className="w-full px-4 pb-9 pt-7 md:px-8 lg:px-[30px]">
+      <div className="mx-auto w-full max-w-[1240px]">
+        <PageHeader
+          tone="device"
+          title="Devices"
+          description="Monitor, organize, and control every connected device."
+          actions={<Button type="button" onClick={() => navigate("/devices/register")} icon={Plus}>Register device</Button>}
+        />
 
         <div className="mt-6 grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <DeviceSummaryCard
@@ -234,7 +216,8 @@ export default function Devices() {
           />
         </div>
 
-        <div className="mt-6 flex w-full flex-col gap-3 rounded-[14px] border border-[#dce8ee] bg-white p-3 sm:flex-row sm:items-center">
+        <SectionCard className="mt-6 w-full p-3" compact>
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search
               size={15}
@@ -250,16 +233,7 @@ export default function Devices() {
             />
           </div>
 
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="h-10 rounded-[10px] border border-[#dce8ee] bg-white px-3 text-[11px] text-[#6b8290] outline-none focus:border-[#08a9c4]"
-          >
-            <option value="ALL">All status</option>
-            <option value="ONLINE">Online</option>
-            <option value="OFFLINE">Offline</option>
-            <option value="MAINTENANCE">Maintenance</option>
-          </select>
+          <Select value={statusFilter} onChange={setStatusFilter} aria-label="Filter by status" className="w-auto min-w-[130px]" buttonClassName="h-10 text-[11px]" options={[{ value: "ALL", label: "All status" }, { value: "ONLINE", label: "Online" }, { value: "OFFLINE", label: "Offline" }, { value: "MAINTENANCE", label: "Maintenance" }]} />
 
           <div className="flex h-10 items-center rounded-[10px] border border-[#dce8ee] bg-[#f8fbfd] p-1">
             <button
@@ -288,39 +262,23 @@ export default function Devices() {
               <List size={15} />
             </button>
           </div>
-        </div>
+          </div>
+        </SectionCard>
 
         {loading ? (
-          <div className="mt-6 w-full rounded-[14px] border border-[#dce8ee] bg-white p-8 text-center text-[12px] text-[#6b8290]">
-            Loading devices...
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {[1, 2, 3].map((item) => <LoadingSkeleton key={item} variant="card" className="h-56" />)}
           </div>
         ) : error ? (
-          <div className="mt-6 w-full rounded-[14px] border border-red-200 bg-red-50 p-4 text-[12px] text-red-600">
-            {error}
-          </div>
+          <ErrorState className="mt-6" message={error} />
         ) : filteredDevices.length === 0 ? (
-          <div className="mt-6 w-full rounded-[14px] border border-[#dce8ee] bg-white p-10 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#eef9fb]">
-              <Cpu size={24} className="text-[#08a9c4]" />
-            </div>
-
-            <h2 className="mt-3 text-[14px] font-semibold text-[#102a3a]">
-              No devices found
-            </h2>
-
-            <p className="mt-1 text-[11px] text-[#6b8290]">
-              Add your first device to start monitoring it.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => navigate("/devices/register")}
-              className="mt-4 inline-flex h-9 items-center gap-2 rounded-[9px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white transition hover:bg-[#0798b1]"
-            >
-              <Plus size={14} />
-              Register device
-            </button>
-          </div>
+          <EmptyState
+            className="mt-6"
+            icon={Cpu}
+            title={search || statusFilter !== "ALL" ? "No matching devices" : "No devices registered yet"}
+            description={search || statusFilter !== "ALL" ? "Try a different search or status filter." : "Register your first device to start monitoring it."}
+            action={!search && statusFilter === "ALL" ? <Button type="button" size="sm" onClick={() => navigate("/devices/register")} icon={Plus}>Register device</Button> : null}
+          />
         ) : (
           <div
             className={

@@ -55,17 +55,20 @@ function formatRelativeTime(value) {
   return `${Math.floor(elapsedSeconds / 86400)} day${Math.floor(elapsedSeconds / 86400) === 1 ? "" : "s"} ago`;
 }
 
-export default function LatestAlerts({ alerts = [], loading = false, error = "" }) {
+export default function LatestAlerts({ alerts = [], loading = false, error = "", activeAlertCount = null }) {
   const navigate = useNavigate();
   const latestAlerts = [...alerts]
     .sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt));
 
   return (
-    <section className="rounded-[14px] border border-[#dce8ee] bg-white p-[18px] shadow-[0_6px_20px_rgba(10,48,72,0.07)]">
-      <div className="flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold text-[#102a3a]">
-          Latest alerts
-        </h2>
+    <section className="min-w-0 flex h-full min-h-[420px] flex-col rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="topic-heading topic-warning text-[18px] font-semibold text-[var(--color-text-primary)]">Latest alerts</h2>
+          <span className="rounded-full bg-[var(--color-danger-soft)] px-2 py-1 text-[9px] font-semibold text-[var(--color-danger)]">
+            {activeAlertCount === null ? "— Active" : `${activeAlertCount} Active`}
+          </span>
+        </div>
 
         <button
           type="button"
@@ -76,7 +79,7 @@ export default function LatestAlerts({ alerts = [], loading = false, error = "" 
         </button>
       </div>
 
-      <div className="mt-[13px] space-y-3">
+      <div className="mt-4 min-h-0 flex-1">
         {loading ? (
           <div className="space-y-3" aria-label="Loading alerts">
             {[1, 2, 3].map((item) => (
@@ -92,7 +95,7 @@ export default function LatestAlerts({ alerts = [], loading = false, error = "" 
             No alerts yet
           </div>
         ) : (
-          <div className="max-h-[360px] overflow-x-hidden overflow-y-auto sm:max-h-[480px]">
+          <div className="h-full max-h-[420px] overflow-x-hidden overflow-y-auto pr-1">
             <div className="space-y-3">
               {latestAlerts.map((alert) => {
                 const style = severityStyles[alert.severity] || severityStyles.INFO;

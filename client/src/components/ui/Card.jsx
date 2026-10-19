@@ -1,7 +1,14 @@
-export default function Card({ className = "", children, ...props }) {
+const variants = {
+  standard: "glass-panel-strong",
+  subtle: "glass-subtle",
+  elevated: "glass-panel-strong",
+  glass: "glass-panel",
+};
+
+export default function Card({ variant = "standard", className = "", children, ...props }) {
   return (
     <div
-      className={`bg-[var(--bg)] border border-[var(--border)] rounded-2xl shadow-card ${className}`}
+      className={`rounded-[var(--radius-card)] ${variants[variant] || variants.standard} ${className}`}
       {...props}
     >
       {children}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Lock, Satellite, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Lock, ShieldCheck } from "lucide-react";
+import AuthShell from "../../components/auth/AuthShell.jsx";
 import Input from "../../components/ui/Input.jsx";
 import Button from "../../components/ui/Button.jsx";
 import { resetPasswordRequest } from "../../api/authApi.js";
@@ -41,42 +42,19 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
-      <div className="hidden lg:flex flex-col justify-center bg-slate-950 px-14 text-white relative overflow-hidden">
-        <img
-          src="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=1400&q=85"
-          alt="Friendly service robot"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-slate-950/70" />
-        <div className="relative z-10">
-          <Link to="/" className="flex items-center gap-2 font-bold text-xl">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15">
-              <Satellite size={18} />
-            </span>
-            NexaIoT
-          </Link>
-          <h1 className="mt-10 text-4xl font-bold leading-tight max-w-md">Secure access, made simple.</h1>
-          <p className="mt-4 text-blue-100 max-w-sm">
-            Set a new password and get back to monitoring your connected devices with confidence.
-          </p>
-          <div className="mt-8 inline-flex items-center gap-2 rounded-xl bg-white/10 px-3.5 py-3 text-sm font-medium">
-            <ShieldCheck size={17} />
-            Your account stays protected
-          </div>
+    <AuthShell
+      image="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=1400&q=85"
+      imageAlt="Friendly service robot"
+      title="Secure access, made simple."
+      description="Set a new password and get back to monitoring your connected devices with confidence."
+      visualContent={(
+        <div className="mt-8 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-3.5 py-3 text-sm font-medium">
+          <ShieldCheck size={17} />
+          Your account stays protected
         </div>
-        <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-white/10" />
-        <div className="absolute -top-16 -left-10 h-52 w-52 rounded-full bg-white/10" />
-      </div>
-
-      <div className="flex items-center justify-center px-6 py-16">
-        <div className="w-full max-w-sm">
-          <div className="lg:hidden flex items-center gap-2 font-bold text-ink text-lg mb-8">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
-              <Satellite size={18} />
-            </span>
-            NexaIoT
-          </div>
+      )}
+      formContent={(
+        <>
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Lock size={22} />
           </div>
@@ -124,8 +102,8 @@ export default function ResetPassword() {
               </Link>
             </form>
           )}
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    />
   );
 }

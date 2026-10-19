@@ -3,6 +3,10 @@ import { ArrowLeft, FileText } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getGeneratedReport } from "../../api/reportsApi.js";
 import { downloadReportPdf, reportFilename } from "../../utils/reportPdf.js";
+import Button from "../../components/ui/Button.jsx";
+import ErrorState from "../../components/ui/ErrorState.jsx";
+import PageHeader from "../../components/ui/PageHeader.jsx";
+import StatusBadge from "../../components/ui/StatusBadge.jsx";
 
 function value(metricValue, unit = "") {
   return Number.isFinite(metricValue)
@@ -39,16 +43,20 @@ export default function ReportDetails() {
   const trendKeys = [...new Set(trend.flatMap((point) => Object.keys(point.metrics || {})))];
 
   return (
-    <div className="w-full px-4 pb-10 pt-[26px] md:px-[30px]">
-      <div className="mx-auto w-full max-w-[900px]">
-        <button type="button" onClick={() => navigate("/reports")} className="mb-4 inline-flex items-center gap-1.5 text-[10px] font-medium text-[#6b8290] hover:text-[#087f98]"><ArrowLeft size={13} /> Back to reports</button>
-        {error ? <div className="rounded-[12px] border border-red-200 bg-red-50 p-4 text-[11px] text-red-600">{error}</div> : !report ? <div className="rounded-[14px] border border-[#dce8ee] bg-white p-8 text-[11px] text-[#6b8290]">Loading report...</div> : (
+    <div className="w-full px-4 pb-10 pt-7 md:px-8 lg:px-[30px]">
+      <div className="mx-auto w-full max-w-[1080px]">
+        {error ? <ErrorState message={error} /> : !report ? <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-sm text-[var(--color-text-muted)]">Loading report...</div> : (
           <>
-            <div className="rounded-[14px] border border-[#dce8ee] bg-white p-5 shadow-[0_5px_18px_rgba(10,48,72,0.05)]">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 flex-1 items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-[#e8f8fb] text-[#08a9c4]"><FileText size={18} /></span><div className="min-w-0"><h1 className="break-words text-[22px] font-normal text-[#102a3a]">{report.deviceName} report</h1><p className="mt-1 text-[10px] text-[#6b8290]">{report.range.toUpperCase()} · Generated {date(report.generatedAt)}</p></div></div>
-                <button type="button" disabled={exporting} onClick={() => { setExporting(true); try { downloadReportPdf(report, reportFilename(report)); } finally { setExporting(false); } }} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[9px] bg-[#08a9c4] px-3.5 text-[10px] font-medium text-white disabled:opacity-55"><FileText size={13} /> {exporting ? "Exporting..." : "Export PDF"}</button>
-              </div>
+            <PageHeader
+              tone="analytics"
+              breadcrumb={<button type="button" onClick={() => navigate("/reports")} className="inline-flex items-center gap-1.5 font-medium hover:text-[var(--color-primary)]"><ArrowLeft size={13} /> Back to reports</button>}
+              title={`${report.deviceName} report`}
+              description={`${report.range.toUpperCase()} · Generated ${date(report.generatedAt)}`}
+              status={<StatusBadge tone={report.deviceStatus === "ONLINE" ? "success" : "neutral"}>{report.deviceStatus || "Status unavailable"}</StatusBadge>}
+              actions={<Button type="button" loading={exporting} loadingLabel="Exporting..." onClick={() => { setExporting(true); try { downloadReportPdf(report, reportFilename(report)); } finally { setExporting(false); } }} icon={FileText}>Export PDF</Button>}
+            />
+            <div className="mt-6 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
+              <p className="text-xs text-[var(--color-text-muted)]">Persisted report snapshot</p>
               <div className="mt-5 grid gap-3 sm:grid-cols-3"><div><p className="text-[9px] text-[#8ba0ab]">Status</p><p className="mt-1 text-[11px] font-semibold text-[#102a3a]">{report.deviceStatus || "—"}</p></div><div><p className="text-[9px] text-[#8ba0ab]">Period</p><p className="mt-1 text-[11px] font-semibold text-[#102a3a]">{date(report.periodStart)} – {date(report.periodEnd)}</p></div><div><p className="text-[9px] text-[#8ba0ab]">Alerts</p><p className="mt-1 text-[11px] font-semibold text-[#102a3a]">{report.alertCount}</p></div></div>
             </div>
 

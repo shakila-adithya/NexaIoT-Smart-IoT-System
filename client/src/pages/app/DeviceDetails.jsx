@@ -41,6 +41,10 @@ import { getAlerts } from "../../api/alertsApi.js";
 import { useAuth } from "../../hooks/useAuth.js";
 import CapabilitySelector from "../../components/device/CapabilitySelector.jsx";
 import CustomCapabilityBuilder from "../../components/device/CustomCapabilityBuilder.jsx";
+import Button from "../../components/ui/Button.jsx";
+import PageHeader from "../../components/ui/PageHeader.jsx";
+import StatusBadge from "../../components/ui/StatusBadge.jsx";
+import Select from "../../components/ui/Select.jsx";
 import {
   isManifestDevice,
   normalizeCapabilityManifest,
@@ -117,61 +121,34 @@ function TelemetryCard({
   icon: Icon,
   value,
   label,
+  unit,
   note,
   tone = "cyan",
-  active = false,
-  iconColor,
 }) {
-  const tones = {
-    cyan: {
-      bg: "bg-[#eaf9fc]",
-      text: "text-[#08a9c4]",
-    },
-    blue: {
-      bg: "bg-[#eef4ff]",
-      text: "text-[#4d7ee8]",
-    },
-    amber: {
-      bg: "bg-[#fff5df]",
-      text: "text-[#e99a12]",
-    },
-    green: {
-      bg: "bg-[#eaf8f3]",
-      text: "text-[#16a57a]",
-    },
-    violet: {
-      bg: "bg-[#f2efff]",
-      text: "text-[#7d68df]",
-    },
+  const toneStyles = {
+    cyan: "border-[#cceef3] bg-[#f5fcfd]/55 text-[#08a9c4]",
+    blue: "border-[#d9e4fb] bg-[#f7f9ff]/55 text-[#4d7ee8]",
+    green: "border-[#d5eee5] bg-[#f5fcf9]/55 text-[#16a57a]",
+    violet: "border-[#e3ddfa] bg-[#faf9ff]/55 text-[#7568e8]",
+    amber: "border-[#f3e4c3] bg-[#fffaf0]/55 text-[#c67b08]",
   };
-  const selected = tones[tone] || tones.cyan;
+
   return (
-    <div className="rounded-[14px] border border-[#dce8ee] bg-white p-3.5 shadow-[0_3px_12px_rgba(16,42,58,0.04)]">
-      <div className="flex items-start justify-between">
-        <div
-          className={`flex h-9 w-9 items-center justify-center rounded-[10px] ${selected.bg}`}
-        >
-          <Icon
-            size={17}
-            className={iconColor || selected.text}
-          />
+    <article className={`min-w-0 rounded-[14px] border p-3.5 shadow-[0_5px_18px_rgba(16,42,58,0.045)] ${toneStyles[tone] || toneStyles.cyan}`}>
+      <div className="flex min-w-0 items-start gap-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-white/80 shadow-[0_2px_8px_rgba(16,42,58,0.04)]">
+          {Icon ? <Icon size={16} aria-hidden="true" /> : null}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="break-words text-[11px] font-semibold leading-4 text-[#294655]">{label}</p>
+          <div className="mt-2 flex min-w-0 items-baseline gap-1.5">
+            <span className="break-words text-[24px] font-semibold leading-7 tracking-[-0.04em] text-[#102a3a]">{value == null ? "—" : value}</span>
+            {unit ? <span className="shrink-0 text-[10px] font-medium text-[#6b8290]">{unit}</span> : null}
+          </div>
+          <p className="mt-1.5 text-[9px] text-[#7d929e]">{note}</p>
         </div>
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${
-            active ? "bg-[#16a57a]" : "bg-[#cbd8de]"
-          }`}
-        />
       </div>
-      <div className="mt-3 truncate text-[18px] font-medium text-[#102a3a]">
-        {value}
-      </div>
-      <div className="mt-1.5 text-[10px] font-medium text-[#425c6b]">
-        {label}
-      </div>
-      <div className="mt-0.5 truncate text-[8px] text-[#8ba0ab]">
-        {note}
-      </div>
-    </div>
+    </article>
   );
 }
 
@@ -580,8 +557,22 @@ async function handlePowerToggle() {
   const configuredManifest = normalizeCapabilityManifest(device);
   const supportedCapabilities = configuredManifest
     .filter((capability) => capability.category !== "CONTROL")
-    .map(getMetricDefinitionForCapability)
+    .map((capability) => {
+      const definition = getMetricDefinitionForCapability(capability);
+      return definition
+        ? {
+            ...definition,
+            category: capability.category || (definition.source === "reading" ? "DEVICE_METRIC" : "MEASUREMENT"),
+          }
+        : null;
+    })
     .filter(Boolean);
+  const telemetryCapabilities = supportedCapabilities.filter(
+    (definition) => definition.category !== "DEVICE_METRIC",
+  );
+  const healthCapabilities = supportedCapabilities.filter(
+    (definition) => definition.category === "DEVICE_METRIC",
+  );
   const configuredControls = configuredManifest.filter(
     (capability) => capability.category === "CONTROL",
   );
@@ -611,57 +602,28 @@ async function handlePowerToggle() {
     chartData.map((point) => point.value),
   );
   return (
-    <div className="w-full px-4 pb-10 pt-6 md:px-6 lg:px-[30px]">
-      <div className="mx-auto w-full max-w-[1144px]">
-        <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <button
-              type="button"
-              onClick={() => navigate("/devices")}
-              className="mb-2 text-[10px] font-medium text-[#7d929e] transition hover:text-[#08a9c4]"
-            >
-              ← Back to devices
-            </button>
-            <h1 className="break-words text-[24px] font-normal leading-tight text-[#102a3a] sm:text-[26px]">
-              {device.name}
-            </h1>
-            <p className="mt-1 break-all text-[10px] text-[#6b8290] sm:text-[11px]">
-              {device.deviceKey} · {device.location}
-            </p>
-          </div>
-          <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row sm:items-start">
-            <button
-              type="button"
-              onClick={openEditModal}
-              className="flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#102a3a] transition hover:border-[#08a9c4] hover:bg-[#f8fbfd] sm:w-auto"
-            >
-              <Pencil size={14} />
-              Edit device
-            </button>
-            <div className="flex w-full flex-col sm:w-auto sm:items-end">
-              <button
-                type="button"
-                onClick={handleRunDiagnostics}
-                disabled={diagnosticsLoading}
-                title="Run passive device diagnostics"
-                className="flex h-10 w-full items-center justify-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white transition hover:bg-[#0799b2] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-              >
-                <Activity size={14} />
-                {diagnosticsLoading ? "Checking..." : "Run diagnostics"}
-              </button>
-              <span className="mt-1.5 text-center text-[8px] text-[#8ba0ab] sm:text-right">
-                Passive check of known device data
-              </span>
-            </div>
-          </div>
-        </section>
+    <div className="w-full px-4 pb-10 pt-7 md:px-8 lg:px-[30px]">
+      <div className="mx-auto w-full max-w-[1240px]">
+        <PageHeader
+          tone="device"
+          breadcrumb={<button type="button" onClick={() => navigate("/devices")} className="font-medium transition hover:text-[var(--color-primary)]">← Back to devices</button>}
+          title={device.name}
+          description={`${device.deviceKey} · ${device.location}`}
+          status={<StatusBadge tone={isOnline ? "success" : isMaintenance ? "warning" : "danger"}>{device.status}</StatusBadge>}
+          actions={(
+            <>
+              <Button type="button" variant="secondary" onClick={openEditModal} icon={Pencil}>Edit device</Button>
+              <Button type="button" onClick={handleRunDiagnostics} loading={diagnosticsLoading} loadingLabel="Checking..." icon={Activity}>Run diagnostics</Button>
+            </>
+          )}
+        />
         {diagnostics || diagnosticsError ? (
-          <section className="mt-4 rounded-[14px] border border-[#dce8ee] bg-white p-5 shadow-[0_5px_18px_rgba(16,42,58,0.05)]">
+          <section className="mt-6 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={16} className="text-[#08a9c4]" />
-                  <h2 className="text-[15px] font-semibold text-[#102a3a]">Device diagnostics</h2>
+                  <h2 className="topic-heading topic-analytics text-[15px] font-semibold text-[#102a3a]">Device diagnostics</h2>
                 </div>
                 <p className="mt-1 text-[10px] text-[#6b8290]">
                   Passive checks based on the latest stored device state.
@@ -703,7 +665,7 @@ async function handlePowerToggle() {
             )}
           </section>
         ) : null}
-        <section className="mt-5 rounded-[15px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(16,42,58,0.05)]">
+        <section className="mt-6 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)] sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <div className="flex h-[82px] w-full shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-[#e7f8fb] to-[#f7fbfc] sm:h-[88px] sm:w-[108px]">
               <Cpu size={36} className="text-[#84b9c5]" />
@@ -793,9 +755,9 @@ async function handlePowerToggle() {
             </div>
           </div>
         </section>
-        <section className="mt-4">
+        <section className="mt-6 rounded-[16px] border border-[#dce8ee] bg-white/75 p-4 shadow-[0_8px_24px_rgba(16,42,58,0.045)] sm:p-5">
           {supportedCapabilities.length === 0 ? (
-            <div className="rounded-[14px] border border-[#dce8ee] bg-white p-6 text-center shadow-[0_3px_12px_rgba(16,42,58,0.04)]">
+            <div className="rounded-[14px] border border-dashed border-[#dce8ee] bg-white/70 p-6 text-center">
               <p className="text-[12px] font-medium text-[#102a3a]">
                 No measurement capabilities configured for this device.
               </p>
@@ -804,31 +766,46 @@ async function handlePowerToggle() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-              {supportedCapabilities.map((definition) => {
-                const value = getMetricValue(definition, latestReading);
-                const Icon = definition.icon;
+            <>
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <RadioTower size={16} className="text-[#08a9c4]" />
+                    <h2 className={`topic-heading text-[15px] font-semibold text-[#102a3a] ${telemetryCapabilities.length ? "topic-telemetry" : "topic-health"}`}>{telemetryCapabilities.length ? "Live telemetry" : "Device health"}</h2>
+                  </div>
+                  <p className="mt-1 text-[10px] text-[#6b8290]">{isOnline ? "Latest reported measurements from this device" : "Telemetry unavailable while offline"}</p>
+                </div>
+                <span className={`text-[9px] font-medium ${isOnline ? "text-[#16815f]" : "text-[#d83f4d]"}`}>{isOnline ? "Reporting now" : "Offline"}</span>
+              </div>
 
-                return (
-                  <TelemetryCard
-                    key={definition.key}
-                    icon={Icon}
-                    value={value != null ? `${value} ${definition.unit}` : "—"}
-                    label={definition.label}
-                    note={
-                      latestReading
-                        ? "Latest MQTT reading"
-                        : "Waiting for telemetry"
-                    }
-                    tone={definition.tone}
-                  />
-                );
-              })}
-            </div>
+              {telemetryCapabilities.length ? (
+                <div className="mt-4">
+                  {healthCapabilities.length ? <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#8ba0ab]">Telemetry</p> : null}
+                  <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
+                    {telemetryCapabilities.map((definition) => {
+                      const value = getMetricValue(definition, latestReading);
+                      return <TelemetryCard key={definition.key} icon={definition.icon} value={value} unit={definition.unit} label={definition.label} note={value != null ? (isOnline ? "Latest reading" : "Last reported") : "Awaiting reading"} tone={definition.tone} />;
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {healthCapabilities.length ? (
+                <div className={telemetryCapabilities.length ? "mt-5 border-t border-[#e7eff3] pt-4" : "mt-4"}>
+                  {telemetryCapabilities.length ? <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#8ba0ab]">Device health</p> : null}
+                  <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
+                    {healthCapabilities.map((definition) => {
+                      const value = getMetricValue(definition, latestReading);
+                      return <TelemetryCard key={definition.key} icon={definition.icon} value={value} unit={definition.unit} label={definition.label} note={value != null ? (isOnline ? "Latest reading" : "Last reported") : "Awaiting reading"} tone={definition.tone} />;
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </>
           )}
         </section>
-        <section className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_340px]">
-          <div className="rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(16,42,58,0.05)] sm:p-5">
+        <section className="mt-6 grid items-start gap-5 lg:grid-cols-12">
+          <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)] lg:col-span-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -843,20 +820,10 @@ async function handlePowerToggle() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {supportedCapabilities.length > 0 ? (
-                  <label className="flex h-9 items-center gap-2 rounded-[9px] border border-[#dce8ee] bg-white px-2.5 text-[9px] text-[#6b8290]">
-                    <span>Metric</span>
-                    <select
-                      value={effectiveSelectedMetric}
-                      onChange={(event) => setSelectedMetric(event.target.value)}
-                      className="max-w-[140px] bg-transparent text-[9px] font-medium text-[#102a3a] outline-none"
-                    >
-                      {supportedCapabilities.map((definition) => (
-                        <option key={definition.key} value={definition.key}>
-                          {definition.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <div className="metric-filter" aria-label="Telemetry metric">
+                    <span className="metric-filter-label">Metric</span>
+                    <Select value={effectiveSelectedMetric} onChange={setSelectedMetric} aria-label="Metric" className="metric-filter-select" buttonClassName="min-h-9 rounded-[9px] px-2.5 text-[10px] font-semibold" options={supportedCapabilities.map((definition) => ({ value: definition.key, label: definition.label }))} />
+                  </div>
                 ) : null}
                 <div className="flex w-fit max-w-full overflow-x-auto rounded-[9px] border border-[#e5edf1] bg-[#f8fbfd] p-1">
                   {[
@@ -1010,7 +977,7 @@ async function handlePowerToggle() {
               </span>
             </div>
           </div>
-          <div className="self-start rounded-[16px] border border-[#dce8ee] bg-white p-5 shadow-[0_8px_24px_rgba(16,42,58,0.06)] sm:p-6">
+          <div className="self-start rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-elevated)] lg:col-span-4 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2 className="text-[15px] font-semibold text-[#102a3a]">
@@ -1111,8 +1078,8 @@ async function handlePowerToggle() {
             )}
           </div>
         </section>
-        <section className="mt-4 grid items-start gap-4 xl:grid-cols-[1.35fr_1fr_1fr]">
-          <div className="self-start rounded-[14px] border border-[#dce8ee] bg-white p-5">
+        <section className="mt-6 grid items-start gap-5 lg:grid-cols-12">
+          <div className="self-start rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 lg:col-span-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-[15px] font-semibold text-[#102a3a]">
                 Activity & logs
@@ -1147,7 +1114,7 @@ async function handlePowerToggle() {
               </div>
             )}
           </div>
-          <div className="self-start rounded-[14px] border border-[#dce8ee] bg-white p-5">
+          <div className="self-start rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 lg:col-span-3">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-[15px] font-semibold text-[#102a3a]">
                 Device information
@@ -1222,7 +1189,7 @@ async function handlePowerToggle() {
               Delete device
             </button>
           </div>
-          <div className="self-start rounded-[14px] border border-[#dce8ee] bg-white p-5">
+          <div className="self-start rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 lg:col-span-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-[15px] font-semibold text-[#102a3a]">
                 Device alerts
@@ -1440,22 +1407,7 @@ async function handlePowerToggle() {
                       </h3>
                     </div>
                     <div className="mt-4 rounded-[10px] border border-[#dce8ee] bg-white p-4">
-                      <label htmlFor="edit-device-connectivity" className="text-[10px] font-medium text-[#102a3a]">
-                        Network type
-                      </label>
-                      <select
-                        id="edit-device-connectivity"
-                        value={editConnectivity}
-                        onChange={(event) => setEditConnectivity(event.target.value)}
-                        className="mt-2 h-10 w-full rounded-[9px] border border-[#dce8ee] bg-[#f8fbfd] px-3 text-[10px] text-[#102a3a] outline-none transition focus:border-[#08a9c4] focus:ring-2 focus:ring-[#08a9c4]/10"
-                      >
-                        <option value="">Not configured</option>
-                        {DEVICE_CONNECTIVITY_TYPES.map((type) => (
-                          <option key={type} value={type}>
-                            {deviceConnectivityLabels[type]}
-                          </option>
-                        ))}
-                      </select>
+                      <Select id="edit-device-connectivity" label="Network type" value={editConnectivity} onChange={setEditConnectivity} placeholder="Not configured" options={[{ value: "", label: "Not configured" }, ...DEVICE_CONNECTIVITY_TYPES.map((type) => ({ value: type, label: deviceConnectivityLabels[type] }))]} />
                       <p className="mt-3 text-[9px] text-[#7d929e]">
                         Protocol: <span className="font-semibold text-[#425c6b]">{DEVICE_CONNECTIVITY_PROTOCOL}</span>
                       </p>

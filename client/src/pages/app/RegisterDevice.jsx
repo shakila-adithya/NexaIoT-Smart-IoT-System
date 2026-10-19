@@ -15,11 +15,15 @@ import {
 
 import { createDevice } from "../../api/devicesApi.js";
 import { getDeviceTemplates } from "../../api/deviceTemplatesApi.js";
-import PageHero from "../../components/common/PageHero.jsx";
+import Button from "../../components/ui/Button.jsx";
+import PageHeader from "../../components/ui/PageHeader.jsx";
+import SectionCard from "../../components/ui/SectionCard.jsx";
+import Select from "../../components/ui/Select.jsx";
 import CustomCapabilityBuilder from "../../components/device/CustomCapabilityBuilder.jsx";
 import TemplateCapabilityPreview from "../../components/device/TemplateCapabilityPreview.jsx";
 import {
   DEVICE_CONNECTIVITY_PROTOCOL,
+  formatConnectivityType,
 } from "../../config/deviceConnectivity.js";
 
 const connectivityOptions = [
@@ -41,6 +45,22 @@ const connectivityOptions = [
     description: "Mobile network",
     icon: Smartphone,
   },
+];
+
+function formatCapabilityLabel(capability) {
+  const value = capability?.name || capability?.key || capability?.semanticType || "Capability";
+  return value
+    .replaceAll("_", " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+const capabilityChipStyles = [
+  "bg-[#e8f8fb] text-[#087f98]",
+  "bg-[#eaf8f3] text-[#16805f]",
+  "bg-[#fff7e5] text-[#a56b00]",
+  "bg-[#f1edff] text-[#7358d4]",
+  "bg-[#eef4ff] text-[#416bc4]",
 ];
 
 export default function RegisterDevice() {
@@ -127,8 +147,7 @@ export default function RegisterDevice() {
     }
   };
 
-  const handleTemplateChange = (event) => {
-    const templateId = event.target.value;
+  const handleTemplateChange = (templateId) => {
     const template = templates.find((item) => item.templateId === templateId);
 
     setSelectedTemplateId(templateId);
@@ -188,27 +207,26 @@ export default function RegisterDevice() {
     Boolean(form.location.trim()),
   ];
 
-  return (
-    <div className="w-full px-4 pb-10 pt-[26px] md:px-[30px]">
-      <div className="mx-auto w-full max-w-[1144px]">
-        <PageHero
-          eyebrow="Device registration"
-          title="Register a new IoT device"
-          description="Add your device information and prepare it for connectivity and live monitoring."
-          image="https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&w=1400&q=85"
-          imageAlt="Technician configuring IoT hardware"
-        >
-          <button
-            type="button"
-            onClick={() => navigate("/devices")}
-            className="flex h-9 items-center gap-2 rounded-[9px] border border-white/30 bg-white/15 px-4 text-[11px] font-medium text-white transition hover:bg-white/25"
-          >
-            <X size={14} />
-            Cancel
-          </button>
-        </PageHero>
+  const previewCapabilities = registrationMode === "template"
+    ? selectedTemplate?.capabilityManifest?.capabilities || []
+    : customCapabilities;
+  const visiblePreviewCapabilities = previewCapabilities.slice(0, 4);
+  const remainingPreviewCapabilities = Math.max(0, previewCapabilities.length - visiblePreviewCapabilities.length);
+  const previewType = form.type.trim() || (registrationMode === "manual" ? "Custom Device" : "Device type");
+  const connectivityLabel = `${formatConnectivityType(connectivity)} · ${DEVICE_CONNECTIVITY_PROTOCOL}`;
 
-        <div className="mt-5 rounded-[14px] border border-[#dce8ee] bg-white p-[14px]">
+  return (
+    <div className="w-full px-4 pb-10 pt-7 md:px-8 lg:px-[30px]">
+      <div className="mx-auto w-full max-w-[1240px]">
+        <PageHeader
+          tone="device"
+          breadcrumb={<button type="button" onClick={() => navigate("/devices")} className="font-medium transition hover:text-[var(--color-primary)]">← Back to devices</button>}
+          title="Register a new IoT device"
+          description="Add device information, configure capabilities, and prepare monitoring settings."
+          actions={<Button type="button" variant="secondary" onClick={() => navigate("/devices")} icon={X}>Cancel</Button>}
+        />
+
+        <SectionCard className="mt-6 p-4" compact>
           <div className="flex items-center">
             <div className="flex min-w-0 flex-1 items-center gap-2.5">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#08a9c4] text-[10px] font-bold text-white">
@@ -244,11 +262,11 @@ export default function RegisterDevice() {
               </span>
             </div>
           </div>
-        </div>
+        </SectionCard>
 
-        <div className="mt-5 grid items-start gap-[18px] xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <section className="rounded-[14px] border border-[#dce8ee] bg-white p-5">
+            <section className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
               <div>
                 <h2 className="text-[15px] font-semibold text-[#102a3a]">
                   Device details
@@ -331,7 +349,7 @@ export default function RegisterDevice() {
               </div>
             </section>
 
-            <section className="rounded-[14px] border border-[#dce8ee] bg-white p-5">
+            <section className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
               <div>
                 <h2 className="text-[15px] font-semibold text-[#102a3a]">
                   Registration mode
@@ -391,17 +409,7 @@ export default function RegisterDevice() {
                 ) : (
                   <>
                     <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
-                      <select
-                        value={selectedTemplateId}
-                        onChange={handleTemplateChange}
-                        className="h-10 rounded-[10px] border border-[#dce8ee] bg-[#f8fbfd] px-3 text-[11px] text-[#102a3a] outline-none focus:border-[#08a9c4] focus:ring-2 focus:ring-[#08a9c4]/10"
-                      >
-                        {templates.map((template) => (
-                          <option key={template.templateId} value={template.templateId}>
-                            {template.name}
-                          </option>
-                        ))}
-                      </select>
+                      <Select value={selectedTemplateId} onChange={handleTemplateChange} aria-label="Device template" options={templates.map((template) => ({ value: template.templateId, label: template.name }))} buttonClassName="h-10 text-[11px]" />
                       <div className="flex items-center rounded-[10px] border border-[#dce8ee] bg-[#f8fbfd] px-3 text-[9px] text-[#6b8290]">
                         {selectedTemplate?.category || "Template"}
                       </div>
@@ -568,8 +576,8 @@ export default function RegisterDevice() {
             </div>
           </form>
 
-          <aside className="space-y-4">
-            <div className="rounded-[14px] border border-[#dce8ee] bg-white p-[18px]">
+          <aside className="space-y-4 lg:sticky lg:top-[88px]">
+            <div className="rounded-[14px] border border-[#dce8ee] bg-white p-[18px] shadow-[var(--shadow-card)]">
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-[15px] font-semibold text-[#102a3a]">
@@ -587,9 +595,9 @@ export default function RegisterDevice() {
                 </span>
               </div>
 
-              <div className="mt-4 flex h-[150px] items-center justify-center rounded-[12px] bg-gradient-to-br from-[#effafd] to-[#edf5f8]">
-                <div className="flex h-20 w-20 items-center justify-center rounded-[22px] bg-white shadow-[0_8px_25px_rgba(16,42,58,0.08)]">
-                  <Cpu size={38} className="text-[#08a9c4]" />
+              <div className="device-preview-visual mt-4 flex h-[156px] items-center justify-center rounded-[16px]" aria-label="Device visual preview">
+                <div className="device-preview-icon flex h-[82px] w-[82px] items-center justify-center rounded-[24px]">
+                  <Cpu size={40} strokeWidth={1.7} aria-hidden="true" />
                 </div>
               </div>
 
@@ -599,14 +607,14 @@ export default function RegisterDevice() {
                 </h3>
 
                 <p className="mt-1 text-[10px] text-[#6b8290]">
-                  {form.type || "Device type"}
+                  {previewType}
                 </p>
               </div>
 
-              <div className="mt-4 flex items-center justify-between gap-3">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5 rounded-full bg-[#edf4f6] px-2.5 py-1 text-[9px] font-medium text-[#6b8290]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#9aaeba]" />
-                  Offline
+                  Not registered
                 </span>
 
                 <span className="flex min-w-0 items-center gap-1.5 text-[9px] text-[#6b8290]">
@@ -617,33 +625,34 @@ export default function RegisterDevice() {
                 </span>
               </div>
 
-              <div className="mt-5 grid grid-cols-3 gap-2">
-                <div className="rounded-[10px] bg-[#f8fbfd] px-2 py-3 text-center">
-                  <div className="text-[11px] font-semibold text-[#102a3a]">
-                    —
-                  </div>
-                  <div className="mt-1 text-[8px] text-[#8397a2]">
-                    Reading
-                  </div>
+              <div className="mt-4 rounded-[10px] border border-[#e0edf1] bg-[#f8fbfd] px-3 py-2.5">
+                <div className="flex items-center gap-2 text-[10px] font-medium text-[#526b79]">
+                  <RadioTower size={14} className="shrink-0 text-[#08a9c4]" aria-hidden="true" />
+                  <span>Connectivity</span>
+                  <span className="ml-auto text-[10px] font-semibold text-[#102a3a]">{connectivityLabel}</span>
                 </div>
+              </div>
 
-                <div className="rounded-[10px] bg-[#f8fbfd] px-2 py-3 text-center">
-                  <div className="text-[11px] font-semibold text-[#102a3a]">
-                    —
-                  </div>
-                  <div className="mt-1 text-[8px] text-[#8397a2]">
-                    Signal
-                  </div>
+              <div className="mt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8397a2]">Capabilities</p>
+                  <span className="text-[9px] text-[#8397a2]">{previewCapabilities.length} selected</span>
                 </div>
-
-                <div className="rounded-[10px] bg-[#f8fbfd] px-2 py-3 text-center">
-                  <div className="text-[11px] font-semibold text-[#102a3a]">
-                    —
+                {visiblePreviewCapabilities.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {visiblePreviewCapabilities.map((capability, index) => (
+                      <span key={capability.key || capability.name} className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-medium ${capabilityChipStyles[index % capabilityChipStyles.length]}`}>
+                        <Check size={11} aria-hidden="true" />
+                        {formatCapabilityLabel(capability)}
+                      </span>
+                    ))}
+                    {remainingPreviewCapabilities > 0 ? (
+                      <span className="rounded-full bg-[#f0f4f6] px-2 py-1 text-[9px] font-medium text-[#6b8290]">+{remainingPreviewCapabilities} more</span>
+                    ) : null}
                   </div>
-                  <div className="mt-1 text-[8px] text-[#8397a2]">
-                    Updated
-                  </div>
-                </div>
+                ) : (
+                  <p className="mt-2 text-[10px] text-[#8397a2]">Capabilities will appear here as configured.</p>
+                )}
               </div>
             </div>
 

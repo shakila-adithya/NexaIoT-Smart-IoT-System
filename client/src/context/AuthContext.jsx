@@ -93,16 +93,7 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (payload) => {
-    const { token, user: newUser } = await registerRequest(payload);
-
-    clearStoredAuth();
-
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(USER_KEY, JSON.stringify(newUser));
-
-    setUser(newUser);
-
-    return newUser;
+    return registerRequest(payload);
   };
 
   const logout = () => {

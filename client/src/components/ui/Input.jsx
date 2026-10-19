@@ -9,7 +9,7 @@ export default function Input({ label, error, icon: Icon, className = "", id, ty
   return (
     <div className={className}>
       {label && (
-        <label htmlFor={inputId} className="block text-sm font-medium text-[var(--text)] mb-1.5">
+        <label htmlFor={inputId} className="ui-label mb-1.5 block">
           {label}
         </label>
       )}
@@ -17,9 +17,9 @@ export default function Input({ label, error, icon: Icon, className = "", id, ty
         {Icon && <Icon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />}
         <input
           id={inputId}
-          className={`w-full rounded-xl border bg-[var(--bg)] text-[var(--text)] placeholder:text-muted px-3.5 py-2.5 text-sm outline-none transition-colors ${
+          className={`ui-control w-full px-3.5 py-2 text-sm placeholder:text-[var(--color-text-muted)] ${
             Icon ? "pl-10" : ""
-          } ${isPassword ? "pr-10" : ""} ${error ? "border-danger focus:border-danger" : "border-[var(--border)] focus:border-primary"}`}
+          } ${isPassword ? "pr-10" : ""} ${error ? "border-[var(--color-danger)] focus:border-[var(--color-danger)]" : ""}`}
           aria-invalid={!!error}
           aria-describedby={error ? `${inputId}-error` : undefined}
           type={inputType}
@@ -29,7 +29,7 @@ export default function Input({ label, error, icon: Icon, className = "", id, ty
           <button
             type="button"
             onClick={() => setShowPassword((visible) => !visible)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-md"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/40"
             aria-label={showPassword ? "Hide password" : "Show password"}
             aria-pressed={showPassword}
           >
@@ -38,7 +38,7 @@ export default function Input({ label, error, icon: Icon, className = "", id, ty
         )}
       </div>
       {error && (
-        <p id={`${inputId}-error`} className="mt-1.5 text-xs text-danger">
+        <p id={`${inputId}-error`} className="mt-1.5 text-xs text-[var(--color-danger)]">
           {error}
         </p>
       )}
