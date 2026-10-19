@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export default function Input({ label, error, icon: Icon, className = "", id, type, ...props }) {
   const inputId = id || label?.toLowerCase().replace(/\s+/g, "-");
@@ -38,7 +38,8 @@ export default function Input({ label, error, icon: Icon, className = "", id, ty
         )}
       </div>
       {error && (
-        <p id={`${inputId}-error`} className="mt-1.5 text-xs text-[var(--color-danger)]">
+        <p id={`${inputId}-error`} className="mt-1.5 flex items-center gap-1 text-xs text-[var(--color-danger)]" role="alert">
+          <AlertCircle size={13} aria-hidden="true" />
           {error}
         </p>
       )}

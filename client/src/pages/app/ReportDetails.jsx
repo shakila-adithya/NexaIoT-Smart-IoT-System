@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, FileText } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getGeneratedReport } from "../../api/reportsApi.js";
-import { downloadReportPdf, reportFilename } from "../../utils/reportPdf.js";
 import Button from "../../components/ui/Button.jsx";
 import ErrorState from "../../components/ui/ErrorState.jsx";
 import PageHeader from "../../components/ui/PageHeader.jsx";
@@ -42,6 +41,17 @@ export default function ReportDetails() {
   const trend = Array.isArray(report?.telemetryTrend) ? report.telemetryTrend : [];
   const trendKeys = [...new Set(trend.flatMap((point) => Object.keys(point.metrics || {})))];
 
+  async function handleExport() {
+    if (!report || exporting) return;
+    setExporting(true);
+    try {
+      const { downloadReportPdf, reportFilename } = await import("../../utils/reportPdf.js");
+      downloadReportPdf(report, reportFilename(report));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="w-full px-4 pb-10 pt-7 md:px-8 lg:px-[30px]">
       <div className="mx-auto w-full max-w-[1080px]">
@@ -53,7 +63,7 @@ export default function ReportDetails() {
               title={`${report.deviceName} report`}
               description={`${report.range.toUpperCase()} · Generated ${date(report.generatedAt)}`}
               status={<StatusBadge tone={report.deviceStatus === "ONLINE" ? "success" : "neutral"}>{report.deviceStatus || "Status unavailable"}</StatusBadge>}
-              actions={<Button type="button" loading={exporting} loadingLabel="Exporting..." onClick={() => { setExporting(true); try { downloadReportPdf(report, reportFilename(report)); } finally { setExporting(false); } }} icon={FileText}>Export PDF</Button>}
+              actions={<Button type="button" loading={exporting} loadingLabel="Exporting..." onClick={handleExport} icon={FileText}>Export PDF</Button>}
             />
             <div className="mt-6 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
               <p className="text-xs text-[var(--color-text-muted)]">Persisted report snapshot</p>

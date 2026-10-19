@@ -39,11 +39,11 @@ import {
 } from "../../api/devicesApi.js";
 import { getAlerts } from "../../api/alertsApi.js";
 import { useAuth } from "../../hooks/useAuth.js";
+import useReducedMotion from "../../hooks/useReducedMotion.js";
 import CapabilitySelector from "../../components/device/CapabilitySelector.jsx";
 import CustomCapabilityBuilder from "../../components/device/CustomCapabilityBuilder.jsx";
 import Button from "../../components/ui/Button.jsx";
 import PageHeader from "../../components/ui/PageHeader.jsx";
-import StatusBadge from "../../components/ui/StatusBadge.jsx";
 import Select from "../../components/ui/Select.jsx";
 import {
   isManifestDevice,
@@ -82,6 +82,44 @@ const alertStatusStyles = {
   },
 };
 
+const rangeDurationsMs = {
+  "1h": 60 * 60 * 1000,
+  "6h": 6 * 60 * 60 * 1000,
+  "24h": 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+};
+
+const rangeTickIntervalsMs = {
+  "1h": 15 * 60 * 1000,
+  "6h": 60 * 60 * 1000,
+  "24h": 6 * 60 * 60 * 1000,
+  "7d": 24 * 60 * 60 * 1000,
+};
+
+function getRangeTicks(range, windowEnd) {
+  if (!windowEnd) return undefined;
+
+  const duration = rangeDurationsMs[range];
+  const interval = rangeTickIntervalsMs[range];
+  const start = windowEnd - duration;
+
+  return Array.from({ length: Math.floor(duration / interval) + 1 }, (_, index) => (
+    start + index * interval
+  ));
+}
+
+function formatCoverageDuration(milliseconds) {
+  const minutes = Math.round(milliseconds / (60 * 1000));
+  if (minutes < 1) return "less than a minute";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"}`;
+
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
 function formatAlertType(type) {
   return (type || "Alert")
     .toLowerCase()
@@ -104,12 +142,26 @@ function formatAlertTime(value) {
   return `${Math.floor(elapsedSeconds / 86400)} day${Math.floor(elapsedSeconds / 86400) === 1 ? "" : "s"} ago`;
 }
 
-function formatChartTime(value) {
+function formatChartTime(value, range = "1h") {
   if (!value) return "";
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) return "";
+
+  if (range === "7d") {
+    return date.toLocaleDateString([], {
+      month: "short",
+      day: "numeric",
+    });
+  }
+
+  if (range === "24h") {
+    return date.toLocaleString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
 
   return date.toLocaleTimeString([], {
     hour: "2-digit",
@@ -154,6 +206,7 @@ function TelemetryCard({
 
 export default function DeviceDetails() {
   const { user } = useAuth();
+  const prefersReducedMotion = useReducedMotion();
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -175,9 +228,9 @@ export default function DeviceDetails() {
   const [readings, setReadings] = useState([]);
   const [selectedRange, setSelectedRange] = useState("1h");
   const [selectedMetric, setSelectedMetric] = useState("");
+  const [chartWindowEnd, setChartWindowEnd] = useState(0);
   const [controlLoading, setControlLoading] = useState(false);
   const [controlError, setControlError] = useState("");
-  const historyPollingInFlight = useRef(false);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -337,22 +390,26 @@ export default function DeviceDetails() {
 
   useEffect(() => {
     let cancelled = false;
+    let requestInFlight = false;
 
     async function loadReadings() {
-      if (historyPollingInFlight.current) return;
+      if (requestInFlight) return;
 
-      historyPollingInFlight.current = true;
+      requestInFlight = true;
 
       try {
+        setChartWindowEnd(Date.now());
         const data = await getDeviceReadings(id, selectedRange);
 
         if (!cancelled) {
           setReadings(Array.isArray(data) ? data : []);
         }
       } catch (err) {
-        console.error("Unable to load telemetry history:", err);
+        if (!cancelled) {
+          console.error("Unable to load telemetry history:", err);
+        }
       } finally {
-        historyPollingInFlight.current = false;
+        requestInFlight = false;
       }
     }
 
@@ -591,16 +648,33 @@ async function handlePowerToggle() {
   );
   const chartData = metricDefinition
     ? readings
-        .map((reading) => ({
-          time: reading.receivedAt || "",
-          value: getMetricValue(metricDefinition, reading),
-        }))
-        .filter((point) => Number.isFinite(point.value))
+        .map((reading) => {
+          const time = new Date(reading.receivedAt).getTime();
+          return {
+            time,
+            value: getMetricValue(metricDefinition, reading),
+          };
+        })
+        .filter((point) => Number.isFinite(point.time) && Number.isFinite(point.value))
     : [];
   const metricDomain = getMetricDomain(
     metricDefinition,
     chartData.map((point) => point.value),
   );
+  const chartDomain = [
+    chartWindowEnd ? chartWindowEnd - rangeDurationsMs[selectedRange] : "dataMin",
+    chartWindowEnd || "dataMax",
+  ];
+  const chartTicks = getRangeTicks(selectedRange, chartWindowEnd);
+  const earliestReadingTime = readings
+    .map((reading) => new Date(reading.receivedAt).getTime())
+    .filter(Number.isFinite)
+    .reduce((earliest, timestamp) => Math.min(earliest, timestamp), Number.POSITIVE_INFINITY);
+  const chartCoverageMessage = chartWindowEnd
+    && Number.isFinite(earliestReadingTime)
+    && chartWindowEnd - earliestReadingTime < rangeDurationsMs[selectedRange] - 60 * 1000
+    ? `Historical data available for the last ${formatCoverageDuration(chartWindowEnd - earliestReadingTime)}.`
+    : "";
   return (
     <div className="w-full px-4 pb-10 pt-7 md:px-8 lg:px-[30px]">
       <div className="mx-auto w-full max-w-[1240px]">
@@ -609,7 +683,6 @@ async function handlePowerToggle() {
           breadcrumb={<button type="button" onClick={() => navigate("/devices")} className="font-medium transition hover:text-[var(--color-primary)]">← Back to devices</button>}
           title={device.name}
           description={`${device.deviceKey} · ${device.location}`}
-          status={<StatusBadge tone={isOnline ? "success" : isMaintenance ? "warning" : "danger"}>{device.status}</StatusBadge>}
           actions={(
             <>
               <Button type="button" variant="secondary" onClick={openEditModal} icon={Pencil}>Edit device</Button>
@@ -901,11 +974,16 @@ async function handlePowerToggle() {
                       vertical={false}
                     />
                     <XAxis
+                      type="number"
                       dataKey="time"
+                      scale="time"
+                      domain={chartDomain}
+                      ticks={chartTicks}
+                      interval="preserveStartEnd"
                       axisLine={false}
                       tickLine={false}
                       minTickGap={24}
-                      tickFormatter={formatChartTime}
+                      tickFormatter={(value) => formatChartTime(value, selectedRange)}
                       tick={{ fontSize: 8, fill: "#8ba0ab" }}
                     />
                     <YAxis
@@ -923,7 +1001,7 @@ async function handlePowerToggle() {
                         fontSize: 10,
                       }}
                       labelStyle={{ color: "#6b8290", fontSize: 9 }}
-                      labelFormatter={formatChartTime}
+                      labelFormatter={(value) => formatChartTime(value, selectedRange)}
                       formatter={(value) => [
                         `${value} ${metricDefinition.unit}`,
                         metricDefinition.label,
@@ -937,7 +1015,7 @@ async function handlePowerToggle() {
                       strokeWidth={2}
                       dot={false}
                       connectNulls
-                      isAnimationActive={user?.liveChartAnimations !== false}
+                      isAnimationActive={user?.liveChartAnimations !== false && !prefersReducedMotion}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -957,6 +1035,7 @@ async function handlePowerToggle() {
                 </div>
               )}
             </div>
+            {chartCoverageMessage ? <p className="mt-2 text-[8px] text-[#9aadb6]">{chartCoverageMessage}</p> : null}
             <div className="mt-3 flex flex-col gap-2 border-t border-[#edf2f4] pt-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-4 text-[8px] text-[#8ba0ab]">
                 <span>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import {
   ChartNoAxesCombined,
   Clock3,
@@ -22,7 +22,6 @@ import StatusBadge from "../../components/ui/StatusBadge.jsx";
 import networkOverviewImage from "../../assets/dashboard/device-status/robot-iot-car.png";
 import shakingHandsIllustration from "../../assets/dashboard/device-status/shaking-hands.png";
 import { getDevices, getLatestDeviceReading } from "../../api/devicesApi.js";
-import { getAlerts } from "../../api/alertsApi.js";
 import { useAuth } from "../../hooks/useAuth.js";
 import { normalizeCapabilityManifest } from "../../config/capabilityManifest.js";
 import {
@@ -76,14 +75,14 @@ function TelemetryMetric({ icon: Icon, label, value, unit, note, tone }) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const outletContext = useOutletContext() || {};
+  const alerts = outletContext.alerts || [];
+  const alertsLoading = outletContext.alertsLoading ?? true;
+  const alertsError = outletContext.alertsError || "";
 
   const [devices, setDevices] = useState([]);
-  const [alerts, setAlerts] = useState([]);
-  const [activeAlertCount, setActiveAlertCount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [alertsError, setAlertsError] = useState("");
-  const [alertsLoading, setAlertsLoading] = useState(true);
   const [telemetry, setTelemetry] = useState(null);
   const pollingInFlight = useRef(false);
 
@@ -108,15 +107,13 @@ export default function Dashboard() {
       pollingInFlight.current = true;
 
       try {
-        const [devicesResult, alertsResult] = await Promise.allSettled([
-          getDevices(),
-          getAlerts(),
-        ]);
+        const devicesResult = await Promise.allSettled([getDevices()]);
+        const deviceResult = devicesResult[0];
 
         if (cancelled) return;
 
-        if (devicesResult.status === "fulfilled") {
-          const deviceList = Array.isArray(devicesResult.value) ? devicesResult.value : [];
+        if (deviceResult.status === "fulfilled") {
+          const deviceList = Array.isArray(deviceResult.value) ? deviceResult.value : [];
 
           setDevices(deviceList);
           setError("");
@@ -158,29 +155,13 @@ export default function Dashboard() {
             }
           }
         } else if (initial) {
-          setError(devicesResult.reason?.message || "Unable to load dashboard data.");
-        }
-
-        if (alertsResult.status === "fulfilled") {
-          const alerts = Array.isArray(alertsResult.value) ? alertsResult.value : [];
-
-          setAlerts(alerts);
-          setActiveAlertCount(
-            alerts.filter(
-              (alert) =>
-                alert.status === "ACTIVE" || alert.status === "ACKNOWLEDGED",
-            ).length,
-          );
-          setAlertsError("");
-        } else if (initial) {
-          setAlertsError(alertsResult.reason?.message || "Unable to load alerts.");
+          setError(deviceResult.reason?.message || "Unable to load dashboard data.");
         }
       } finally {
         pollingInFlight.current = false;
 
         if (initial && !cancelled) {
           setLoading(false);
-          setAlertsLoading(false);
         }
       }
     }
@@ -199,6 +180,10 @@ export default function Dashboard() {
       pollingInFlight.current = false;
     };
   }, [user?.dashboardAutoRefresh]);
+
+  const activeAlertCount = alertsLoading || alertsError
+    ? null
+    : alerts.filter((alert) => alert.status === "ACTIVE" || alert.status === "ACKNOWLEDGED").length;
 
   const stats = useMemo(() => {
     const total = devices.length;

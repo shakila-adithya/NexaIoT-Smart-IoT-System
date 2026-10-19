@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Cable,
@@ -73,6 +73,7 @@ export default function RegisterDevice() {
   });
   const [customCapabilities, setCustomCapabilities] = useState([]);
   const [registrationMode, setRegistrationMode] = useState("template");
+  const registrationModeRef = useRef("template");
   const [templates, setTemplates] = useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [templatesLoading, setTemplatesLoading] = useState(true);
@@ -99,10 +100,12 @@ export default function RegisterDevice() {
         if (loadedTemplates.length > 0) {
           const firstTemplate = loadedTemplates[0];
           setSelectedTemplateId(firstTemplate.templateId);
-          setForm((current) => ({
-            ...current,
-            type: firstTemplate.name || current.type,
-          }));
+          if (registrationModeRef.current === "template") {
+            setForm((current) => ({
+              ...current,
+              type: firstTemplate.name || current.type,
+            }));
+          }
         } else {
           setTemplatesError("No device templates are available right now.");
         }
@@ -137,12 +140,18 @@ export default function RegisterDevice() {
   };
 
   const handleModeChange = (mode) => {
+    registrationModeRef.current = mode;
     setRegistrationMode(mode);
 
     if (mode === "template" && selectedTemplate) {
       setForm((current) => ({
         ...current,
         type: selectedTemplate.name,
+      }));
+    } else if (mode === "manual") {
+      setForm((current) => ({
+        ...current,
+        type: "",
       }));
     }
   };

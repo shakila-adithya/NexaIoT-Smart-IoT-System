@@ -1,39 +1,40 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import PublicLayout from "./components/layout/PublicLayout.jsx";
 import ProtectedRoute from "./components/auth/ProtectedRoute.jsx";
 
-import Home from "./pages/public/Home.jsx";
-import Features from "./pages/public/Features.jsx";
-import Solutions from "./pages/public/Solutions.jsx";
-import About from "./pages/public/About.jsx";
-import Contact from "./pages/public/Contact.jsx";
-import Privacy from "./pages/public/Privacy.jsx";
-import Terms from "./pages/public/Terms.jsx";
-import Login from "./pages/auth/Login.jsx";
-import Register from "./pages/auth/Register.jsx";
-import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
-import ResetPassword from "./pages/auth/ResetPassword.jsx";
-
-import Dashboard from "./pages/app/Dashboard.jsx";
-import Devices from "./pages/app/Devices.jsx";
-import RegisterDevice from "./pages/app/RegisterDevice.jsx";
 import AppLayout from "./components/layout/AppLayout.jsx";
-import DeviceDetails from "./pages/app/DeviceDetails.jsx";
-import Alerts from "./pages/app/Alerts.jsx";
-import AlertRules from "./pages/app/AlertRules.jsx";
-import Reports from "./pages/app/Reports.jsx";
-import Profile from "./pages/app/Profile.jsx";
-import SettingsPage from "./pages/app/Settings.jsx";
-import Tasks from "./pages/app/Tasks.jsx";
-import ReportDetails from "./pages/app/ReportDetails.jsx";
+
+const Home = lazy(() => import("./pages/public/Home.jsx"));
+const Features = lazy(() => import("./pages/public/Features.jsx"));
+const Solutions = lazy(() => import("./pages/public/Solutions.jsx"));
+const About = lazy(() => import("./pages/public/About.jsx"));
+const Contact = lazy(() => import("./pages/public/Contact.jsx"));
+const Privacy = lazy(() => import("./pages/public/Privacy.jsx"));
+const Terms = lazy(() => import("./pages/public/Terms.jsx"));
+const Login = lazy(() => import("./pages/auth/Login.jsx"));
+const Register = lazy(() => import("./pages/auth/Register.jsx"));
+const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword.jsx"));
+const ResetPassword = lazy(() => import("./pages/auth/ResetPassword.jsx"));
+const Dashboard = lazy(() => import("./pages/app/Dashboard.jsx"));
+const Devices = lazy(() => import("./pages/app/Devices.jsx"));
+const RegisterDevice = lazy(() => import("./pages/app/RegisterDevice.jsx"));
+const DeviceDetails = lazy(() => import("./pages/app/DeviceDetails.jsx"));
+const Alerts = lazy(() => import("./pages/app/Alerts.jsx"));
+const AlertRules = lazy(() => import("./pages/app/AlertRules.jsx"));
+const Reports = lazy(() => import("./pages/app/Reports.jsx"));
+const Profile = lazy(() => import("./pages/app/Profile.jsx"));
+const SettingsPage = lazy(() => import("./pages/app/Settings.jsx"));
+const Tasks = lazy(() => import("./pages/app/Tasks.jsx"));
+const ReportDetails = lazy(() => import("./pages/app/ReportDetails.jsx"));
 
 export default function App() {
   const { pathname } = useLocation();
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: "instant" }); }, [pathname]);
   return (
-    <Routes>
-      <Route element={<PublicLayout />}>
+    <Suspense fallback={<div className="min-h-screen bg-[var(--app-canvas)]" aria-busy="true" />}>
+      <Routes>
+        <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/features" element={<Features />} />
         <Route path="/solutions" element={<Solutions />} />
@@ -41,13 +42,13 @@ export default function App() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
-      </Route>
-      <Route path="/login" element={<div className="auth-page-motion"><Login /></div>} />
-      <Route path="/register" element={<div className="auth-page-motion"><Register /></div>} />
-      <Route path="/forgot-password" element={<div className="auth-page-motion"><ForgotPassword /></div>} />
-      <Route path="/reset-password" element={<div className="auth-page-motion"><ResetPassword /></div>} />
-      <Route element={<ProtectedRoute />}>
-        <Route element={<AppLayout />}>
+        </Route>
+        <Route path="/login" element={<div className="auth-page-motion"><Login /></div>} />
+        <Route path="/register" element={<div className="auth-page-motion"><Register /></div>} />
+        <Route path="/forgot-password" element={<div className="auth-page-motion"><ForgotPassword /></div>} />
+        <Route path="/reset-password" element={<div className="auth-page-motion"><ResetPassword /></div>} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/devices" element={<Devices />} />
           <Route path="/devices/register" element={<RegisterDevice />} />
@@ -59,11 +60,12 @@ export default function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/tasks" element={<Tasks />} />
+          </Route>
         </Route>
-      </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }
 

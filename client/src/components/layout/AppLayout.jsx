@@ -169,6 +169,7 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unresolvedAlertCount, setUnresolvedAlertCount] = useState(0);
+  const [alerts, setAlerts] = useState([]);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -198,6 +199,7 @@ export default function AppLayout() {
         if (!mounted) return;
 
         setUnresolvedAlertCount(Array.isArray(alerts) ? alerts.filter((alert) => alert.status === "ACTIVE" || alert.status === "ACKNOWLEDGED").length : 0);
+        setAlerts(Array.isArray(alerts) ? alerts : []);
         setNotifications(Array.isArray(alerts) ? alerts.slice(0, 5) : []);
         setUnreadNotificationCount(Array.isArray(alerts) ? alerts.filter((alert) => !alert.readAt).length : 0);
         setNotificationError("");
@@ -348,6 +350,7 @@ export default function AppLayout() {
     if (!alert.readAt) {
       try {
         const updatedAlert = await markAlertRead(alert.id);
+        setAlerts((current) => current.map((item) => item.id === updatedAlert.id ? updatedAlert : item));
         setNotifications((current) => current.map((item) => item.id === updatedAlert.id ? updatedAlert : item));
         setUnreadNotificationCount((count) => Math.max(0, count - 1));
       } catch {
@@ -363,6 +366,10 @@ export default function AppLayout() {
     try {
       const updatedAlerts = await markAllAlertsRead();
       setNotifications((current) => {
+        const updatedById = new Map(updatedAlerts.map((alert) => [alert.id, alert]));
+        return current.map((alert) => updatedById.get(alert.id) || alert);
+      });
+      setAlerts((current) => {
         const updatedById = new Map(updatedAlerts.map((alert) => [alert.id, alert]));
         return current.map((alert) => updatedById.get(alert.id) || alert);
       });
@@ -455,7 +462,7 @@ export default function AppLayout() {
               </div>
             </div>
           ) : null}
-          <Outlet />
+          <Outlet context={{ alerts, alertsLoading: notificationLoading, alertsError: notificationError }} />
         </main>
       </div>
     </div>

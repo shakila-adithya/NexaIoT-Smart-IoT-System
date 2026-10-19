@@ -1,30 +1,45 @@
 import { useEffect, useRef } from "react";
-import lottie from "lottie-web";
-import animationData from "../../assets/dashboard/network-overview-lottie.json";
 
 export default function NetworkOverviewAnimation() {
   const containerRef = useRef(null);
 
   useEffect(() => {
-    if (!containerRef.current) return undefined;
+    let animation;
+    let cancelled = false;
 
-    const animation = lottie.loadAnimation({
-      container: containerRef.current,
-      renderer: "svg",
-      loop: true,
-      autoplay: true,
-      animationData,
-      rendererSettings: {
-        preserveAspectRatio: "xMidYMid meet",
-        progressiveLoad: true,
-      },
-    });
+    async function loadAnimation() {
+      if (!containerRef.current) return;
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      animation.goToAndStop(0, true);
+      const [{ default: lottie }, { default: animationData }] = await Promise.all([
+        import("lottie-web"),
+        import("../../assets/dashboard/network-overview-lottie.json"),
+      ]);
+
+      if (cancelled || !containerRef.current) return;
+
+      animation = lottie.loadAnimation({
+        container: containerRef.current,
+        renderer: "svg",
+        loop: true,
+        autoplay: true,
+        animationData,
+        rendererSettings: {
+          preserveAspectRatio: "xMidYMid meet",
+          progressiveLoad: true,
+        },
+      });
+
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        animation.goToAndStop(0, true);
+      }
     }
 
-    return () => animation.destroy();
+    loadAnimation();
+
+    return () => {
+      cancelled = true;
+      animation?.destroy();
+    };
   }, []);
 
   return <div ref={containerRef} className="network-overview-illustration" aria-hidden="true" />;
