@@ -24,10 +24,9 @@ import {
 } from "recharts";
 
 import { useAuth } from "../../hooks/useAuth.js";
-import { useNavigate } from "react-router-dom";
+import useReducedMotion from "../../hooks/useReducedMotion.js";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { useToast } from "../../hooks/useToast.js";
-import { getAlerts } from "../../api/alertsApi.js";
-import { downloadReportPdf, reportFilename } from "../../utils/reportPdf.js";
 import { deleteGeneratedReport, generateReport, getGeneratedReports } from "../../api/reportsApi.js";
 import {
   getDeviceEnergy,
@@ -52,6 +51,44 @@ const ranges = [
   { label: "7D", value: "7d" },
 ];
 
+const rangeDurationsMs = {
+  "1h": 60 * 60 * 1000,
+  "6h": 6 * 60 * 60 * 1000,
+  "24h": 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+};
+
+const rangeTickIntervalsMs = {
+  "1h": 15 * 60 * 1000,
+  "6h": 60 * 60 * 1000,
+  "24h": 6 * 60 * 60 * 1000,
+  "7d": 24 * 60 * 60 * 1000,
+};
+
+function getRangeTicks(range, windowEnd) {
+  if (!windowEnd) return undefined;
+
+  const duration = rangeDurationsMs[range];
+  const interval = rangeTickIntervalsMs[range];
+  const start = windowEnd - duration;
+
+  return Array.from({ length: Math.floor(duration / interval) + 1 }, (_, index) => (
+    start + index * interval
+  ));
+}
+
+function formatCoverageDuration(milliseconds) {
+  const minutes = Math.round(milliseconds / (60 * 1000));
+  if (minutes < 1) return "less than a minute";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"}`;
+
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
 function formatValue(value, digits = 1) {
   if (!Number.isFinite(value)) return "—";
 
@@ -68,8 +105,6 @@ function formatAxisTime(value, range) {
     return date.toLocaleString([], {
       month: "short",
       day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
     });
   }
 
@@ -187,7 +222,7 @@ function StatLine({ label, value, unit = "" }) {
   );
 }
 
-function EnergyUsageCard({ energy, loading, error }) {
+function EnergyUsageCard({ energy, loading, error, animate }) {
   const trend = Array.isArray(energy?.trend) ? energy.trend : [];
   const unavailable = !loading && (!energy?.available || error);
 
@@ -207,7 +242,7 @@ function EnergyUsageCard({ energy, loading, error }) {
           {[['Total energy', energy.totalEnergyKWh, 'kWh'], ['Average power', energy.averagePowerW, 'W'], ['Peak power', energy.peakPowerW, 'W'], [energy.coverageBasis === "METER_SPAN" ? "Meter span" : "Data coverage", Number.isFinite(energy.coverage) ? energy.coverage * 100 : null, '%']].map(([label, value, unit]) => <div key={label} className="rounded-[10px] bg-[#f8fbfd] p-2.5"><p className="text-[8px] text-[#8ba0ab]">{label}</p><p className="mt-1 text-[15px] font-semibold text-[#102a3a]">{formatValue(value, 2)}{Number.isFinite(value) ? ` ${unit}` : ""}</p></div>)}
         </div>
         <div className="mt-4 h-[130px] w-full">
-          {trend.length === 0 ? <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#e5edf1] text-[9px] text-[#8ba0ab]">No energy trend points for this period.</div> : <ResponsiveContainer width="100%" height="100%"><LineChart data={trend} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e5edf1" vertical={false} /><XAxis dataKey="bucketStart" hide /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: "#8ba0ab" }} /><Tooltip labelFormatter={formatTooltipTime} formatter={(value) => [`${formatValue(value, 2)} ${energy.trendUnit || "W"}`, energy.trendUnit === "kWh" ? "Energy" : "Power"]} contentStyle={{ borderRadius: 8, border: "1px solid #dce8ee", fontSize: 9 }} /><Line type="monotone" dataKey="value" stroke="#e99a12" strokeWidth={2} dot={false} isAnimationActive={false} /></LineChart></ResponsiveContainer>}
+          {trend.length === 0 ? <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#e5edf1] text-[9px] text-[#8ba0ab]">No energy trend points for this period.</div> : <ResponsiveContainer width="100%" height="100%"><LineChart data={trend} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e5edf1" vertical={false} /><XAxis dataKey="bucketStart" hide /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: "#8ba0ab" }} /><Tooltip labelFormatter={formatTooltipTime} formatter={(value) => [`${formatValue(value, 2)} ${energy.trendUnit || "W"}`, energy.trendUnit === "kWh" ? "Energy" : "Power"]} contentStyle={{ borderRadius: 8, border: "1px solid #dce8ee", fontSize: 9 }} /><Line type="monotone" dataKey="value" stroke="#e99a12" strokeWidth={2} dot={false} isAnimationActive={animate} /></LineChart></ResponsiveContainer>}
         </div>
       </> : null}
     </section>
@@ -216,19 +251,21 @@ function EnergyUsageCard({ energy, loading, error }) {
 
 export default function Reports() {
   const navigate = useNavigate();
+  const { alerts = [], alertsLoading = true } = useOutletContext() || {};
   const { showToast } = useToast();
   const { user } = useAuth();
+  const prefersReducedMotion = useReducedMotion();
+  const chartAnimationsEnabled = user?.liveChartAnimations !== false && !prefersReducedMotion;
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [selectedRange, setSelectedRange] = useState("1h");
   const [readings, setReadings] = useState([]);
+  const [chartWindowEnd, setChartWindowEnd] = useState(0);
   const [devicesLoading, setDevicesLoading] = useState(true);
   const [readingsLoading, setReadingsLoading] = useState(false);
   const [error, setError] = useState("");
   const [historyError, setHistoryError] = useState("");
   const [energyResult, setEnergyResult] = useState({ key: "", data: null, error: "" });
-  const [alerts, setAlerts] = useState([]);
-  const [alertsLoading, setAlertsLoading] = useState(true);
   const [generatedReports, setGeneratedReports] = useState([]);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState("");
@@ -236,9 +273,7 @@ export default function Reports() {
   const [exportingPdf, setExportingPdf] = useState(false);
   const [selectedMetric, setSelectedMetric] = useState("");
   const [alertNow] = useState(() => Date.now());
-  const historyInFlight = useRef(false);
   const historyRequestVersion = useRef(0);
-  const alertsInFlight = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -326,6 +361,7 @@ export default function Reports() {
       setExportingPdf(true); setReportError("");
       const report = await generateReport({ deviceId: selectedDeviceId, range: selectedRange });
       setGeneratedReports((current) => [report, ...current]);
+      const { downloadReportPdf, reportFilename } = await import("../../utils/reportPdf.js");
       downloadReportPdf(report, reportFilename(report));
       showToast("PDF exported successfully.");
     } catch (err) { setReportError(err.message || "Unable to export PDF."); }
@@ -337,13 +373,12 @@ export default function Reports() {
     const requestVersion = historyRequestVersion.current + 1;
     historyRequestVersion.current = requestVersion;
 
-    async function loadHistory({ initial = false } = {}) {
-      if (!selectedDeviceId || historyInFlight.current) return;
-
-      historyInFlight.current = true;
+    async function loadHistory() {
+      if (!selectedDeviceId) return;
 
       try {
-        if (initial) setReadingsLoading(true);
+        setChartWindowEnd(Date.now());
+        setReadingsLoading(true);
 
         const data = await getDeviceReadings(selectedDeviceId, selectedRange);
 
@@ -352,13 +387,11 @@ export default function Reports() {
         setReadings(Array.isArray(data) ? data : []);
         setHistoryError("");
       } catch (err) {
-        if (mounted && requestVersion === historyRequestVersion.current && initial) {
+        if (mounted && requestVersion === historyRequestVersion.current) {
           setHistoryError(err.message || "Unable to load telemetry history.");
         }
       } finally {
-        historyInFlight.current = false;
-
-        if (mounted && initial) setReadingsLoading(false);
+        if (mounted && requestVersion === historyRequestVersion.current) setReadingsLoading(false);
       }
     }
 
@@ -368,43 +401,12 @@ export default function Reports() {
       };
     }
 
-    loadHistory({ initial: true });
-    const intervalId = window.setInterval(() => loadHistory(), 5000);
+    loadHistory();
 
     return () => {
       mounted = false;
-      window.clearInterval(intervalId);
     };
   }, [selectedDeviceId, selectedRange]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadAlerts({ initial = false } = {}) {
-      if (alertsInFlight.current) return;
-
-      alertsInFlight.current = true;
-
-      try {
-        const data = await getAlerts();
-
-        if (mounted) setAlerts(Array.isArray(data) ? data : []);
-      } catch {
-        if (initial && mounted) setAlerts([]);
-      } finally {
-        alertsInFlight.current = false;
-        if (initial && mounted) setAlertsLoading(false);
-      }
-    }
-
-    loadAlerts({ initial: true });
-    const intervalId = window.setInterval(() => loadAlerts(), 5000);
-
-    return () => {
-      mounted = false;
-      window.clearInterval(intervalId);
-    };
-  }, []);
 
   const selectedDevice = devices.find((device) => device.id === selectedDeviceId) || null;
   const configuredCapabilities = normalizeCapabilityManifest(selectedDevice);
@@ -456,11 +458,14 @@ export default function Reports() {
 
   const chartData = selectedMetricDefinition
     ? sortedReadings
-        .map((reading) => ({
-          time: reading.receivedAt || "",
-          value: getMetricValue(selectedMetricDefinition, reading),
-        }))
-        .filter((point) => Number.isFinite(point.value))
+        .map((reading) => {
+          const time = new Date(reading.receivedAt).getTime();
+          return {
+            time,
+            value: getMetricValue(selectedMetricDefinition, reading),
+          };
+        })
+        .filter((point) => Number.isFinite(point.time) && Number.isFinite(point.value))
     : [];
   const latestReading = sortedReadings[sortedReadings.length - 1] || null;
   const latestBattery = getMetricValue(
@@ -475,6 +480,20 @@ export default function Reports() {
     selectedMetricDefinition,
     chartData.map((point) => point.value),
   );
+  const chartDomain = [
+    chartWindowEnd ? chartWindowEnd - rangeDurationsMs[selectedRange] : "dataMin",
+    chartWindowEnd || "dataMax",
+  ];
+  const chartTicks = getRangeTicks(selectedRange, chartWindowEnd);
+  const earliestReadingTime = readings
+    .map((reading) => new Date(reading.receivedAt).getTime())
+    .filter(Number.isFinite)
+    .reduce((earliest, timestamp) => Math.min(earliest, timestamp), Number.POSITIVE_INFINITY);
+  const chartCoverageMessage = chartWindowEnd
+    && Number.isFinite(earliestReadingTime)
+    && chartWindowEnd - earliestReadingTime < rangeDurationsMs[selectedRange] - 60 * 1000
+    ? `Historical data available for the last ${formatCoverageDuration(chartWindowEnd - earliestReadingTime)}.`
+    : "";
   const hasConfiguredCapability = (key) => configuredCapabilities.some(
     (capability) => capability.key === key,
   );
@@ -562,7 +581,7 @@ export default function Reports() {
                     </label>
                   ) : null}
                 </div>
-                {energyAnalyticsConfigured ? <div className="mt-4"><EnergyUsageCard energy={energy} loading={energyLoading} error={energyError} /></div> : null}
+                {energyAnalyticsConfigured ? <div className="mt-4"><EnergyUsageCard energy={energy} loading={energyLoading} error={energyError} animate={chartAnimationsEnabled} /></div> : null}
               </>
             ) : (
               <>
@@ -614,13 +633,14 @@ export default function Reports() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData} margin={{ top: 12, right: 8, left: -8, bottom: 4 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5edf1" vertical={false} />
-                        <XAxis dataKey="time" axisLine={false} tickLine={false} minTickGap={32} tickFormatter={(value) => formatAxisTime(value, selectedRange)} tick={{ fontSize: 9, fill: "#8ba0ab" }} />
+                        <XAxis type="number" dataKey="time" scale="time" domain={chartDomain} ticks={chartTicks} interval="preserveStartEnd" axisLine={false} tickLine={false} minTickGap={32} tickFormatter={(value) => formatAxisTime(value, selectedRange)} tick={{ fontSize: 9, fill: "#8ba0ab" }} />
                         <YAxis axisLine={false} tickLine={false} width={34} domain={metricDomain} allowDecimals={false} tick={{ fontSize: 9, fill: "#8ba0ab" }} />
                         <Tooltip labelFormatter={formatTooltipTime} formatter={(value) => [`${value} ${selectedMetricDefinition.unit}`, selectedMetricDefinition.label]} contentStyle={{ borderRadius: 10, border: "1px solid #dce8ee", fontSize: 10 }} labelStyle={{ color: "#6b8290", fontSize: 9 }} />
-                        <Line type="monotone" dataKey="value" name={`${selectedMetricDefinition.label} (${selectedMetricDefinition.unit})`} stroke={selectedMetricDefinition.color} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={user?.liveChartAnimations !== false} />
+                        <Line type="monotone" dataKey="value" name={`${selectedMetricDefinition.label} (${selectedMetricDefinition.unit})`} stroke={selectedMetricDefinition.color} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={chartAnimationsEnabled} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
+                  {chartCoverageMessage ? <p className="mt-2 text-[9px] text-[#9aadb6]">{chartCoverageMessage}</p> : null}
                 </section>
 
                 <section className="rounded-[16px] border border-[#dce8ee] bg-white p-4 shadow-[0_8px_24px_rgba(10,48,72,0.06)] sm:p-5">
@@ -681,7 +701,7 @@ export default function Reports() {
 
                 <div className={`mt-4 grid items-start gap-4 ${energyAnalyticsConfigured ? "lg:grid-cols-[1fr_1fr_0.86fr]" : "lg:grid-cols-[1fr_0.86fr]"}`}>
                   {energyAnalyticsConfigured ? (
-                  <EnergyUsageCard energy={energy} loading={energyLoading} error={energyError} />
+                  <EnergyUsageCard energy={energy} loading={energyLoading} error={energyError} animate={chartAnimationsEnabled} />
                   ) : null}
 
                   <section className="rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-5">
