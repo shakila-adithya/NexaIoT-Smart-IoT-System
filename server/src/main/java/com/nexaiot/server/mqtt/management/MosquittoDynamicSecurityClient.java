@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -190,8 +189,7 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
         requireEnabled();
         validateManagementConfiguration();
 
-        Map<String, JsonNode> responses = new ConcurrentHashMap<>();
-        Map<String, String> expectedCommands = new ConcurrentHashMap<>();
+        Map<String, String> expectedCommands = new java.util.LinkedHashMap<>();
         CountDownLatch responseLatch = new CountDownLatch(commands.size());
         AtomicReference<BrokerManagementException> responseError = new AtomicReference<>();
         MqttAsyncClient client = null;
@@ -202,6 +200,8 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
                 command.put("correlationData", correlation);
                 expectedCommands.put(correlation, command.path("command").asText());
             }
+            DynamicSecurityResponseProcessor responseProcessor =
+                    new DynamicSecurityResponseProcessor(objectMapper, expectedCommands);
 
             client = new MqttAsyncClient(brokerUrl, clientId, new MemoryPersistence());
             MqttConnectOptions options = new MqttConnectOptions();
@@ -214,29 +214,13 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
 
             IMqttMessageListener listener = (topic, message) -> {
                 try {
-                    JsonNode root = objectMapper.readTree(message.getPayload());
-                    if (!root.path("responses").isArray()) {
-                        responseError.compareAndSet(null, new BrokerManagementException(
-                                BrokerManagementFailure.INVALID_RESPONSE,
-                                "Dynamic Security response array is missing."));
-                        return;
+                    int responseCount = responseProcessor.accept(message.getPayload());
+                    while (responseLatch.getCount() > responseCount) {
+                        responseLatch.countDown();
                     }
-                    for (JsonNode response : root.path("responses")) {
-                        String correlation = response.path("correlationData").asText(null);
-                        if (correlation == null || !expectedCommands.containsKey(correlation)) {
-                            responseError.compareAndSet(null, new BrokerManagementException(
-                                    BrokerManagementFailure.INVALID_RESPONSE,
-                                    "Unexpected Dynamic Security response correlation."));
-                            continue;
-                        }
-                        if (responses.putIfAbsent(correlation, response) == null) {
-                            responseLatch.countDown();
-                        }
-                    }
-                } catch (Exception exception) {
-                    responseError.compareAndSet(null, new BrokerManagementException(
-                            BrokerManagementFailure.INVALID_RESPONSE,
-                            "Dynamic Security response was malformed."));
+                } catch (BrokerManagementException exception) {
+                    responseError.compareAndSet(null, exception);
+                    responseLatch.countDown();
                 }
             };
 
@@ -269,25 +253,7 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
                 throw observedError;
             }
 
-            List<JsonNode> orderedResponses = new ArrayList<>();
-            for (ObjectNode command : commands) {
-                String correlation = command.path("correlationData").asText();
-                JsonNode response = responses.get(correlation);
-                if (response == null) {
-                    throw new BrokerManagementException(
-                            BrokerManagementFailure.INVALID_RESPONSE,
-                            "Dynamic Security response correlation failed.");
-                }
-                if (!command.path("command").asText()
-                        .equals(response.path("command").asText())) {
-                    throw new BrokerManagementException(
-                            BrokerManagementFailure.INVALID_RESPONSE,
-                            "Dynamic Security response command mismatch.");
-                }
-                validateResponse(response);
-                orderedResponses.add(response);
-            }
-            return orderedResponses;
+            return responseProcessor.complete();
         } catch (BrokerManagementException exception) {
             throw exception;
         } catch (MqttException exception) {
@@ -316,20 +282,6 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
                 }
             }
         }
-    }
-
-    private void validateResponse(JsonNode response) {
-        JsonNode error = response.get("error");
-        if (error == null || error.isNull() || error.asText().isBlank()) {
-            return;
-        }
-        String errorText = error.asText();
-        BrokerManagementFailure failure = errorText.toLowerCase().contains("already exists")
-                ? (response.path("command").asText().contains("Role")
-                ? BrokerManagementFailure.DUPLICATE_ROLE
-                : BrokerManagementFailure.DUPLICATE_CLIENT)
-                : BrokerManagementFailure.COMMAND_REJECTED;
-        throw new BrokerManagementException(failure, "Dynamic Security command was rejected.");
     }
 
     private ObjectNode command(String name) {
