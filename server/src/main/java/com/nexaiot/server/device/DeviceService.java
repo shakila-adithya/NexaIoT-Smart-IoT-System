@@ -41,6 +41,9 @@ public class DeviceService {
         device.setLocation(request.getLocation().trim());
         device.setConnectivity(normalizeConnectivity(request.getConnectivity()));
         device.setCapabilities(request.getCapabilities());
+        DeviceProvisioningInfo provisioningInfo = new DeviceProvisioningInfo();
+        provisioningInfo.setStatus(DeviceProvisioningStatus.REGISTERED);
+        device.setProvisioningInfo(provisioningInfo);
         boolean hasTemplateId = request.getTemplateId() != null
                 && !request.getTemplateId().isBlank();
         boolean hasCustomManifest = request.getCapabilityManifest() != null;
