@@ -14,6 +14,17 @@ public class EnrollmentReconciliationPlanner {
                     ReconciliationOutcome.MANUAL_REVIEW_REQUIRED,
                     "Enrollment or broker state is unavailable.");
         }
+        if (!broker.inspectionComplete()) {
+            return new ReconciliationPlan(
+                    ReconciliationOutcome.MANUAL_REVIEW_REQUIRED,
+                    "Broker inspection was incomplete or ambiguous.");
+        }
+        if (broker.unexpectedResources()
+                || (broker.roleExists() && !broker.roleOwnershipMatches())) {
+            return new ReconciliationPlan(
+                    ReconciliationOutcome.MANUAL_REVIEW_REQUIRED,
+                    "Broker resource ownership or references could not be proven.");
+        }
         if (operation.isReconciliationRequired()) {
             return new ReconciliationPlan(
                     ReconciliationOutcome.RECONCILIATION_REQUIRED,
@@ -43,8 +54,8 @@ public class EnrollmentReconciliationPlanner {
         if (operation.getState() == EnrollmentState.CREDENTIAL_DELIVERY_PENDING
                 && !operation.isCredentialDelivered()) {
             return new ReconciliationPlan(
-                    ReconciliationOutcome.MANUAL_REVIEW_REQUIRED,
-                    "Credential delivery is incomplete and the password cannot be recovered.");
+                    ReconciliationOutcome.CREDENTIAL_REISSUANCE_REQUIRED,
+                    "Broker identity is provisioned but the device password is unavailable.");
         }
         if (operation.getState() == EnrollmentState.COMPLETED
                 && broker.clientExists()

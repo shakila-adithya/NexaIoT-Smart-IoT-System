@@ -142,11 +142,64 @@ public class EnrollmentOperationService {
         if (!expectedState.canTransitionTo(EnrollmentState.RECONCILIATION_REQUIRED)) {
             throw new IllegalStateException("State cannot enter reconciliation.");
         }
+        return markReconciliationRequired(operationId, ownerEmail, expectedState,
+                "BROKER_OPERATION_UNKNOWN_OUTCOME");
+    }
+
+    public DeviceEnrollmentOperation markReconciliationRequired(
+            String operationId,
+            String ownerEmail,
+            EnrollmentState expectedState,
+            String failureCode
+    ) {
+        if (!expectedState.canTransitionTo(EnrollmentState.RECONCILIATION_REQUIRED)) {
+            throw new IllegalStateException("State cannot enter reconciliation.");
+        }
         Query query = ownerStateQuery(operationId, ownerEmail, expectedState);
         Update update = new Update()
                 .set("state", EnrollmentState.RECONCILIATION_REQUIRED)
                 .set("reconciliationRequired", true)
-                .set("lastFailureCode", "BROKER_OPERATION_UNKNOWN_OUTCOME")
+                .set("lastFailureCode", failureCode)
+                .set("updatedAt", Instant.now())
+                .inc("version", 1);
+        return cas(query, update);
+    }
+
+    public DeviceEnrollmentOperation markFailed(
+            String operationId,
+            String ownerEmail,
+            EnrollmentState expectedState,
+            String failureCode
+    ) {
+        if (!expectedState.canTransitionTo(EnrollmentState.FAILED)) {
+            throw new IllegalStateException("State cannot be marked failed.");
+        }
+        Query query = ownerStateQuery(operationId, ownerEmail, expectedState);
+        Update update = new Update()
+                .set("state", EnrollmentState.FAILED)
+                .set("lastFailureCode", failureCode)
+                .set("updatedAt", Instant.now())
+                .inc("version", 1);
+        return cas(query, update);
+    }
+
+    public DeviceEnrollmentOperation recordRecoveryAssessment(
+            String operationId,
+            String ownerEmail,
+            int expectedVersion,
+            RecoveryAssessment assessment
+    ) {
+        if (assessment == null) {
+            throw new IllegalArgumentException("Recovery assessment is required.");
+        }
+        Query query = new Query(new Criteria().andOperator(
+                Criteria.where("_id").is(operationId),
+                Criteria.where("ownerEmail").is(normalize(ownerEmail)),
+                Criteria.where("version").is(expectedVersion)
+        ));
+        Update update = new Update()
+                .set("lastRecoveryDisposition", assessment.outcome().name())
+                .set("lastRecoveryReason", assessment.reason())
                 .set("updatedAt", Instant.now())
                 .inc("version", 1);
         return cas(query, update);

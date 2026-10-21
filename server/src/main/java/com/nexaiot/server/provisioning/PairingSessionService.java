@@ -86,6 +86,14 @@ public class PairingSessionService {
     }
 
     public PairingClaimResult claimPairingSession(String sessionId, String candidateToken) {
+        return claimPairingSession(sessionId, candidateToken, null);
+    }
+
+    public PairingClaimResult claimPairingSession(
+            String sessionId,
+            String candidateToken,
+            String candidateHardwareIdentityHash
+    ) {
         if (sessionId == null || sessionId.isBlank() || candidateToken == null
                 || candidateToken.isBlank()) {
             return new PairingClaimResult(PairingClaimStatus.INVALID, sessionId, null);
@@ -116,7 +124,8 @@ public class PairingSessionService {
                     current.getExpiresAt());
         }
 
-        if (!tokenService.matches(candidateToken, current.getTokenHash())) {
+        if (!tokenService.matches(candidateToken, current.getTokenHash())
+                || !identityMatches(current, candidateHardwareIdentityHash)) {
             return recordFailedAttempt(current, now);
         }
 
@@ -211,6 +220,18 @@ public class PairingSessionService {
         }
         return new PairingClaimResult(PairingClaimStatus.INVALID, updated.getId(),
                 updated.getExpiresAt());
+    }
+
+    private boolean identityMatches(
+            ProvisioningSession session,
+            String candidateHardwareIdentityHash
+    ) {
+        if (session.getHardwareIdentityHash() == null
+                || session.getHardwareIdentityHash().isBlank()) {
+            return true;
+        }
+        return tokenService.matchesExpectedIdentity(
+                candidateHardwareIdentityHash, session.getHardwareIdentityHash());
     }
 
     private void expireIfActive(String sessionId, Instant now) {

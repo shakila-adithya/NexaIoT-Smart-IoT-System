@@ -39,6 +39,8 @@ public class DeviceEnrollmentOperation {
     private boolean brokerIdentityVerified;
     private boolean credentialDelivered;
     private boolean deviceVerified;
+    private String lastRecoveryDisposition;
+    private String lastRecoveryReason;
 
     /** Present only while the operation owns the device enrollment slot. */
     @Indexed(unique = true, sparse = true)
@@ -88,6 +90,10 @@ public class DeviceEnrollmentOperation {
     public void setCredentialDelivered(boolean delivered) { this.credentialDelivered = delivered; }
     public boolean isDeviceVerified() { return deviceVerified; }
     public void setDeviceVerified(boolean verified) { this.deviceVerified = verified; }
+    public String getLastRecoveryDisposition() { return lastRecoveryDisposition; }
+    public void setLastRecoveryDisposition(String disposition) { this.lastRecoveryDisposition = disposition; }
+    public String getLastRecoveryReason() { return lastRecoveryReason; }
+    public void setLastRecoveryReason(String reason) { this.lastRecoveryReason = reason; }
     public String getActiveOperationKey() { return activeOperationKey; }
     public void setActiveOperationKey(String activeOperationKey) { this.activeOperationKey = activeOperationKey; }
 }

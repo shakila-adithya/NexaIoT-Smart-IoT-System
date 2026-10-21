@@ -27,7 +27,7 @@ import com.nexaiot.server.task.MaintenanceTaskRepository;
 import com.nexaiot.server.report.GeneratedReportRepository;
 
 @TestConfiguration(proxyBeanMethods = false)
-class TestRepositoryConfiguration {
+public class TestRepositoryConfiguration {
 
     @Bean(name = "mqttOutboundChannel")
     MessageChannel mqttOutboundChannel() {

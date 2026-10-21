@@ -5,6 +5,19 @@ public record BrokerEnrollmentSnapshot(
         boolean identityMatches,
         boolean roleExists,
         boolean aclComplete,
-        boolean credentialStateKnown
+        boolean credentialStateKnown,
+        boolean roleOwnershipMatches,
+        boolean inspectionComplete,
+        boolean unexpectedResources
 ) {
+    public BrokerEnrollmentSnapshot(
+            boolean clientExists,
+            boolean identityMatches,
+            boolean roleExists,
+            boolean aclComplete,
+            boolean credentialStateKnown
+    ) {
+        this(clientExists, identityMatches, roleExists, aclComplete,
+                credentialStateKnown, true, true, false);
+    }
 }

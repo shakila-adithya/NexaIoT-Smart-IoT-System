@@ -40,8 +40,20 @@ public class PairingTokenService {
             return false;
         }
 
-        byte[] actual = hashToken(token).getBytes(StandardCharsets.US_ASCII);
-        byte[] expected = expectedHash.getBytes(StandardCharsets.US_ASCII);
+        return constantTimeEquals(hashToken(token), expectedHash);
+    }
+
+    public boolean matchesExpectedIdentity(String candidateIdentityHash, String expectedIdentityHash) {
+        if (candidateIdentityHash == null || expectedIdentityHash == null
+                || candidateIdentityHash.isBlank() || expectedIdentityHash.isBlank()) {
+            return false;
+        }
+        return constantTimeEquals(candidateIdentityHash, expectedIdentityHash);
+    }
+
+    private boolean constantTimeEquals(String actualValue, String expectedValue) {
+        byte[] actual = actualValue.getBytes(StandardCharsets.US_ASCII);
+        byte[] expected = expectedValue.getBytes(StandardCharsets.US_ASCII);
         return MessageDigest.isEqual(actual, expected);
     }
 }
