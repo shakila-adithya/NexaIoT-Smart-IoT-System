@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 
@@ -37,6 +39,11 @@ class DynamicSecurityResponseProcessorTest {
     }
 
     @Test
+    void acceptsSuccessfulRoleDeletionResponse() {
+        assertSuccess("deleteRole", "role-deleted");
+    }
+
+    @Test
     void classifiesCommandRejection() {
         assertFailure("createClient", "Invalid command", BrokerManagementFailure.COMMAND_REJECTED);
     }
@@ -45,6 +52,11 @@ class DynamicSecurityResponseProcessorTest {
     void classifiesDuplicateClientAndRole() {
         assertFailure("createClient", "Client already exists", BrokerManagementFailure.DUPLICATE_CLIENT);
         assertFailure("createRole", "Role already exists", BrokerManagementFailure.DUPLICATE_ROLE);
+    }
+
+    @Test
+    void classifiesMissingRoleAsResourceNotFound() {
+        assertFailure("getRole", "Role does not exist", BrokerManagementFailure.RESOURCE_NOT_FOUND);
     }
 
     @Test
@@ -86,6 +98,56 @@ class DynamicSecurityResponseProcessorTest {
         assertEquals(1, processor.accept(response));
         assertEquals(1, processor.accept(response));
         assertEquals(1, processor.complete().size());
+    }
+
+    @Test
+    void completesAnElevenCommandBatchWithoutCountdownUnderflowOrTimeout() throws Exception {
+        Map<String, String> expected = new LinkedHashMap<>();
+        for (int index = 0; index < 11; index++) {
+            expected.put("correlation-" + index, "command-" + index);
+        }
+        DynamicSecurityResponseProcessor processor = processorBatch(expected);
+        CountDownLatch completion = new CountDownLatch(1);
+        StringBuilder payload = new StringBuilder("{\"responses\":[");
+        for (int index = 0; index < 11; index++) {
+            if (index > 0) {
+                payload.append(',');
+            }
+            payload.append(responseJson("command-" + index, "correlation-" + index, "OK"));
+        }
+        payload.append("]}");
+
+        processor.accept(payload.toString().getBytes(StandardCharsets.UTF_8));
+        if (processor.isComplete()) {
+            completion.countDown();
+        }
+
+        assertEquals(true, completion.await(100, TimeUnit.MILLISECONDS));
+        assertEquals(11, processor.complete().size());
+    }
+
+    @Test
+    void completesElevenResponsesAcrossMessagesAndIgnoresDuplicates() throws Exception {
+        Map<String, String> expected = new LinkedHashMap<>();
+        for (int index = 0; index < 11; index++) {
+            expected.put("correlation-" + index, "command-" + index);
+        }
+        DynamicSecurityResponseProcessor processor = processorBatch(expected);
+        CountDownLatch completion = new CountDownLatch(1);
+        for (int index = 0; index < 10; index++) {
+            processor.accept(response("command-" + index, "correlation-" + index, "OK"));
+            processor.accept(response("command-" + index, "correlation-" + index, "OK"));
+            if (processor.isComplete()) {
+                completion.countDown();
+            }
+        }
+        processor.accept(response("command-10", "correlation-10", "OK"));
+        if (processor.isComplete()) {
+            completion.countDown();
+        }
+
+        assertEquals(true, completion.await(100, TimeUnit.MILLISECONDS));
+        assertEquals(11, processor.complete().size());
     }
 
     @Test

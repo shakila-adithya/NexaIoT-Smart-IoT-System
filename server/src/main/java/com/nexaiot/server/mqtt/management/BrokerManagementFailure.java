@@ -9,6 +9,7 @@ public enum BrokerManagementFailure {
     UNAUTHORIZED,
     DUPLICATE_CLIENT,
     DUPLICATE_ROLE,
+    RESOURCE_NOT_FOUND,
     TIMEOUT,
     INVALID_RESPONSE,
     UNKNOWN_STATE

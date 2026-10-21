@@ -5,10 +5,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
+import javax.net.SocketFactory;
 
 import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
 import org.eclipse.paho.client.mqttv3.MqttAsyncClient;
@@ -47,6 +50,7 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
     private final String password;
     private final boolean tlsRequired;
     private final long timeoutMillis;
+    private final String caCertificatePath;
 
     public MosquittoDynamicSecurityClient(
             ObjectMapper objectMapper,
@@ -56,7 +60,8 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
             @Value("${mqtt.management.username:}") String username,
             @Value("${mqtt.management.password:}") String password,
             @Value("${mqtt.management.tls-required:true}") boolean tlsRequired,
-            @Value("${mqtt.management.timeout-seconds:5}") long timeoutSeconds
+            @Value("${mqtt.management.timeout-seconds:5}") long timeoutSeconds,
+            @Value("${mqtt.management.ca-certificate:}") String caCertificatePath
     ) {
         if (timeoutSeconds <= 0) {
             throw new IllegalArgumentException("MQTT management timeout must be positive.");
@@ -69,6 +74,7 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
         this.password = password;
         this.tlsRequired = tlsRequired;
         this.timeoutMillis = TimeUnit.SECONDS.toMillis(timeoutSeconds);
+        this.caCertificatePath = caCertificatePath;
     }
 
     @Override
@@ -96,9 +102,37 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
         requireValue(deviceUsername, "Device username");
         MqttTopicSecurity.validateDeviceKey(deviceKey);
 
-        String roleName = roleName(deviceKey);
-        List<ObjectNode> commands = new ArrayList<>();
+        createDeviceRolePermissions(deviceKey);
+        assignDeviceRole(deviceUsername, deviceKey);
+        return new BrokerOperationResult("assignDevicePermissions", deviceKey, true);
+    }
 
+    @Override
+    public BrokerOperationResult createDeviceRolePermissions(String deviceKey) {
+        requireEnabled();
+        MqttTopicSecurity.validateDeviceKey(deviceKey);
+
+        String roleName = roleName(deviceKey);
+        execute(rolePermissionCommands(roleName, deviceKey));
+        return new BrokerOperationResult("createDeviceRolePermissions", deviceKey, true);
+    }
+
+    @Override
+    public BrokerOperationResult assignDeviceRole(String deviceUsername, String deviceKey) {
+        requireEnabled();
+        requireValue(deviceUsername, "Device username");
+        MqttTopicSecurity.validateDeviceKey(deviceKey);
+
+        ObjectNode addRole = command("addClientRole");
+        addRole.put("username", deviceUsername);
+        addRole.put("rolename", roleName(deviceKey));
+        addRole.put("priority", 100);
+        execute(List.of(addRole));
+        return new BrokerOperationResult("assignDeviceRole", deviceKey, true);
+    }
+
+    private List<ObjectNode> rolePermissionCommands(String roleName, String deviceKey) {
+        List<ObjectNode> commands = new ArrayList<>();
         ObjectNode createRole = command("createRole");
         createRole.put("rolename", roleName);
         commands.add(createRole);
@@ -130,14 +164,7 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
         // broker's subscribe default must remain deny, as documented by
         // Mosquitto Dynamic Security.
 
-        ObjectNode addRole = command("addClientRole");
-        addRole.put("username", deviceUsername);
-        addRole.put("rolename", roleName);
-        addRole.put("priority", 100);
-        commands.add(addRole);
-
-        execute(commands);
-        return new BrokerOperationResult("assignDevicePermissions", deviceKey, true);
+        return commands;
     }
 
     @Override
@@ -166,6 +193,59 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
     }
 
     @Override
+    public BrokerRoleStatus inspectRole(String roleName) {
+        requireEnabled();
+        requireValue(roleName, "Role name");
+        ObjectNode command = command("getRole");
+        command.put("rolename", roleName);
+        JsonNode response = execute(List.of(command)).get(0);
+        JsonNode role = response.path("data").path("role");
+        if (!role.isObject()) {
+            throw new BrokerManagementException(
+                    BrokerManagementFailure.INVALID_RESPONSE,
+                    "Broker returned no role data.");
+        }
+        ObjectNode listClients = command("listClients");
+        listClients.put("verbose", true);
+        listClients.put("count", -1);
+        listClients.put("offset", 0);
+        JsonNode clientData = execute(List.of(listClients)).get(0).path("data");
+
+        ObjectNode listGroups = command("listGroups");
+        listGroups.put("verbose", true);
+        listGroups.put("count", -1);
+        listGroups.put("offset", 0);
+        JsonNode groupData = execute(List.of(listGroups)).get(0).path("data");
+        return BrokerRoleReferenceParser.parse(roleName, clientData, groupData);
+    }
+
+    @Override
+    public BrokerDeviceProvisioningStatus verifyDeviceProvisioning(
+            String deviceUsername,
+            String deviceKey
+    ) {
+        requireEnabled();
+        requireValue(deviceUsername, "Device username");
+        MqttTopicSecurity.validateDeviceKey(deviceKey);
+        ObjectNode getClient = command("getClient");
+        getClient.put("username", deviceUsername);
+        ObjectNode getRole = command("getRole");
+        getRole.put("rolename", roleName(deviceKey));
+        List<JsonNode> responses = execute(List.of(getClient, getRole));
+        return BrokerProvisioningVerifier.verify(responses.get(0), responses.get(1), deviceKey);
+    }
+
+    @Override
+    public BrokerOperationResult deleteRole(String roleName) {
+        requireEnabled();
+        requireValue(roleName, "Role name");
+        ObjectNode command = command("deleteRole");
+        command.put("rolename", roleName);
+        execute(List.of(command));
+        return new BrokerOperationResult("deleteRole", roleName, true);
+    }
+
+    @Override
     public BrokerDeviceIdentityStatus inspectEnrollmentStatus(String deviceUsername) {
         requireEnabled();
         requireValue(deviceUsername, "Device username");
@@ -178,10 +258,24 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
                     BrokerManagementFailure.INVALID_RESPONSE,
                     "Broker returned no client identity data.");
         }
+        if (!client.path("username").isTextual()
+                || client.path("username").asText().isBlank()
+                || !client.path("clientid").isTextual()
+                || client.path("clientid").asText().isBlank()) {
+            throw new BrokerManagementException(
+                    BrokerManagementFailure.INVALID_RESPONSE,
+                    "Broker returned an incomplete client identity.");
+        }
+        JsonNode disabled = client.get("disabled");
+        if (disabled != null && !disabled.isBoolean()) {
+            throw new BrokerManagementException(
+                    BrokerManagementFailure.INVALID_RESPONSE,
+                    "Broker returned a malformed disabled flag.");
+        }
         return new BrokerDeviceIdentityStatus(
-                client.path("username").asText(deviceUsername),
-                client.path("clientid").asText(null),
-                client.path("disabled").asBoolean(false),
+                client.path("username").asText(),
+                client.path("clientid").asText(),
+                disabled != null && disabled.asBoolean(),
                 true);
     }
 
@@ -190,7 +284,9 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
         validateManagementConfiguration();
 
         Map<String, String> expectedCommands = new java.util.LinkedHashMap<>();
-        CountDownLatch responseLatch = new CountDownLatch(commands.size());
+        // One latch represents completion of the response batch. The processor
+        // owns unique-response counting, so duplicate responses cannot affect it.
+        CountDownLatch responseLatch = new CountDownLatch(1);
         AtomicReference<BrokerManagementException> responseError = new AtomicReference<>();
         MqttAsyncClient client = null;
 
@@ -208,19 +304,31 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
             options.setServerURIs(new String[]{brokerUrl});
             options.setCleanSession(true);
             options.setAutomaticReconnect(false);
+            // Match mosquitto_ctrl's default protocol so broker-side
+            // authentication behaviour is identical and deterministic.
+            options.setMqttVersion(MqttConnectOptions.MQTT_VERSION_3_1_1);
             options.setConnectionTimeout((int) TimeUnit.MILLISECONDS.toSeconds(timeoutMillis));
             options.setUserName(username);
             options.setPassword(password.toCharArray());
+            if (MqttConfigurationValidator.usesTls(brokerUrl)) {
+                SocketFactory socketFactory = MqttManagementTls.socketFactory(caCertificatePath);
+                if (socketFactory != null) {
+                    options.setSocketFactory(socketFactory);
+                }
+                options.setHttpsHostnameVerificationEnabled(true);
+            }
 
             IMqttMessageListener listener = (topic, message) -> {
                 try {
-                    int responseCount = responseProcessor.accept(message.getPayload());
-                    while (responseLatch.getCount() > responseCount) {
+                    responseProcessor.accept(message.getPayload());
+                    if (responseProcessor.isComplete()) {
                         responseLatch.countDown();
                     }
                 } catch (BrokerManagementException exception) {
                     responseError.compareAndSet(null, exception);
-                    responseLatch.countDown();
+                    while (responseLatch.getCount() > 0) {
+                        responseLatch.countDown();
+                    }
                 }
             };
 
@@ -257,9 +365,7 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
         } catch (BrokerManagementException exception) {
             throw exception;
         } catch (MqttException exception) {
-            BrokerManagementFailure failure = exception.getReasonCode() == 4
-                    ? BrokerManagementFailure.AUTHENTICATION_FAILED
-                    : BrokerManagementFailure.CONNECTION_FAILED;
+            BrokerManagementFailure failure = connectionFailure(exception.getReasonCode());
             throw new BrokerManagementException(failure,
                     "Dynamic Security broker operation failed.", exception);
         } catch (Exception exception) {
@@ -282,6 +388,40 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
                 }
             }
         }
+    }
+
+    /**
+     * Executes only the broker's read-only Dynamic Security inventory commands.
+     * This deliberately has a separate allow-list so a reconciliation test
+     * cannot accidentally become a provisioning or cleanup operation.
+     */
+    synchronized List<JsonNode> executeReadOnlyInventory(List<ObjectNode> commands) {
+        Set<String> allowed = Set.of(
+                "listClients", "listRoles", "listGroups", "getDefaultACLAccess");
+        if (commands == null || commands.isEmpty()) {
+            throw new BrokerManagementException(
+                    BrokerManagementFailure.INVALID_CONFIGURATION,
+                    "At least one read-only inventory command is required.");
+        }
+        for (ObjectNode command : commands) {
+            if (command == null || !allowed.contains(command.path("command").asText())) {
+                throw new BrokerManagementException(
+                        BrokerManagementFailure.INVALID_CONFIGURATION,
+                        "A non-read-only Dynamic Security command was rejected.");
+            }
+        }
+        return execute(commands);
+    }
+
+    static BrokerManagementFailure connectionFailure(int reasonCode) {
+        return switch (reasonCode) {
+            case MqttException.REASON_CODE_CLIENT_EXCEPTION,
+                    MqttException.REASON_CODE_FAILED_AUTHENTICATION ->
+                    BrokerManagementFailure.AUTHENTICATION_FAILED;
+            case MqttException.REASON_CODE_NOT_AUTHORIZED ->
+                    BrokerManagementFailure.UNAUTHORIZED;
+            default -> BrokerManagementFailure.CONNECTION_FAILED;
+        };
     }
 
     private ObjectNode command(String name) {

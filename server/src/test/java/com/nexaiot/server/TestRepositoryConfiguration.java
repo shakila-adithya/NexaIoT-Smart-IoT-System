@@ -8,10 +8,18 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.integration.channel.DirectChannel;
 import org.springframework.messaging.MessageChannel;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.convert.DefaultDbRefResolver;
+import org.springframework.data.mongodb.core.convert.MappingMongoConverter;
+import org.springframework.data.mongodb.core.mapping.MongoMappingContext;
+import org.springframework.data.mongodb.MongoDatabaseFactory;
+import org.springframework.dao.support.PersistenceExceptionTranslator;
 
 import com.nexaiot.server.alert.AlertRepository;
 import com.nexaiot.server.alert.AlertRuleRepository;
 import com.nexaiot.server.device.DeviceRepository;
+import com.nexaiot.server.enrollment.DeviceEnrollmentOperationRepository;
+import com.nexaiot.server.provisioning.ProvisioningSessionRepository;
 import com.nexaiot.server.repository.UserRepository;
 import com.nexaiot.server.repository.PasswordResetTokenRepository;
 import com.nexaiot.server.sensor.SensorReadingRepository;
@@ -34,6 +42,42 @@ class TestRepositoryConfiguration {
     @Bean
     DeviceRepository deviceRepository() {
         return repositoryStub(DeviceRepository.class);
+    }
+
+    @Bean
+    ProvisioningSessionRepository provisioningSessionRepository() {
+        return repositoryStub(ProvisioningSessionRepository.class);
+    }
+
+    @Bean
+    DeviceEnrollmentOperationRepository deviceEnrollmentOperationRepository() {
+        return repositoryStub(DeviceEnrollmentOperationRepository.class);
+    }
+
+    @Bean
+    MongoTemplate mongoTemplate() {
+        MongoDatabaseFactory factory = (MongoDatabaseFactory) Proxy.newProxyInstance(
+                MongoDatabaseFactory.class.getClassLoader(),
+                new Class<?>[]{MongoDatabaseFactory.class},
+                (proxy, method, args) -> {
+                    if (method.getReturnType() == PersistenceExceptionTranslator.class) {
+                        return (PersistenceExceptionTranslator) exception -> null;
+                    }
+                    if (method.getReturnType() == boolean.class) {
+                        return false;
+                    }
+                    if (method.getReturnType() == int.class) {
+                        return 0;
+                    }
+                    if (method.getReturnType() == long.class) {
+                        return 0L;
+                    }
+                    return null;
+                });
+        MongoMappingContext mappingContext = new MongoMappingContext();
+        MappingMongoConverter converter = new MappingMongoConverter(
+                new DefaultDbRefResolver(factory), mappingContext);
+        return new MongoTemplate(factory, converter);
     }
 
     @Bean

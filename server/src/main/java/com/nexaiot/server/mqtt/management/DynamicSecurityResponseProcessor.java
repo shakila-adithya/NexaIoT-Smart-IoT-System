@@ -24,7 +24,7 @@ final class DynamicSecurityResponseProcessor {
         this.expectedCommands = Collections.unmodifiableMap(new LinkedHashMap<>(expectedCommands));
     }
 
-    int accept(byte[] payload) {
+    synchronized int accept(byte[] payload) {
         try {
             JsonNode root = objectMapper.readTree(payload);
             if (root == null || !root.path("responses").isArray()) {
@@ -52,7 +52,11 @@ final class DynamicSecurityResponseProcessor {
         }
     }
 
-    List<JsonNode> complete() {
+    synchronized boolean isComplete() {
+        return responses.size() == expectedCommands.size();
+    }
+
+    synchronized List<JsonNode> complete() {
         if (responses.size() != expectedCommands.size()) {
             throw invalid("Dynamic Security response was incomplete.");
         }
@@ -73,6 +77,10 @@ final class DynamicSecurityResponseProcessor {
             failure = response.path("command").asText().contains("Role")
                     ? BrokerManagementFailure.DUPLICATE_ROLE
                     : BrokerManagementFailure.DUPLICATE_CLIENT;
+        } else if (normalized.contains("does not exist")
+                || normalized.contains("not found")
+                || normalized.contains("not exist")) {
+            failure = BrokerManagementFailure.RESOURCE_NOT_FOUND;
         } else if (normalized.contains("not authorised")
                 || normalized.contains("not authorized")
                 || normalized.contains("unauthori")) {
