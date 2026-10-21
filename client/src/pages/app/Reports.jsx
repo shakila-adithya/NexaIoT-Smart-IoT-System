@@ -9,6 +9,7 @@ import {
   FileText,
   Lightbulb,
   Plus,
+  RefreshCw,
   Trash2,
   Wifi,
   Zap,
@@ -43,6 +44,12 @@ import {
   getMetricDomain,
   getMetricValue,
 } from "../../config/deviceMetricDefinitions.js";
+import { normalizeUserPreferences } from "../../config/userPreferences.js";
+import {
+  formatDisplayDate,
+  getDisplayMetricUnit,
+  getDisplayMetricValue,
+} from "../../config/displayPreferences.js";
 
 const ranges = [
   { label: "1H", value: "1h" },
@@ -95,17 +102,14 @@ function formatValue(value, digits = 1) {
   return Number(value.toFixed(digits));
 }
 
-function formatAxisTime(value, range) {
+function formatAxisTime(value, range, dateFormat) {
   if (!value) return "";
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
 
   if (range === "7d") {
-    return date.toLocaleString([], {
-      month: "short",
-      day: "numeric",
-    });
+    return formatDisplayDate(value, dateFormat, false);
   }
 
   return date.toLocaleTimeString([], {
@@ -114,20 +118,13 @@ function formatAxisTime(value, range) {
   });
 }
 
-function formatTooltipTime(value) {
+function formatTooltipTime(value, dateFormat) {
   if (!value) return "";
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
 
-  return date.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  return formatDisplayDate(value, dateFormat);
 }
 
 function getMetricStats(readings, selector) {
@@ -161,7 +158,7 @@ function csvCell(value, numeric = false) {
   return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 
-function buildTelemetryCsv(device, readings, definitions) {
+function buildTelemetryCsv(device, readings, definitions, preferences) {
   const activeDefinitions = definitions.filter((definition) => readings.some((reading) => Number.isFinite(getMetricValue(definition, reading))));
   const headers = ["timestamp", "deviceId", "deviceName", ...activeDefinitions.map((definition) => definition.key)];
   const rows = readings.map((reading) => [
@@ -170,7 +167,10 @@ function buildTelemetryCsv(device, readings, definitions) {
     csvCell(device.name || device.deviceKey || "Device"),
     ...activeDefinitions.map((definition) => {
       const value = getMetricValue(definition, reading);
-      return Number.isFinite(value) ? csvCell(value, true) : "";
+      const displayValue = definition.domain === "temperature"
+        ? getDisplayMetricValue(definition, reading, preferences)
+        : value;
+      return Number.isFinite(displayValue) ? csvCell(displayValue, true) : "";
     }),
   ]);
   return [headers.map((header) => csvCell(header)).join(","), ...rows.map((row) => row.join(","))].join("\r\n");
@@ -222,7 +222,7 @@ function StatLine({ label, value, unit = "" }) {
   );
 }
 
-function EnergyUsageCard({ energy, loading, error, animate }) {
+function EnergyUsageCard({ energy, loading, error, animate, dateFormat }) {
   const trend = Array.isArray(energy?.trend) ? energy.trend : [];
   const unavailable = !loading && (!energy?.available || error);
 
@@ -242,7 +242,7 @@ function EnergyUsageCard({ energy, loading, error, animate }) {
           {[['Total energy', energy.totalEnergyKWh, 'kWh'], ['Average power', energy.averagePowerW, 'W'], ['Peak power', energy.peakPowerW, 'W'], [energy.coverageBasis === "METER_SPAN" ? "Meter span" : "Data coverage", Number.isFinite(energy.coverage) ? energy.coverage * 100 : null, '%']].map(([label, value, unit]) => <div key={label} className="rounded-[10px] bg-[#f8fbfd] p-2.5"><p className="text-[8px] text-[#8ba0ab]">{label}</p><p className="mt-1 text-[15px] font-semibold text-[#102a3a]">{formatValue(value, 2)}{Number.isFinite(value) ? ` ${unit}` : ""}</p></div>)}
         </div>
         <div className="mt-4 h-[130px] w-full">
-          {trend.length === 0 ? <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#e5edf1] text-[9px] text-[#8ba0ab]">No energy trend points for this period.</div> : <ResponsiveContainer width="100%" height="100%"><LineChart data={trend} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e5edf1" vertical={false} /><XAxis dataKey="bucketStart" hide /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: "#8ba0ab" }} /><Tooltip labelFormatter={formatTooltipTime} formatter={(value) => [`${formatValue(value, 2)} ${energy.trendUnit || "W"}`, energy.trendUnit === "kWh" ? "Energy" : "Power"]} contentStyle={{ borderRadius: 8, border: "1px solid #dce8ee", fontSize: 9 }} /><Line type="monotone" dataKey="value" stroke="#e99a12" strokeWidth={2} dot={false} isAnimationActive={animate} /></LineChart></ResponsiveContainer>}
+          {trend.length === 0 ? <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#e5edf1] text-[9px] text-[#8ba0ab]">No energy trend points for this period.</div> : <ResponsiveContainer width="100%" height="100%"><LineChart data={trend} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e5edf1" vertical={false} /><XAxis dataKey="bucketStart" hide /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: "#8ba0ab" }} /><Tooltip labelFormatter={(value) => formatTooltipTime(value, dateFormat)} formatter={(value) => [`${formatValue(value, 2)} ${energy.trendUnit || "W"}`, energy.trendUnit === "kWh" ? "Energy" : "Power"]} contentStyle={{ borderRadius: 8, border: "1px solid #dce8ee", fontSize: 9 }} /><Line type="monotone" dataKey="value" stroke="#e99a12" strokeWidth={2} dot={false} isAnimationActive={animate} /></LineChart></ResponsiveContainer>}
         </div>
       </> : null}
     </section>
@@ -254,6 +254,7 @@ export default function Reports() {
   const { alerts = [], alertsLoading = true } = useOutletContext() || {};
   const { showToast } = useToast();
   const { user } = useAuth();
+  const preferences = normalizeUserPreferences(user);
   const prefersReducedMotion = useReducedMotion();
   const chartAnimationsEnabled = user?.liveChartAnimations !== false && !prefersReducedMotion;
   const [devices, setDevices] = useState([]);
@@ -272,6 +273,7 @@ export default function Reports() {
   const [exportingCsv, setExportingCsv] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [selectedMetric, setSelectedMetric] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
   const [alertNow] = useState(() => Date.now());
   const historyRequestVersion = useRef(0);
 
@@ -310,13 +312,13 @@ export default function Reports() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     let mounted = true;
     getGeneratedReports().then((data) => mounted && setGeneratedReports(Array.isArray(data) ? data : [])).catch((err) => mounted && setReportError(err.message || "Unable to load generated reports."));
     return () => { mounted = false; };
-  }, []);
+  }, [refreshKey]);
 
   async function handleGenerateReport() {
     if (!selectedDeviceId || generatingReport) return;
@@ -345,7 +347,7 @@ export default function Reports() {
         return;
       }
       const definitions = supportedCapabilities.map(getMetricDefinitionForCapability).filter(Boolean);
-      const csv = buildTelemetryCsv(selectedDevice, rawReadings, definitions);
+      const csv = buildTelemetryCsv(selectedDevice, rawReadings, definitions, preferences);
       const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob); const link = document.createElement("a");
       link.href = url; link.download = `nexaiot-${safeFilePart(selectedDevice.name || selectedDevice.deviceKey)}-${selectedRange}-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -406,7 +408,7 @@ export default function Reports() {
     return () => {
       mounted = false;
     };
-  }, [selectedDeviceId, selectedRange]);
+  }, [selectedDeviceId, selectedRange, refreshKey]);
 
   const selectedDevice = devices.find((device) => device.id === selectedDeviceId) || null;
   const configuredCapabilities = normalizeCapabilityManifest(selectedDevice);
@@ -423,7 +425,7 @@ export default function Reports() {
     || hasEnergyCapability("power")
     || (hasEnergyCapability("voltage") && hasEnergyCapability("current"));
   const energyRequestKey = selectedDeviceId && energyAnalyticsConfigured
-    ? `${selectedDeviceId}:${selectedRange}`
+    ? `${selectedDeviceId}:${selectedRange}:${refreshKey}`
     : "";
 
   useEffect(() => {
@@ -462,7 +464,7 @@ export default function Reports() {
           const time = new Date(reading.receivedAt).getTime();
           return {
             time,
-            value: getMetricValue(selectedMetricDefinition, reading),
+            value: getDisplayMetricValue(selectedMetricDefinition, reading, preferences),
           };
         })
         .filter((point) => Number.isFinite(point.time) && Number.isFinite(point.value))
@@ -521,7 +523,7 @@ export default function Reports() {
   const latestSignalLabel = getSignalLabel(latestRssi);
 
   return (
-    <div className="w-full px-4 pb-10 pt-7 md:px-8 lg:px-[30px]">
+    <div className={`w-full px-4 pb-10 ${preferences.compactMode ? "pt-5" : "pt-7"} md:px-8 lg:px-[30px]`}>
       <div className="mx-auto w-full max-w-[1240px]">
         <PageHeader
           tone="analytics"
@@ -532,6 +534,7 @@ export default function Reports() {
             <button type="button" disabled={!selectedDeviceId || readingsLoading || exportingCsv} onClick={handleExportCsv} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98] disabled:cursor-not-allowed disabled:opacity-55"><Download size={14} /> {exportingCsv ? "Exporting..." : "Export CSV"}</button>
             <button type="button" disabled={!selectedDeviceId || exportingPdf} onClick={handleExportPdf} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98] disabled:cursor-not-allowed disabled:opacity-55"><FileText size={14} /> {exportingPdf ? "Exporting..." : "Export PDF"}</button>
             <button type="button" disabled={!selectedDeviceId || generatingReport} onClick={handleGenerateReport} className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#08a9c4] px-4 text-[11px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-55"><Plus size={14} /> {generatingReport ? "Generating..." : "Generate report"}</button>
+            <button type="button" disabled={devicesLoading || readingsLoading} onClick={() => setRefreshKey((current) => current + 1)} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dce8ee] bg-white px-4 text-[11px] font-medium text-[#526b79] transition hover:border-[#08a9c4] hover:text-[#087f98] disabled:cursor-not-allowed disabled:opacity-55"><RefreshCw size={14} /> Refresh data</button>
             </div>
           )}
         />
@@ -581,7 +584,7 @@ export default function Reports() {
                     </label>
                   ) : null}
                 </div>
-                {energyAnalyticsConfigured ? <div className="mt-4"><EnergyUsageCard energy={energy} loading={energyLoading} error={energyError} animate={chartAnimationsEnabled} /></div> : null}
+                {energyAnalyticsConfigured ? <div className="mt-4"><EnergyUsageCard energy={energy} loading={energyLoading} error={energyError} animate={chartAnimationsEnabled} dateFormat={preferences.dateFormat} /></div> : null}
               </>
             ) : (
               <>
@@ -589,8 +592,9 @@ export default function Reports() {
                   {metricDefinitions.map((definition) => {
                     const stats = getMetricStats(
                       sortedReadings,
-                      (reading) => getMetricValue(definition, reading),
+                      (reading) => getDisplayMetricValue(definition, reading, preferences),
                     );
+                    const displayUnit = getDisplayMetricUnit(definition, preferences);
 
                     return (
                       <SummaryCard
@@ -598,14 +602,14 @@ export default function Reports() {
                         icon={definition.icon}
                         title={definition.label}
                         latest={stats.latest}
-                        unit={definition.unit}
+                        unit={displayUnit}
                         tone={definition.tone}
                       >
                         {definition.source === "metrics" ? (
                           <div className="space-y-1.5">
-                            <StatLine label="Minimum" value={stats.minimum} unit={definition.unit} />
-                            <StatLine label="Maximum" value={stats.maximum} unit={definition.unit} />
-                            <StatLine label="Average" value={stats.average} unit={definition.unit} />
+                            <StatLine label="Minimum" value={stats.minimum} unit={displayUnit} />
+                            <StatLine label="Maximum" value={stats.maximum} unit={displayUnit} />
+                            <StatLine label="Average" value={stats.average} unit={displayUnit} />
                           </div>
                         ) : (
                           <p className="text-[9px] text-[#8ba0ab]">
@@ -633,10 +637,10 @@ export default function Reports() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData} margin={{ top: 12, right: 8, left: -8, bottom: 4 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5edf1" vertical={false} />
-                        <XAxis type="number" dataKey="time" scale="time" domain={chartDomain} ticks={chartTicks} interval="preserveStartEnd" axisLine={false} tickLine={false} minTickGap={32} tickFormatter={(value) => formatAxisTime(value, selectedRange)} tick={{ fontSize: 9, fill: "#8ba0ab" }} />
+                        <XAxis type="number" dataKey="time" scale="time" domain={chartDomain} ticks={chartTicks} interval="preserveStartEnd" axisLine={false} tickLine={false} minTickGap={32} tickFormatter={(value) => formatAxisTime(value, selectedRange, preferences.dateFormat)} tick={{ fontSize: 9, fill: "#8ba0ab" }} />
                         <YAxis axisLine={false} tickLine={false} width={34} domain={metricDomain} allowDecimals={false} tick={{ fontSize: 9, fill: "#8ba0ab" }} />
-                        <Tooltip labelFormatter={formatTooltipTime} formatter={(value) => [`${value} ${selectedMetricDefinition.unit}`, selectedMetricDefinition.label]} contentStyle={{ borderRadius: 10, border: "1px solid #dce8ee", fontSize: 10 }} labelStyle={{ color: "#6b8290", fontSize: 9 }} />
-                        <Line type="monotone" dataKey="value" name={`${selectedMetricDefinition.label} (${selectedMetricDefinition.unit})`} stroke={selectedMetricDefinition.color} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={chartAnimationsEnabled} />
+                        <Tooltip labelFormatter={(value) => formatTooltipTime(value, preferences.dateFormat)} formatter={(value) => [`${value} ${getDisplayMetricUnit(selectedMetricDefinition, preferences)}`, selectedMetricDefinition.label]} contentStyle={{ borderRadius: 10, border: "1px solid #dce8ee", fontSize: 10 }} labelStyle={{ color: "#6b8290", fontSize: 9 }} />
+                        <Line type="monotone" dataKey="value" name={`${selectedMetricDefinition.label} (${getDisplayMetricUnit(selectedMetricDefinition, preferences)})`} stroke={selectedMetricDefinition.color} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={chartAnimationsEnabled} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -694,14 +698,14 @@ export default function Reports() {
 
                   <div className="mt-3 flex items-start gap-2.5 rounded-[11px] border border-[#dce8ee] bg-[#eef9fb] px-3.5 py-3">
                     <Clock3 size={15} className="mt-0.5 shrink-0 text-[#08a9c4]" />
-                    <div><p className="text-[9px] font-semibold text-[#526b79]">Last telemetry</p><p className="mt-1 text-[10px] font-medium text-[#102a3a]">{formatTooltipTime(latestReading?.receivedAt) || "—"}</p></div>
+                    <div><p className="text-[9px] font-semibold text-[#526b79]">Last telemetry</p><p className="mt-1 text-[10px] font-medium text-[#102a3a]">{formatTooltipTime(latestReading?.receivedAt, preferences.dateFormat) || "—"}</p></div>
                   </div>
                 </section>
                 </div>
 
                 <div className={`mt-4 grid items-start gap-4 ${energyAnalyticsConfigured ? "lg:grid-cols-[1fr_1fr_0.86fr]" : "lg:grid-cols-[1fr_0.86fr]"}`}>
                   {energyAnalyticsConfigured ? (
-                  <EnergyUsageCard energy={energy} loading={energyLoading} error={energyError} animate={chartAnimationsEnabled} />
+                  <EnergyUsageCard energy={energy} loading={energyLoading} error={energyError} animate={chartAnimationsEnabled} dateFormat={preferences.dateFormat} />
                   ) : null}
 
                   <section className="rounded-[14px] border border-[#dce8ee] bg-white p-4 shadow-[0_5px_18px_rgba(10,48,72,0.05)] sm:p-5">
@@ -741,7 +745,7 @@ export default function Reports() {
                     <div><h2 className="topic-heading topic-analytics text-[14px] font-semibold text-[#102a3a]">Generated reports</h2><p className="mt-1 text-[9px] text-[#8ba0ab]">Saved and scheduled report files</p></div>
                     <button type="button" disabled={!selectedDeviceId || generatingReport} onClick={handleGenerateReport} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] bg-[#08a9c4] px-3.5 text-[10px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-55"><Plus size={13} /> Generate report</button>
                   </div>
-                  {generatedReports.length === 0 ? <div className="flex min-h-[96px] items-center justify-center bg-[#fbfdfe] px-4 text-center text-[10px] text-[#8ba0ab]">No generated reports yet.</div> : <div className="max-h-[360px] overflow-x-hidden overflow-y-auto sm:max-h-[420px]"><div className="divide-y divide-[#edf2f4]">{generatedReports.map((report) => <div key={report.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="min-w-0 flex-1"><p className="break-words text-[11px] font-semibold text-[#102a3a]">{report.deviceName} · {report.range.toUpperCase()}</p><p className="mt-1 break-words text-[9px] text-[#8ba0ab]">Generated {formatTooltipTime(report.generatedAt)} · {report.alertCount} alerts</p></div><div className="flex shrink-0 items-center gap-2"><button type="button" onClick={() => navigate(`/reports/${report.id}`)} className="rounded-[8px] px-2.5 py-1.5 text-[10px] font-medium text-[#087f98] hover:bg-[#eef9fb]">View</button><button type="button" onClick={() => handleDeleteReport(report)} className="rounded-[8px] p-1.5 text-[#d83f4d] hover:bg-[#fdecee]" aria-label="Delete report"><Trash2 size={14} /></button></div></div>)}</div></div>}
+                  {generatedReports.length === 0 ? <div className="flex min-h-[96px] items-center justify-center bg-[#fbfdfe] px-4 text-center text-[10px] text-[#8ba0ab]">No generated reports yet.</div> : <div className="max-h-[360px] overflow-x-hidden overflow-y-auto sm:max-h-[420px]"><div className="divide-y divide-[#edf2f4]">{generatedReports.map((report) => <div key={report.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="min-w-0 flex-1"><p className="break-words text-[11px] font-semibold text-[#102a3a]">{report.deviceName} · {report.range.toUpperCase()}</p><p className="mt-1 break-words text-[9px] text-[#8ba0ab]">Generated {formatTooltipTime(report.generatedAt, preferences.dateFormat)} · {report.alertCount} alerts</p></div><div className="flex shrink-0 items-center gap-2"><button type="button" onClick={() => navigate(`/reports/${report.id}`)} className="rounded-[8px] px-2.5 py-1.5 text-[10px] font-medium text-[#087f98] hover:bg-[#eef9fb]">View</button><button type="button" onClick={() => handleDeleteReport(report)} className="rounded-[8px] p-1.5 text-[#d83f4d] hover:bg-[#fdecee]" aria-label="Delete report"><Trash2 size={14} /></button></div></div>)}</div></div>}
                 </section>
               </>
             )}

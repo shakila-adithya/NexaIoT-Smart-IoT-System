@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, Pencil, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Pencil, Plus, RefreshCw, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createAlertRule, deleteAlertRule, getAlertRules, updateAlertRule } from "../../api/alertRulesApi.js";
 import { getDevices } from "../../api/devicesApi.js";
@@ -9,6 +9,7 @@ import Button from "../../components/ui/Button.jsx";
 import PageHeader from "../../components/ui/PageHeader.jsx";
 import SectionCard from "../../components/ui/SectionCard.jsx";
 import Select from "../../components/ui/Select.jsx";
+import { validateAutomationRule } from "../../config/automationValidation.js";
 
 const emptyForm = {
   name: "",
@@ -69,6 +70,8 @@ export default function AlertRules() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState("");
+  const [updatingId, setUpdatingId] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -84,7 +87,7 @@ export default function AlertRules() {
       .catch((requestError) => mounted && setError(requestError.message || "Unable to load alert rules."))
       .finally(() => mounted && setLoading(false));
     return () => { mounted = false; };
-  }, []);
+  }, [refreshKey]);
 
   const selectedDevice = devices.find((device) => device.id === form.deviceId);
   const metrics = useMemo(() => metricCapabilities(selectedDevice), [selectedDevice]);
@@ -108,25 +111,8 @@ export default function AlertRules() {
 
   async function saveRule(event) {
     event.preventDefault();
-    if (!form.deviceId || !form.name.trim()) {
-      setError("Choose a device and enter a rule name.");
-      return;
-    }
-    if (form.ruleType === "METRIC_THRESHOLD") {
-      const thresholdText = String(form.threshold ?? "").trim();
-      const threshold = Number(thresholdText);
-      if (!form.metricKey || !form.operator || !form.severity || !thresholdText || !Number.isFinite(threshold)) {
-        setError("Enter a valid threshold value.");
-        return;
-      }
-    } else {
-      const durationText = String(form.offlineDurationMinutes ?? "").trim();
-      const duration = Number(durationText);
-      if (!durationText || !Number.isInteger(duration) || duration <= 0) {
-        setError("Enter a valid positive offline duration.");
-        return;
-      }
-    }
+    const validationError = validateAutomationRule(form, metrics);
+    if (validationError) { setError(validationError); return; }
     const payload = {
       name: form.name.trim(),
       deviceId: form.deviceId,
@@ -153,12 +139,17 @@ export default function AlertRules() {
   }
 
   async function toggleRule(rule) {
+    if (updatingId) return;
     try {
+      setUpdatingId(rule.id);
+      setError("");
       const saved = await updateAlertRule(rule.id, { ...formFromRule(rule), enabled: !rule.enabled });
       setRules((current) => current.map((item) => item.id === saved.id ? saved : item));
       showToast(saved.enabled ? "Alert rule enabled." : "Alert rule disabled.");
     } catch (requestError) {
       setError(requestError.message || "Unable to update the alert rule.");
+    } finally {
+      setUpdatingId("");
     }
   }
 
@@ -185,7 +176,7 @@ export default function AlertRules() {
           breadcrumb={<button type="button" onClick={() => navigate("/alerts")} className="inline-flex items-center gap-1.5 font-medium hover:text-[var(--color-primary)]"><ArrowLeft size={13} /> Back to alerts</button>}
           title="Alert rules"
           description="Create device-specific thresholds that generate real alerts."
-          actions={<Button type="button" onClick={startCreate} icon={Plus}>New rule</Button>}
+          actions={<><Button type="button" variant="secondary" onClick={() => setRefreshKey((current) => current + 1)} loading={loading} icon={RefreshCw}>Refresh</Button><Button type="button" onClick={startCreate} icon={Plus}>New rule</Button></>}
         />
 
         {error ? <div className="mt-5 rounded-[12px] border border-red-200 bg-red-50 p-4 text-[11px] text-red-600">{error}</div> : null}
