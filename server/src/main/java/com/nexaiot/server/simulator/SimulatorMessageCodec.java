@@ -1,7 +1,6 @@
 package com.nexaiot.server.simulator;
 
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;

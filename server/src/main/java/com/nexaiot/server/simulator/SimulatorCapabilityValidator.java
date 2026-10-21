@@ -1,9 +1,6 @@
 package com.nexaiot.server.simulator;
 
-import java.util.List;
-
 import com.nexaiot.server.device.CapabilityCategory;
-import com.nexaiot.server.device.CapabilityDataType;
 import com.nexaiot.server.device.CapabilityDefinition;
 import com.nexaiot.server.device.CapabilityManifest;
 import com.nexaiot.server.device.CapabilityManifestValidator;

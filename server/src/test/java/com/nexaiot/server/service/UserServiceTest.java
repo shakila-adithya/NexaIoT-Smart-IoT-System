@@ -38,10 +38,16 @@ class UserServiceTest {
         assertEquals("Asia/Colombo", updated.getTimeZone());
 
         UpdatePreferencesRequest preferences = new UpdatePreferencesRequest();
+        preferences.setTemperatureUnit("FAHRENHEIT");
+        preferences.setDateFormat("YYYY-MM-DD");
+        preferences.setCompactMode(true);
         preferences.setLiveChartAnimations(false);
         preferences.setDashboardAutoRefresh(false);
 
         UserResponse withPreferences = service.updatePreferences("owner@example.com", preferences);
+        assertEquals("FAHRENHEIT", withPreferences.getTemperatureUnit());
+        assertEquals("YYYY-MM-DD", withPreferences.getDateFormat());
+        assertTrue(withPreferences.getCompactMode());
         assertFalse(withPreferences.getLiveChartAnimations());
         assertFalse(withPreferences.getDashboardAutoRefresh());
     }

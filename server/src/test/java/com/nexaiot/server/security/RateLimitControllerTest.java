@@ -15,7 +15,6 @@ import com.nexaiot.server.report.GeneratedReportService;
 import com.nexaiot.server.report.dto.GenerateReportRequest;
 import com.nexaiot.server.report.dto.GeneratedReportResponse;
 import com.nexaiot.server.mqtt.MqttCommandPublisher;
-import com.nexaiot.server.device.diagnostics.DeviceDiagnosticsService;
 import com.nexaiot.server.dto.ForgotPasswordRequest;
 import com.nexaiot.server.dto.LoginRequest;
 import com.nexaiot.server.dto.RegisterRequest;

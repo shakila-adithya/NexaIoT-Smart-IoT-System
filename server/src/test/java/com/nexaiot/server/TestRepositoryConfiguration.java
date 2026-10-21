@@ -25,6 +25,7 @@ import com.nexaiot.server.repository.PasswordResetTokenRepository;
 import com.nexaiot.server.sensor.SensorReadingRepository;
 import com.nexaiot.server.task.MaintenanceTaskRepository;
 import com.nexaiot.server.report.GeneratedReportRepository;
+import com.nexaiot.server.firmware.FirmwarePackageRepository;
 
 @TestConfiguration(proxyBeanMethods = false)
 public class TestRepositoryConfiguration {
@@ -103,6 +104,11 @@ public class TestRepositoryConfiguration {
     @Bean
     GeneratedReportRepository generatedReportRepository() {
         return repositoryStub(GeneratedReportRepository.class);
+    }
+
+    @Bean
+    FirmwarePackageRepository firmwarePackageRepository() {
+        return repositoryStub(FirmwarePackageRepository.class);
     }
 
     @Bean

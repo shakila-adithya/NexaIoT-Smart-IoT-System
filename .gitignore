@@ -1,4 +1,6 @@
 
 client/.env
+firmware/esp32-smart-fan/.pio/
+firmware/esp32-smart-fan/include/device_config.h
 
 client/.env

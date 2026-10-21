@@ -82,7 +82,7 @@ public class EnrollmentRecoveryService {
         BrokerDeviceIdentityStatus client = inspectClient(username);
         BrokerRoleStatus role = inspectRole(roleName);
         boolean roleExists = role != null;
-        boolean roleOwnershipMatches = roleExists && hasRecordedIdentity
+        boolean roleOwnershipMatches = role != null && hasRecordedIdentity
                 && role.referencesKnown()
                 && role.referencedClients().equals(List.of(username))
                 && role.referencedGroups().isEmpty();

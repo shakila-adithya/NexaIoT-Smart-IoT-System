@@ -23,7 +23,6 @@ import com.nexaiot.server.device.DeviceProvisioningStatus;
 import com.nexaiot.server.device.DeviceRepository;
 import com.nexaiot.server.enrollment.DeviceEnrollmentOperationRepository;
 import com.nexaiot.server.enrollment.EnrollmentOperationService;
-import com.nexaiot.server.provisioning.dto.PairingSessionResponse;
 import com.nexaiot.server.provisioning.dto.ProvisioningMetadataResponse;
 
 @ExtendWith(MockitoExtension.class)

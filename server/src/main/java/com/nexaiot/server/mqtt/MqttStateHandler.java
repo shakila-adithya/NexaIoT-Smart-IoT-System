@@ -3,6 +3,7 @@ package com.nexaiot.server.mqtt;
 import java.time.Instant;
 
 import org.springframework.integration.annotation.ServiceActivator;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
@@ -14,6 +15,7 @@ import com.nexaiot.server.device.DeviceRepository;
 import tools.jackson.databind.json.JsonMapper;
 
 @Component
+@ConditionalOnProperty(name = "mqtt.startup.enabled", havingValue = "true", matchIfMissing = true)
 public class MqttStateHandler {
 
     private static final Logger log = LoggerFactory.getLogger(MqttStateHandler.class);

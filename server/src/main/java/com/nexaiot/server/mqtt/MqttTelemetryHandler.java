@@ -4,6 +4,7 @@ import com.nexaiot.server.sensor.SensorReadingService;
 import com.nexaiot.server.sensor.dto.CreateSensorReadingRequest;
 
 import org.springframework.integration.annotation.ServiceActivator;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
@@ -12,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import tools.jackson.databind.json.JsonMapper;
 
 @Component
+@ConditionalOnProperty(name = "mqtt.startup.enabled", havingValue = "true", matchIfMissing = true)
 public class MqttTelemetryHandler {
 
     private static final Logger log = LoggerFactory.getLogger(MqttTelemetryHandler.class);
