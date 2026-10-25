@@ -3,6 +3,7 @@ package com.nexaiot.server.mqtt;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -66,9 +67,13 @@ public final class MqttCommandResultConsumer {
             if (pending == null || !deviceKey.equals(pending.deviceKey())) {
                 return false;
             }
+            if (!node.path("capabilityKey").isTextual()
+                    || !pending.capabilityKey().equals(node.path("capabilityKey").asText())) {
+                return false;
+            }
             String correlationId = node.path("correlationId").isTextual()
                     ? node.path("correlationId").asText() : null;
-            if (pending.correlationId() != null && !pending.correlationId().equals(correlationId)) {
+            if (!Objects.equals(pending.correlationId(), correlationId)) {
                 return false;
             }
             String reason = node.path("reason").isTextual() ? node.path("reason").asText() : null;

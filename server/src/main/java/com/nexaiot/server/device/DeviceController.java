@@ -137,7 +137,7 @@ public class DeviceController {
         String payload =
                 "{\"power\":" + request.power() + "}";
 
-        mqttCommandPublisher.publishCommand(
+        com.nexaiot.server.mqtt.MqttPendingCommand pending = mqttCommandPublisher.publishCommand(
                 device.getDeviceKey(),
                 payload
         );
@@ -148,7 +148,9 @@ public class DeviceController {
                         "message", "Device command published",
                         "deviceId", device.getId(),
                         "deviceKey", device.getDeviceKey(),
-                        "power", request.power()
+                        "power", request.power(),
+                        "commandId", pending.commandId(),
+                        "correlationId", pending.correlationId()
                 ));
     }
 

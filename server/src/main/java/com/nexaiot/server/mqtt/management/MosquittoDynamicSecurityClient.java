@@ -117,6 +117,63 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
         return new BrokerOperationResult("createDeviceRolePermissions", deviceKey, true);
     }
 
+    public BrokerDeviceIdentity createBackendServiceIdentity(
+            String backendClientId,
+            String backendPassword
+    ) {
+        requireEnabled();
+        requireValue(backendClientId, "Backend client ID");
+        requireValue(backendPassword, "Backend password");
+        ObjectNode command = command("createClient");
+        command.put("username", BackendMqttServicePolicy.USERNAME);
+        command.put("password", backendPassword);
+        command.put("clientid", backendClientId);
+        execute(List.of(command));
+        return new BrokerDeviceIdentity(BackendMqttServicePolicy.USERNAME, backendClientId);
+    }
+
+    public BrokerOperationResult createBackendServiceRolePermissions() {
+        requireEnabled();
+        execute(BackendMqttServicePolicy.roleCommands(objectMapper));
+        return new BrokerOperationResult(
+                "createBackendServiceRolePermissions",
+                BackendMqttServicePolicy.ROLE_NAME,
+                true);
+    }
+
+    public BrokerOperationResult assignBackendServiceRole() {
+        requireEnabled();
+        ObjectNode command = command("addClientRole");
+        command.put("username", BackendMqttServicePolicy.USERNAME);
+        command.put("rolename", BackendMqttServicePolicy.ROLE_NAME);
+        command.put("priority", 100);
+        execute(List.of(command));
+        return new BrokerOperationResult(
+                "assignBackendServiceRole",
+                BackendMqttServicePolicy.USERNAME,
+                true);
+    }
+
+    public BrokerOperationResult rotateClientPassword(String clientUsername, String newPassword) {
+        requireEnabled();
+        requireValue(clientUsername, "Client username");
+        requireValue(newPassword, "New client password");
+        execute(List.of(setClientPasswordCommand(objectMapper, clientUsername, newPassword)));
+        return new BrokerOperationResult("rotateClientPassword", clientUsername, true);
+    }
+
+    static ObjectNode setClientPasswordCommand(
+            ObjectMapper mapper,
+            String clientUsername,
+            String newPassword
+    ) {
+        ObjectNode command = mapper.createObjectNode();
+        command.put("command", "setClientPassword");
+        command.put("username", clientUsername);
+        command.put("password", newPassword);
+        return command;
+    }
+
     @Override
     public BrokerOperationResult assignDeviceRole(String deviceUsername, String deviceKey) {
         requireEnabled();
@@ -141,6 +198,8 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
                 telemetryTopic(deviceKey), "allow", 100));
         commands.add(acl(roleName, "publishClientSend",
                 stateTopic(deviceKey), "allow", 100));
+        commands.add(acl(roleName, "publishClientSend",
+                commandResultTopic(deviceKey), "allow", 100));
         commands.add(acl(roleName, "subscribeLiteral",
                 MqttTopicSecurity.commandTopic(deviceKey), "allow", 100));
         commands.add(acl(roleName, "publishClientReceive",
@@ -219,6 +278,20 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
         return BrokerRoleReferenceParser.parse(roleName, clientData, groupData);
     }
 
+    public JsonNode inspectRolePermissions(String roleName) {
+        requireEnabled();
+        requireValue(roleName, "Role name");
+        ObjectNode command = command("getRole");
+        command.put("rolename", roleName);
+        JsonNode role = execute(List.of(command)).get(0).path("data").path("role");
+        if (!role.isObject() || !role.path("acls").isArray()) {
+            throw new BrokerManagementException(
+                    BrokerManagementFailure.INVALID_RESPONSE,
+                    "Broker returned incomplete role permissions.");
+        }
+        return role;
+    }
+
     @Override
     public BrokerDeviceProvisioningStatus verifyDeviceProvisioning(
             String deviceUsername,
@@ -249,9 +322,27 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
     public BrokerDeviceIdentityStatus inspectEnrollmentStatus(String deviceUsername) {
         requireEnabled();
         requireValue(deviceUsername, "Device username");
+        BrokerClientInspection inspection = inspectClient(deviceUsername);
+        if (!inspection.clientIdPresent()) {
+            throw new BrokerManagementException(
+                    BrokerManagementFailure.INVALID_RESPONSE,
+                    "Broker returned an incomplete client identity.");
+        }
+        return new BrokerDeviceIdentityStatus(
+                inspection.username(), inspection.clientId(), inspection.disabled(),
+                inspection.acknowledged());
+    }
+
+    public BrokerClientInspection inspectClient(String clientUsername) {
+        requireEnabled();
+        requireValue(clientUsername, "Client username");
         ObjectNode command = command("getClient");
-        command.put("username", deviceUsername);
+        command.put("username", clientUsername);
         JsonNode response = execute(List.of(command)).get(0);
+        return parseClientInspection(response, clientUsername);
+    }
+
+    static BrokerClientInspection parseClientInspection(JsonNode response, String expectedUsername) {
         JsonNode client = response.path("data").path("client");
         if (!client.isObject()) {
             throw new BrokerManagementException(
@@ -260,11 +351,17 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
         }
         if (!client.path("username").isTextual()
                 || client.path("username").asText().isBlank()
-                || !client.path("clientid").isTextual()
-                || client.path("clientid").asText().isBlank()) {
+                || !expectedUsername.equals(client.path("username").asText())) {
             throw new BrokerManagementException(
                     BrokerManagementFailure.INVALID_RESPONSE,
                     "Broker returned an incomplete client identity.");
+        }
+        JsonNode clientId = client.get("clientid");
+        boolean clientIdPresent = clientId != null;
+        if (clientIdPresent && (!clientId.isTextual() || clientId.asText().isBlank())) {
+            throw new BrokerManagementException(
+                    BrokerManagementFailure.INVALID_RESPONSE,
+                    "Broker returned a malformed client ID.");
         }
         JsonNode disabled = client.get("disabled");
         if (disabled != null && !disabled.isBoolean()) {
@@ -272,9 +369,10 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
                     BrokerManagementFailure.INVALID_RESPONSE,
                     "Broker returned a malformed disabled flag.");
         }
-        return new BrokerDeviceIdentityStatus(
+        return new BrokerClientInspection(
                 client.path("username").asText(),
-                client.path("clientid").asText(),
+                clientIdPresent ? clientId.asText() : null,
+                clientIdPresent,
                 disabled != null && disabled.asBoolean(),
                 true);
     }
@@ -487,6 +585,10 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
 
     private String stateTopic(String deviceKey) {
         return "nexaiot/devices/" + deviceKey + "/state";
+    }
+
+    private String commandResultTopic(String deviceKey) {
+        return "nexaiot/devices/" + deviceKey + "/command-results";
     }
 
     private boolean isLoopbackHost(String host) {

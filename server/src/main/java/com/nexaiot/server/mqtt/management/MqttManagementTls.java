@@ -11,12 +11,12 @@ import javax.net.SocketFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 
-final class MqttManagementTls {
+public final class MqttManagementTls {
 
     private MqttManagementTls() {
     }
 
-    static SocketFactory socketFactory(String caCertificatePath) {
+    public static SocketFactory socketFactory(String caCertificatePath) {
         if (caCertificatePath == null || caCertificatePath.isBlank()) {
             return null;
         }

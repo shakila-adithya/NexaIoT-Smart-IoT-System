@@ -102,7 +102,7 @@ class BrokerVerificationSafetyTest {
         BrokerDeviceProvisioningStatus status = BrokerProvisioningVerifier.verify(
                 clientResponse, roleResponse, DEVICE_KEY);
         assertTrue(status.verified());
-        assertEquals(10, status.verifiedAclCount());
+        assertEquals(11, status.verifiedAclCount());
         assertTrue(status.noUnexpectedAllowRules());
     }
 
@@ -116,6 +116,18 @@ class BrokerVerificationSafetyTest {
                                 "roles":[{"rolename":"nexaiot-device-NEXA-8CD8C0F1559E"}],"groups":[]}}}
                                 """),
                         mapper.readTree(roleFixture(true)), DEVICE_KEY));
+    }
+
+    @Test
+    void rejectsCrossDeviceCommandResultPermission() throws Exception {
+        JsonNode role = mapper.readTree(roleFixture(false));
+        ArrayNode acls = (ArrayNode) role.path("data").path("role").path("acls");
+        acl(acls, "publishClientSend", "nexaiot/devices/NEXA-OTHER/command-results",
+                true, 100);
+        assertThrows(BrokerManagementException.class,
+                () -> BrokerProvisioningVerifier.verify(
+                        clientFixture("[{\"rolename\":\"nexaiot-device-NEXA-8CD8C0F1559E\"}]", "[]"),
+                        role, DEVICE_KEY));
     }
 
     @Test
@@ -206,6 +218,7 @@ class BrokerVerificationSafetyTest {
         ArrayNode acls = role.putArray("acls");
         acl(acls, "publishClientSend", "nexaiot/devices/" + DEVICE_KEY + "/telemetry", true, 100);
         acl(acls, "publishClientSend", "nexaiot/devices/" + DEVICE_KEY + "/state", true, 100);
+        acl(acls, "publishClientSend", "nexaiot/devices/" + DEVICE_KEY + "/command-results", true, 100);
         acl(acls, "subscribeLiteral", "nexaiot/devices/" + DEVICE_KEY + "/commands", true, 100);
         acl(acls, "publishClientReceive", "nexaiot/devices/" + DEVICE_KEY + "/commands", true, 100);
         for (String topic : List.of("#", "$CONTROL/dynamic-security/#", "$SYS/#")) {

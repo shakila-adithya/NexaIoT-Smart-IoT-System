@@ -49,6 +49,12 @@ class MqttCommandResultConsumerTest {
         assertFalse(consumer(store).consume(TOPIC, resultWithCorrelation("other", NOW)));
     }
 
+    @Test void wrongCapabilityIsRejected() {
+        Store store = store();
+        assertFalse(consumer(store).consume(TOPIC,
+                resultWithCapability("temperature", "corr-1", "ACCEPTED", NOW)));
+    }
+
     @Test void rejectedCommandResultIsStillAStatusUpdate() {
         Store store = store();
         assertTrue(consumer(store).consume(TOPIC, result("REJECTED", NOW)));
@@ -94,8 +100,18 @@ class MqttCommandResultConsumerTest {
     }
 
     private byte[] resultWithCorrelation(String correlation, String status, Instant timestamp) {
+        return resultWithCapability("power", correlation, status, timestamp);
+    }
+
+    private byte[] resultWithCapability(
+            String capability,
+            String correlation,
+            String status,
+            Instant timestamp
+    ) {
         return ("{\"commandId\":\"cmd-1\",\"correlationId\":\"" + correlation
-                + "\",\"status\":\"" + status + "\",\"processedAt\":\""
+                + "\",\"capabilityKey\":\"" + capability + "\""
+                + ",\"status\":\"" + status + "\",\"processedAt\":\""
                 + timestamp + "\"}").getBytes();
     }
 

@@ -68,10 +68,12 @@ final class BrokerProvisioningVerifier {
     private static Set<Acl> expectedAcls(String deviceKey) {
         String telemetry = "nexaiot/devices/" + deviceKey + "/telemetry";
         String state = "nexaiot/devices/" + deviceKey + "/state";
+        String commandResults = "nexaiot/devices/" + deviceKey + "/command-results";
         String command = MqttTopicSecurity.commandTopic(deviceKey);
         Set<Acl> expected = new LinkedHashSet<>();
         expected.add(new Acl("publishClientSend", telemetry, true, 100));
         expected.add(new Acl("publishClientSend", state, true, 100));
+        expected.add(new Acl("publishClientSend", commandResults, true, 100));
         expected.add(new Acl("subscribeLiteral", command, true, 100));
         expected.add(new Acl("publishClientReceive", command, true, 100));
         for (String topic : Set.of("#", "$CONTROL/dynamic-security/#", "$SYS/#")) {

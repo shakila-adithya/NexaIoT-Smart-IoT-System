@@ -10,18 +10,25 @@ import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.integration.channel.DirectChannel;
 import org.springframework.integration.config.EnableIntegration;
 import org.springframework.integration.core.MessageProducer;
-import org.springframework.integration.mqtt.core.DefaultMqttPahoClientFactory;
-import org.springframework.integration.mqtt.core.MqttPahoClientFactory;
+import org.springframework.integration.mqtt.core.Mqttv3ClientManager;
 import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter;
 import org.springframework.integration.mqtt.outbound.MqttPahoMessageHandler;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.MessageHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.nexaiot.server.mqtt.management.MqttManagementTls;
+
+import java.nio.charset.StandardCharsets;
 
 @Configuration
 @EnableIntegration
 @Profile("!test")
 @ConditionalOnProperty(name = "mqtt.startup.enabled", havingValue = "true", matchIfMissing = true)
 public class MqttConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(MqttConfig.class);
 
     public MqttConfig() {
     }
@@ -37,6 +44,23 @@ public class MqttConfig {
             boolean authRequired,
             boolean tlsRequired
     ) {
+        this(
+                brokerUrl, clientId, telemetryTopic, stateTopic, qos, username,
+                password, authRequired, tlsRequired, "");
+    }
+
+    MqttConfig(
+            String brokerUrl,
+            String clientId,
+            String telemetryTopic,
+            String stateTopic,
+            int qos,
+            String username,
+            String password,
+            boolean authRequired,
+            boolean tlsRequired,
+            String caCertificatePath
+    ) {
         this.brokerUrl = brokerUrl;
         this.clientId = clientId;
         this.telemetryTopic = telemetryTopic;
@@ -46,6 +70,7 @@ public class MqttConfig {
         this.password = password;
         this.authRequired = authRequired;
         this.tlsRequired = tlsRequired;
+        this.caCertificatePath = caCertificatePath;
     }
 
     @Value("${mqtt.broker-url}")
@@ -59,6 +84,12 @@ public class MqttConfig {
 
     @Value("${mqtt.state-topic}")
     private String stateTopic;
+
+    @Value("${mqtt.command-result-topic:nexaiot/devices/+/command-results}")
+    private String commandResultTopic = "nexaiot/devices/+/command-results";
+
+    @Value("${mqtt.command-result-max-age-seconds:30}")
+    private long commandResultMaxAgeSeconds = 30;
 
     @Value("${mqtt.qos}")
     private int qos;
@@ -75,16 +106,12 @@ public class MqttConfig {
     @Value("${mqtt.tls-required:false}")
     private boolean tlsRequired;
 
+    @Value("${mqtt.ca-certificate:}")
+    private String caCertificatePath;
+
     @Bean
-    public MqttPahoClientFactory mqttClientFactory() {
-        DefaultMqttPahoClientFactory factory =
-                new DefaultMqttPahoClientFactory();
-
-        MqttConnectOptions options = createConnectOptions();
-
-        factory.setConnectionOptions(options);
-
-        return factory;
+    public Mqttv3ClientManager mqttClientManager() {
+        return new Mqttv3ClientManager(createConnectOptions(), clientId);
     }
 
     MqttConnectOptions createConnectOptions() {
@@ -107,7 +134,18 @@ public class MqttConfig {
             options.setPassword(password.toCharArray());
         }
 
+        if (MqttConfigurationValidator.usesTls(brokerUrl)) {
+            if (caCertificatePath != null && !caCertificatePath.isBlank()) {
+                options.setSocketFactory(MqttManagementTls.socketFactory(caCertificatePath));
+            }
+            options.setHttpsHostnameVerificationEnabled(true);
+        }
+
         return options;
+    }
+
+    String commandResultTopic() {
+        return commandResultTopic;
     }
 
     // =========================
@@ -121,12 +159,11 @@ public class MqttConfig {
 
     @Bean
     public MessageProducer mqttInbound(
-            MqttPahoClientFactory mqttClientFactory
+            Mqttv3ClientManager mqttClientManager
     ) {
         MqttPahoMessageDrivenChannelAdapter adapter =
                 new MqttPahoMessageDrivenChannelAdapter(
-                        clientId,
-                        mqttClientFactory,
+                        mqttClientManager,
                         telemetryTopic
                 );
 
@@ -147,12 +184,11 @@ public class MqttConfig {
 
     @Bean
     public MessageProducer mqttStateInbound(
-            MqttPahoClientFactory mqttClientFactory
+            Mqttv3ClientManager mqttClientManager
     ) {
         MqttPahoMessageDrivenChannelAdapter adapter =
                 new MqttPahoMessageDrivenChannelAdapter(
-                        clientId + "-state",
-                        mqttClientFactory,
+                        mqttClientManager,
                         stateTopic
                 );
 
@@ -160,6 +196,59 @@ public class MqttConfig {
         adapter.setOutputChannel(mqttStateInputChannel());
 
         return adapter;
+    }
+
+    @Bean
+    public MessageChannel mqttCommandResultInputChannel() {
+        return new DirectChannel();
+    }
+
+    @Bean
+    public MessageProducer mqttCommandResultInbound(
+            Mqttv3ClientManager mqttClientManager
+    ) {
+        MqttPahoMessageDrivenChannelAdapter adapter =
+                new MqttPahoMessageDrivenChannelAdapter(
+                        mqttClientManager,
+                        commandResultTopic
+                );
+
+        adapter.setQos(qos);
+        adapter.setOutputChannel(mqttCommandResultInputChannel());
+
+        return adapter;
+    }
+
+    @Bean
+    public MqttCommandResultConsumer mqttCommandResultConsumer(
+            MqttCommandStatusStore statusStore
+    ) {
+        return new MqttCommandResultConsumer(
+                new com.fasterxml.jackson.databind.ObjectMapper(),
+                statusStore,
+                java.time.Duration.ofSeconds(commandResultMaxAgeSeconds)
+        );
+    }
+
+    @Bean
+    @ServiceActivator(inputChannel = "mqttCommandResultInputChannel")
+    public MessageHandler mqttCommandResultHandler(
+            MqttCommandResultConsumer consumer
+    ) {
+        return message -> {
+            Object topicHeader = message.getHeaders().get("mqtt_receivedTopic");
+            if (!(topicHeader instanceof String topic)) {
+                log.warn("Rejected MQTT command result without a valid topic.");
+                return;
+            }
+            Object payload = message.getPayload();
+            byte[] bytes = payload instanceof byte[] raw
+                    ? raw
+                    : payload.toString().getBytes(StandardCharsets.UTF_8);
+            if (!consumer.consume(topic, bytes)) {
+                log.warn("Rejected MQTT command result.");
+            }
+        };
     }
 
     // =========================
@@ -174,12 +263,11 @@ public class MqttConfig {
     @Bean
     @ServiceActivator(inputChannel = "mqttOutboundChannel")
     public MessageHandler mqttOutbound(
-            MqttPahoClientFactory mqttClientFactory
+            Mqttv3ClientManager mqttClientManager
     ) {
         MqttPahoMessageHandler handler =
                 new MqttPahoMessageHandler(
-                        clientId + "-outbound",
-                        mqttClientFactory
+                        mqttClientManager
                 );
 
         handler.setAsync(true);
