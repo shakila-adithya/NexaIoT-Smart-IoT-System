@@ -10,4 +10,7 @@ public record MqttCommandResultStatus(
         String reason,
         Instant processedAt
 ) {
+    public String reasonOrEmpty() {
+        return reason == null ? "" : reason;
+    }
 }

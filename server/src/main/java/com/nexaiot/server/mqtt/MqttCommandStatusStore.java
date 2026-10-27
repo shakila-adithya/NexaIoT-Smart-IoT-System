@@ -13,5 +13,9 @@ public interface MqttCommandStatusStore {
 
     Optional<MqttPendingCommand> findPending(String deviceKey, String commandId);
 
+    default Optional<MqttCommandResultStatus> findResult(String deviceKey, String commandId) {
+        return Optional.empty();
+    }
+
     boolean recordResult(MqttCommandResultStatus result);
 }

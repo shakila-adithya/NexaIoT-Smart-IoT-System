@@ -20,12 +20,6 @@ import org.springframework.stereotype.Component;
 
 import com.nexaiot.server.mqtt.management.BackendMqttServicePolicy;
 
-/**
- * Fail-closed checks used only by the disposable B4.6 application fixture.
- *
- * This is deliberately profile-gated so production startup and business
- * behavior do not acquire test-only endpoint restrictions.
- */
 @Component
 @Profile("b46-disposable")
 public final class DisposableStartupVerifier implements CommandLineRunner {
@@ -40,6 +34,7 @@ public final class DisposableStartupVerifier implements CommandLineRunner {
     private final boolean mqttAuthRequired;
     private final boolean mqttTlsRequired;
     private final String mqttCaCertificate;
+    @SuppressWarnings("unused")
     private final boolean managementEnabled;
     private final String escrowKey;
     private final String escrowKeyVersion;

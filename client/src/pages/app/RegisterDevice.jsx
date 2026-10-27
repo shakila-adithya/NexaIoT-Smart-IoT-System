@@ -200,9 +200,13 @@ export default function RegisterDevice() {
         };
       }
 
-      await createDevice(payload);
+      const createdDevice = await createDevice(payload);
 
-      navigate("/devices");
+      if (!createdDevice?.id) {
+        throw new Error("The backend did not return the registered device.");
+      }
+
+      navigate(`/devices/${createdDevice.id}`);
     } catch (err) {
       setError(err.message || "Unable to register device.");
     } finally {
@@ -514,7 +518,7 @@ export default function RegisterDevice() {
                     </p>
 
                     <p className="mt-0.5 text-[9px] text-[#6b8290]">
-                      Physical-device provisioning will be handled in a later integration stage.
+                      After registration, open the device details to start secure owner-authorized pairing.
                     </p>
                   </div>
                 </div>

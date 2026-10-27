@@ -48,7 +48,8 @@ public class InMemoryMqttCommandStatusStore implements MqttCommandStatusStore {
         return true;
     }
 
-    synchronized Optional<MqttCommandResultStatus> findResult(
+    @Override
+    public synchronized Optional<MqttCommandResultStatus> findResult(
             String deviceKey,
             String commandId
     ) {

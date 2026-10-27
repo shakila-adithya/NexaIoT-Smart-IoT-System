@@ -69,12 +69,16 @@ public class MqttCommandPublisher {
             ObjectNode command = (ObjectNode) input;
             if (command.has("commandId") || command.has("capabilityKey")
                     || command.has("value")) {
-                if (!command.path("commandId").isTextual()
-                        || command.path("commandId").asText().isBlank()
-                        || !command.path("capabilityKey").isTextual()
+                if (!command.path("capabilityKey").isTextual()
                         || command.path("capabilityKey").asText().isBlank()
-                        || !command.path("value").isBoolean()) {
+                        || !command.has("value") || command.path("value").isContainerNode()
+                        || command.path("value").isNull()) {
                     throw new IllegalArgumentException("Structured command payload is invalid.");
+                }
+                if (!command.path("commandId").isTextual()
+                        || command.path("commandId").asText().isBlank()) {
+                    command.put("commandId", UUID.randomUUID().toString());
+                    command.put("correlationId", UUID.randomUUID().toString());
                 }
                 if (!command.path("issuedAt").isTextual()
                         || command.path("issuedAt").asText().isBlank()) {

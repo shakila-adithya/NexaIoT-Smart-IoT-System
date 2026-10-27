@@ -204,6 +204,37 @@ class DeviceSimulatorTest(unittest.TestCase):
         self.assertEqual("cmd-2", outcome.command_id)
         self.assertFalse(simulator.state["power"])
 
+    def test_motor_controls_validate_and_drive_motor_telemetry(self):
+        manifest = {
+            "capabilities": [
+                {"key": "motorSpeed", "category": "MEASUREMENT", "dataType": "NUMBER"},
+                {"key": "power", "category": "CONTROL", "dataType": "BOOLEAN", "readOnly": False},
+                {"key": "targetSpeed", "category": "CONTROL", "dataType": "NUMBER", "readOnly": False,
+                 "constraints": {"min": 0, "max": 5000, "step": 10}},
+                {"key": "direction", "category": "CONTROL", "dataType": "ENUM", "readOnly": False,
+                 "options": [{"value": "FORWARD"}, {"value": "REVERSE"}]},
+            ]
+        }
+        simulator, _ = make_simulator(manifest)
+        self.assertEqual("ACCEPTED", simulator.process_command(json.dumps({
+            "commandId": "motor-1", "capabilityKey": "targetSpeed", "value": 1200,
+            "issuedAt": "2026-10-22T00:00:00Z",
+        })).status)
+        self.assertEqual("REJECTED", simulator.process_command(json.dumps({
+            "commandId": "motor-2", "capabilityKey": "targetSpeed", "value": 1201,
+            "issuedAt": "2026-10-22T00:00:00Z",
+        })).status)
+        self.assertEqual("ACCEPTED", simulator.process_command(json.dumps({
+            "commandId": "motor-3", "capabilityKey": "power", "value": True,
+            "issuedAt": "2026-10-22T00:00:00Z",
+        })).status)
+        self.assertEqual("REJECTED", simulator.process_command(json.dumps({
+            "commandId": "motor-4", "capabilityKey": "direction", "value": "SIDEWAYS",
+            "issuedAt": "2026-10-22T00:00:00Z",
+        })).status)
+        self.assertEqual(1200, simulator.state["targetSpeed"])
+        self.assertIn("motorSpeed", simulator.create_telemetry()["metrics"])
+
     def test_commands_require_declared_writable_power_capability(self):
         manifest = {
             "capabilities": [

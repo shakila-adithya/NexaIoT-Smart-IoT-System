@@ -1,6 +1,7 @@
 package com.nexaiot.server.device;
 
 import java.time.Instant;
+import java.util.Map;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -24,6 +25,7 @@ public class Device {
     private String location;
     private String status;
     private boolean powerOn;
+    private Map<String, Object> reportedStates;
     private DeviceConnectivity connectivity;
     private DeviceCapabilities capabilities;
     private CapabilityManifest capabilityManifest;
@@ -110,6 +112,14 @@ public class Device {
 
     public void setPowerOn(boolean powerOn) {
         this.powerOn = powerOn;
+    }
+
+    public Map<String, Object> getReportedStates() {
+        return reportedStates;
+    }
+
+    public void setReportedStates(Map<String, Object> reportedStates) {
+        this.reportedStates = reportedStates;
     }
 
     public DeviceConnectivity getConnectivity() {

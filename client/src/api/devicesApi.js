@@ -34,6 +34,17 @@ export function controlDevice(id, power) {
   });
 }
 
+export function sendDeviceCommand(id, capabilityKey, value) {
+  return apiClient.post(`/api/devices/${id}/control`, {
+    capabilityKey,
+    value,
+  });
+}
+
+export function getDeviceCommandStatus(id, commandId) {
+  return apiClient.get(`/api/devices/${id}/commands/${commandId}`, { cache: "no-store" });
+}
+
 export function getDeviceDiagnostics(id) {
   return apiClient.get(`/api/devices/${id}/diagnostics`, { cache: "no-store" });
 }

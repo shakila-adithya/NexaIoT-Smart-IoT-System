@@ -135,6 +135,15 @@ class DeviceSimulator:
         self.telemetry_interval = float(telemetry_interval)
         self.rng = rng or random.Random()
         self.state = {"power": False}
+        for key, capability in self.capability_map.items():
+            if capability.get("category") == "CONTROL" and key != "power":
+                if capability.get("dataType") == "NUMBER":
+                    constraints = capability.get("constraints") or {}
+                    self.state[key] = constraints.get("min", 0)
+                elif capability.get("dataType") == "ENUM":
+                    options = capability.get("options") or []
+                    if options:
+                        self.state[key] = options[0].get("value")
         self.sensor_state = {
             "temperature": 27.5,
             "humidity": 60.0,
@@ -303,18 +312,36 @@ class DeviceSimulator:
                 "DUPLICATE", command_id, correlation_id, previous.capability_key,
                 "Command was already processed.",
             )
-        if command.get("capabilityKey") != "power":
-            return self._reject_structured(command, "Unsupported capability.")
-        if not self._power_capability_supported():
-            return self._reject_structured(command, "Power capability is unavailable.")
-        if type(command.get("value")) is not bool:
-            return self._reject_structured(command, "Power value must be boolean.")
         try:
             _parse_timestamp(command.get("issuedAt"))
         except ValueError as error:
             return self._reject_structured(command, str(error))
-        self.state["power"] = command["value"]
-        outcome = CommandOutcome("ACCEPTED", command_id, correlation_id, "power")
+        capability_key = command.get("capabilityKey")
+        capability = self.capability_map.get(capability_key)
+        if not isinstance(capability, dict) or capability.get("category") != "CONTROL" or capability.get("readOnly") is True:
+            return self._reject_structured(command, "Unsupported capability.")
+        value = command.get("value")
+        data_type = capability.get("dataType")
+        if data_type == "BOOLEAN" and type(value) is not bool:
+            return self._reject_structured(command, "Control value must be boolean.")
+        if data_type == "NUMBER":
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return self._reject_structured(command, "Control value must be numeric.")
+            constraints = capability.get("constraints") or {}
+            if constraints.get("min") is not None and value < constraints["min"]:
+                return self._reject_structured(command, "Control value is below the minimum.")
+            if constraints.get("max") is not None and value > constraints["max"]:
+                return self._reject_structured(command, "Control value is above the maximum.")
+            if constraints.get("step") and constraints.get("min") is not None:
+                steps = (value - constraints["min"]) / constraints["step"]
+                if abs(steps - round(steps)) > 1e-9:
+                    return self._reject_structured(command, "Control value does not match the step.")
+        if data_type in {"ENUM", "STRING"} and not isinstance(value, str):
+            return self._reject_structured(command, "Control value must be text.")
+        if data_type == "ENUM" and value not in {option.get("value") for option in capability.get("options", [])}:
+            return self._reject_structured(command, "Control value is not allowed.")
+        self.state[capability_key] = value
+        outcome = CommandOutcome("ACCEPTED", command_id, correlation_id, capability_key)
         self.processed_commands[command_id] = outcome
         while len(self.processed_commands) > 1024:
             self.processed_commands.popitem(last=False)
@@ -329,7 +356,7 @@ class DeviceSimulator:
             return
         outcome = self.process_command(message.payload)
         if outcome.status == "ACCEPTED":
-            self._log(f"Power state changed to {'ON' if self.state['power'] else 'OFF'}")
+            self._log(f"Control confirmed: {outcome.capability_key}")
             self.publish_state()
         elif outcome.status == "DUPLICATE":
             self._log(f"Duplicate command ignored: {outcome.command_id}")
@@ -395,6 +422,13 @@ class DeviceSimulator:
             values["battery"] = self.sensor_state["battery"]
         if "rssi" in self.capability_map and _is_number_capability(self.capability_map["rssi"]):
             values["rssi"] = int(self._update_sensor_value("rssi", -52, -75, -40, 2, 0))
+        if "motorSpeed" in self.capability_map and _is_number_capability(self.capability_map["motorSpeed"]):
+            target = float(self.state.get("targetSpeed", 0) or 0)
+            current = float(self.sensor_state.get("motorSpeed", 0))
+            desired = target if self.state.get("power", False) else 0
+            current += (desired - current) * 0.35
+            self.sensor_state["motorSpeed"] = round(current, 1)
+            values["motorSpeed"] = self.sensor_state["motorSpeed"]
 
         payload = {"metrics": {}, "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}
         for key, value in values.items():
