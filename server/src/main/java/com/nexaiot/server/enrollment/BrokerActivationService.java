@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nexaiot.server.mqtt.MqttTopicSecurity;
+import com.nexaiot.server.device.DeviceProvisioningStatus;
 
 /** Broker-mediated activation using ACL authorization plus device key proof. */
 @Service
@@ -154,9 +155,22 @@ public class BrokerActivationService {
                     .set("updatedAt", now)
                     .unset("activeOperationKey")
                     .inc("version", 1);
-            return mongoTemplate.findAndModify(query, update,
+            DeviceEnrollmentOperation completed = mongoTemplate.findAndModify(query, update,
                     FindAndModifyOptions.options().returnNew(true),
-                    DeviceEnrollmentOperation.class) != null;
+                    DeviceEnrollmentOperation.class);
+            if (completed == null) {
+                return false;
+            }
+            Query deviceQuery = Query.query(new Criteria().andOperator(
+                    Criteria.where("_id").is(completed.getDeviceId()),
+                    Criteria.where("ownerEmail").is(completed.getOwnerEmail())));
+            Update deviceUpdate = new Update()
+                    .set("provisioningInfo.status", DeviceProvisioningStatus.PROVISIONED)
+                    .set("provisioningInfo.provisionedAt", now)
+                    .unset("provisioningInfo.failureReason")
+                    .set("updatedAt", now);
+            mongoTemplate.updateFirst(deviceQuery, deviceUpdate, "devices");
+            return true;
         } catch (Exception exception) {
             return false;
         }

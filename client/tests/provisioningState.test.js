@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   ENROLLMENT_STAGES,
+  canStartActivation,
   isTerminalEnrollmentState,
   isTerminalPairingState,
   isVerifiedCompletion,
@@ -21,6 +22,13 @@ test("credential delivery pending is not a verified completion", () => {
   assert.equal(isVerifiedCompletion({ state: "CREDENTIAL_DELIVERY_PENDING", credentialDelivered: false, deviceVerified: false }), false);
   assert.equal(isVerifiedCompletion({ state: "COMPLETED", credentialDelivered: false, deviceVerified: true }), false);
   assert.equal(isVerifiedCompletion({ state: "COMPLETED", credentialDelivered: true, deviceVerified: true }), true);
+});
+
+test("activation starts only after credential delivery", () => {
+  assert.equal(canStartActivation({ state: "CREDENTIAL_DELIVERY_PENDING", credentialDelivered: true }), false);
+  assert.equal(canStartActivation({ state: "DEVICE_VERIFICATION_PENDING", credentialDelivered: false }), false);
+  assert.equal(canStartActivation({ state: "DEVICE_VERIFICATION_PENDING", credentialDelivered: true, deviceVerified: false }), true);
+  assert.equal(canStartActivation({ state: "DEVICE_VERIFICATION_PENDING", credentialDelivered: true, deviceVerified: true }), false);
 });
 
 test("recovery dispositions expose only supported guidance", () => {

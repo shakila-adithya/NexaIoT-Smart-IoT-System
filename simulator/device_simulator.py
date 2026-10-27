@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 
 import paho.mqtt.client as mqtt
 
+from device_trust import activation_signature
+
 
 DEVICE_KEY_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*$")
 MAX_PAYLOAD_BYTES = 8 * 1024
@@ -104,6 +106,8 @@ class DeviceSimulator:
         telemetry_interval=DEFAULT_TELEMETRY_INTERVAL,
         mqtt_client_factory=None,
         rng=None,
+        activation_context=None,
+        activation_callback=None,
     ):
         self.device_key = validate_device_key(device_key)
         self.client_id = f"nexaiot-device-{self.device_key}"
@@ -142,6 +146,12 @@ class DeviceSimulator:
         self.processed_commands = OrderedDict()
         self.mqtt_client_factory = mqtt_client_factory or self._create_mqtt_client
         self.client = self.mqtt_client_factory()
+        self.activation_context = activation_context
+        self.activation_callback = activation_callback
+        if activation_context is not None:
+            required = {"operation_id", "owner_email", "fingerprint", "private_key"}
+            if not required.issubset(activation_context):
+                raise ValueError("Activation context is incomplete.")
         self._configure_client()
 
     @property
@@ -152,6 +162,8 @@ class DeviceSimulator:
             "state": f"{prefix}/state",
             "commands": f"{prefix}/commands",
             "command_results": f"{prefix}/command-results",
+            "activation_challenges": f"{prefix}/activation-challenges",
+            "activation_responses": f"{prefix}/activation-responses",
         }
 
     def _create_mqtt_client(self):
@@ -177,7 +189,8 @@ class DeviceSimulator:
         print(f"[{self.device_key}] {message}", flush=True)
 
     def on_connect(self, client, userdata, flags, reason_code, properties=None):
-        if int(reason_code) != 0:
+        failed = reason_code.is_failure if hasattr(reason_code, "is_failure") else int(reason_code) != 0
+        if failed:
             self.connected = False
             self._log(f"MQTT connection rejected: {reason_code}")
             return
@@ -186,8 +199,15 @@ class DeviceSimulator:
         if result != mqtt.MQTT_ERR_SUCCESS:
             self._log(f"Command subscription failed: {result}")
             return
+        if self.activation_context is not None:
+            result, _ = client.subscribe(self.topics["activation_challenges"], qos=1)
+            if result != mqtt.MQTT_ERR_SUCCESS:
+                self._log("Activation subscription failed")
+                return
         self._log(f"MQTT connected as {self.client_id}")
         self._log(f"Subscribed: {self.topics['commands']}")
+        if self.activation_context is not None:
+            self._log(f"Subscribed: {self.topics['activation_challenges']}")
         self.publish_state()
 
     def on_disconnect(self, client, userdata, *args):
@@ -207,17 +227,16 @@ class DeviceSimulator:
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
             self._log(f"Publish failed: {topic}, rc={info.rc}")
             return False
-        try:
-            info.wait_for_publish(timeout=5)
-        except TypeError:
-            info.wait_for_publish()
-        if hasattr(info, "is_published") and not info.is_published():
-            self._log(f"Publish timed out: {topic}")
-            return False
         return True
 
     def publish_state(self):
-        payload = json.dumps(self.state, separators=(",", ":"), sort_keys=True)
+        payload = json.dumps({
+            key: value for key, value in self.state.items()
+            if isinstance(self.capability_map.get(key), dict)
+            and self.capability_map[key].get("category") in {"STATE", "CONTROL"}
+        }, separators=(",", ":"), sort_keys=True)
+        if payload == "{}":
+            return False
         return self._publish(self.topics["state"], payload, retain=True)
 
     def publish_command_result(self, outcome):
@@ -302,6 +321,9 @@ class DeviceSimulator:
         return outcome
 
     def on_message(self, client, userdata, message):
+        if message.topic == self.topics["activation_challenges"]:
+            self._handle_activation_challenge(message.payload)
+            return
         if message.topic != self.topics["commands"]:
             self._log(f"Ignored message on unexpected topic: {message.topic}")
             return
@@ -315,6 +337,45 @@ class DeviceSimulator:
             self._log(f"Command rejected: {outcome.reason}")
         if outcome.command_id:
             self.publish_command_result(outcome)
+
+    def _handle_activation_challenge(self, payload):
+        if self.activation_context is None:
+            return
+        try:
+            challenge = json.loads(payload.decode("utf-8"))
+            if not isinstance(challenge, dict):
+                return
+            if challenge.get("operationId") != self.activation_context["operation_id"]:
+                return
+            if challenge.get("deviceKey") != self.device_key:
+                return
+            if challenge.get("mqttClientId") != self.client_id:
+                return
+            if challenge.get("trustAnchorFingerprint") != self.activation_context["fingerprint"]:
+                return
+            expires_at = challenge.get("expiresAt")
+            value = challenge.get("challenge")
+            if not isinstance(value, str) or not isinstance(expires_at, str):
+                return
+            signature = activation_signature(
+                self.activation_context["private_key"], self.device_key,
+                self.activation_context["operation_id"],
+                self.activation_context["owner_email"], self.client_id,
+                self.activation_context["fingerprint"], value, expires_at)
+            response = {
+                "operationId": self.activation_context["operation_id"],
+                "mqttClientId": self.client_id,
+                "challenge": value,
+                "expiresAt": expires_at,
+                "signature": signature,
+            }
+            if self._publish(self.topics["activation_responses"],
+                             json.dumps(response, separators=(",", ":"))):
+                if self.activation_callback is not None:
+                    self.activation_callback()
+                self._log("Activation proof published")
+        except (ValueError, UnicodeDecodeError, KeyError):
+            self._log("Activation challenge rejected")
 
     def _update_sensor_value(self, key, center, minimum, maximum, max_step, decimals=1):
         current = self.sensor_state[key]

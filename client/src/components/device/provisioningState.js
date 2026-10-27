@@ -41,3 +41,9 @@ export function isVerifiedCompletion(operation) {
     && operation.credentialDelivered === true
     && operation.deviceVerified === true;
 }
+
+export function canStartActivation(operation) {
+  return operation?.state === "DEVICE_VERIFICATION_PENDING"
+    && operation.credentialDelivered === true
+    && operation.deviceVerified !== true;
+}

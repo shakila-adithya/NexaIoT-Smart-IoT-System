@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
+
 import tools.jackson.databind.json.JsonMapper;
 
 @Component
@@ -34,7 +36,10 @@ public class MqttTelemetryHandler {
         try {
             Object topicHeader = message.getHeaders().get("mqtt_receivedTopic");
 
-            String payload = message.getPayload().toString();
+            Object rawPayload = message.getPayload();
+            String payload = rawPayload instanceof byte[] bytes
+                    ? new String(bytes, StandardCharsets.UTF_8)
+                    : String.valueOf(rawPayload);
 
             if (!(topicHeader instanceof String topic)) {
                 log.warn("Rejected MQTT telemetry message with no valid topic.");

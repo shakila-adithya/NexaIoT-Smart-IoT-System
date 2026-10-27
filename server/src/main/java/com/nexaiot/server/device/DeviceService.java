@@ -17,7 +17,7 @@ public class DeviceService {
 
     private final DeviceRepository deviceRepository;
     private final DeviceTemplateService deviceTemplateService;
-    private static final long ONLINE_TIMEOUT_SECONDS = 5;
+    private static final long ONLINE_TIMEOUT_SECONDS = 15;
 
     public DeviceService(
             DeviceRepository deviceRepository,

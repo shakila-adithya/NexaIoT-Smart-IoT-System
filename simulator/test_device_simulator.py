@@ -1,8 +1,12 @@
+import base64
 import json
 import random
 import sys
 import types
 import unittest
+
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
 
 
 class FakePublishInfo:
@@ -75,6 +79,7 @@ sys.modules["paho.mqtt"] = fake_mqtt_package
 sys.modules["paho.mqtt.client"] = fake_client_module
 
 from device_simulator import DeviceSimulator, validate_device_key
+from device_trust import activation_message
 
 
 def make_simulator(manifest=None):
@@ -228,6 +233,54 @@ class DeviceSimulatorTest(unittest.TestCase):
         self.assertFalse(simulator.state["power"])
         result_payloads = [json.loads(item[1]) for item in client.published]
         self.assertTrue(any(item.get("status") == "ACCEPTED" for item in result_payloads))
+
+    def test_activation_challenge_is_signed_and_published(self):
+        key = ec.generate_private_key(ec.SECP256R1())
+        callbacks = []
+        clients = []
+
+        def factory():
+            client = FakeClient()
+            clients.append(client)
+            return client
+
+        simulator = DeviceSimulator(
+            "NEXA-PY-01",
+            mqtt_client_factory=factory,
+            activation_context={
+                "operation_id": "operation-1",
+                "owner_email": "owner@example.com",
+                "fingerprint": "fingerprint-1",
+                "private_key": key,
+            },
+            activation_callback=lambda: callbacks.append(True),
+        )
+        client = clients[0]
+        simulator.on_connect(client, None, {}, 0, None)
+        challenge = {
+            "operationId": "operation-1",
+            "deviceKey": "NEXA-PY-01",
+            "mqttClientId": simulator.client_id,
+            "trustAnchorFingerprint": "fingerprint-1",
+            "challenge": "challenge-1",
+            "expiresAt": "2026-10-27T00:02:00Z",
+        }
+        simulator.on_message(
+            client, None, types.SimpleNamespace(
+                topic=simulator.topics["activation_challenges"],
+                payload=json.dumps(challenge).encode(),
+            ))
+        response = json.loads(client.published[-1][1])
+        verifier = key.public_key()
+        verifier.verify(
+            base64.b64decode(response["signature"]),
+            activation_message(
+                "NEXA-PY-01", "operation-1", "owner@example.com", simulator.client_id,
+                "fingerprint-1", "challenge-1", "2026-10-27T00:02:00Z"),
+            ec.ECDSA(hashes.SHA256()),
+        )
+        self.assertEqual(simulator.topics["activation_responses"], client.published[-1][0])
+        self.assertEqual([True], callbacks)
 
     def test_publish_failure_and_disconnect_are_safe(self):
         simulator, client = make_simulator()

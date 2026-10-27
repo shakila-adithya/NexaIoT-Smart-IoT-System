@@ -10,6 +10,7 @@ __pycache__/
 simulator/.device-keys/
 simulator/.device-credentials/
 simulator/.venv/
+tools/local-development/.runtime/
 *.device-key.pem
 
 tools/disposable-integration/.runtime/

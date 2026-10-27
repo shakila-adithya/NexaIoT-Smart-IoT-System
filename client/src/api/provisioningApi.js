@@ -27,3 +27,7 @@ export function getEnrollmentOperation(deviceId, operationId) {
 export function reconcileEnrollment(deviceId, operationId) {
   return apiClient.post(`/api/devices/${deviceId}/enrollment-operations/${operationId}/reconcile`);
 }
+
+export function startActivation(deviceId, operationId) {
+  return apiClient.post(`/api/devices/${deviceId}/enrollment-operations/${operationId}/activation/challenge`);
+}

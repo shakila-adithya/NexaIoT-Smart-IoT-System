@@ -1,0 +1,46 @@
+services:
+  mongo:
+    image: mongo:8.0
+    restart: "no"
+    command: ["mongod", "--bind_ip_all"]
+    ports:
+      - "127.0.0.1:27018:27017"
+    volumes:
+      - local-dev-mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--host", "127.0.0.1", "--port", "27017", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: "no"
+    entrypoint: ["/usr/local/bin/nexaiot-local-entrypoint.sh"]
+    environment:
+      NEXAIOT_TEST_ADMIN_USERNAME: ${NEXAIOT_TEST_ADMIN_USERNAME}
+      NEXAIOT_TEST_ADMIN_PASSWORD: ${NEXAIOT_TEST_ADMIN_PASSWORD}
+      NEXAIOT_TEST_BACKEND_USERNAME: ${NEXAIOT_TEST_BACKEND_USERNAME}
+      NEXAIOT_TEST_BACKEND_CLIENT_ID: ${NEXAIOT_TEST_BACKEND_CLIENT_ID}
+      NEXAIOT_TEST_BACKEND_PASSWORD: ${NEXAIOT_TEST_BACKEND_PASSWORD}
+      NEXAIOT_TEST_MANAGEMENT_USERNAME: ${NEXAIOT_TEST_MANAGEMENT_USERNAME}
+      NEXAIOT_TEST_MANAGEMENT_CLIENT_ID: ${NEXAIOT_TEST_MANAGEMENT_CLIENT_ID}
+      NEXAIOT_TEST_MANAGEMENT_PASSWORD: ${NEXAIOT_TEST_MANAGEMENT_PASSWORD}
+    ports:
+      - "127.0.0.1:8885:8883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./entrypoint.sh:/usr/local/bin/nexaiot-local-entrypoint.sh:ro
+      - ./.runtime/certs:/mosquitto/certs:ro
+      - local-dev-mosquitto:/mosquitto/data
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /mosquitto/data/bootstrap-complete && mosquitto_ctrl -u $$NEXAIOT_TEST_ADMIN_USERNAME -P $$NEXAIOT_TEST_ADMIN_PASSWORD -h localhost -p 8883 --cafile /mosquitto/certs/ca.crt dynsec getDefaultACLAccess >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  local-dev-mongo:
+    name: nexaiot-local-dev-mongo
+  local-dev-mosquitto:
+    name: nexaiot-local-dev-mosquitto

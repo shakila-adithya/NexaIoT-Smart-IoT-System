@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 
 PROTOCOL = "NexaIoT/DeviceTrustAnchor/v1"
+ACTIVATION_PROTOCOL = "NexaIoT/Activation/v1"
 
 
 def _field(value):
@@ -70,3 +71,22 @@ def registration_payload(private_key, device_key, operation_id, owner_email, cha
         "publicKey": public_key,
         "signature": base64.b64encode(signature).decode("ascii"),
     }
+
+
+def activation_message(device_key, operation_id, owner_email, mqtt_client_id,
+                       fingerprint, challenge, expires_at):
+    return b"".join(_field(value) for value in (
+        ACTIVATION_PROTOCOL, device_key, operation_id, owner_email, mqtt_client_id,
+        fingerprint, challenge, expires_at,
+    ))
+
+
+def activation_signature(private_key, device_key, operation_id, owner_email,
+                         mqtt_client_id, fingerprint, challenge, expires_at):
+    if not isinstance(private_key, ec.EllipticCurvePrivateKey):
+        raise ValueError("A device private key is required.")
+    return base64.b64encode(private_key.sign(
+        activation_message(device_key, operation_id, owner_email, mqtt_client_id,
+                           fingerprint, challenge, expires_at),
+        ec.ECDSA(hashes.SHA256()),
+    )).decode("ascii")

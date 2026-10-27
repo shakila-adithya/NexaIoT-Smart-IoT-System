@@ -1,9 +1,12 @@
 package com.nexaiot.server.enrollment;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -56,8 +59,8 @@ class BrokerActivationServiceTest {
         service = new BrokerActivationService(operationRepository, mongoTemplate, outboundChannel,
                 Duration.ofMinutes(2), Clock.fixed(NOW, ZoneOffset.UTC));
         operation = operation();
-        when(operationRepository.findById(OPERATION_ID)).thenReturn(Optional.of(operation));
-        when(outboundChannel.send(any())).thenReturn(true);
+        lenient().when(operationRepository.findById(OPERATION_ID)).thenReturn(Optional.of(operation));
+        lenient().when(outboundChannel.send(any())).thenReturn(true);
     }
 
     @Test
@@ -72,6 +75,8 @@ class BrokerActivationServiceTest {
                 .thenReturn(completed);
 
         assertTrue(service.consumeResponse(topic(), response(), false));
+        verify(mongoTemplate).updateFirst(any(Query.class), any(Update.class),
+                org.mockito.ArgumentMatchers.eq("devices"));
     }
 
     @Test
@@ -94,6 +99,16 @@ class BrokerActivationServiceTest {
                 .thenReturn(null);
 
         assertFalse(service.consumeResponse(topic(), response(), false));
+    }
+
+    @Test
+    void challengeRequiresOwnerAndEligibleEnrollment() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.issueChallenge(DEVICE_ID, OPERATION_ID, "other@example.com"));
+
+        operation.setState(EnrollmentState.CREDENTIAL_DELIVERY_PENDING);
+        assertThrows(IllegalStateException.class,
+                () -> service.issueChallenge(DEVICE_ID, OPERATION_ID, OWNER));
     }
 
     private void issueChallenge() {

@@ -11,6 +11,7 @@ import com.nexaiot.server.sensor.dto.SensorReadingResponse;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MqttTelemetryHandlerTest {
 
@@ -34,8 +35,26 @@ class MqttTelemetryHandlerTest {
         assertFalse(service.called);
     }
 
+    @Test
+    void binaryMqttPayloadIsDecodedBeforePersistence() {
+        RecordingSensorReadingService service = new RecordingSensorReadingService();
+        MqttTelemetryHandler handler = new MqttTelemetryHandler(JsonMapper.builder().build(), service);
+
+        handler.handleMessage(binaryMessage(
+                "nexaiot/devices/NEXA-123/telemetry",
+                "{\"metrics\":{\"temperature\":24.5}}"));
+
+        assertTrue(service.called);
+    }
+
     private Message<String> message(String topic, String payload) {
         return MessageBuilder.withPayload(payload)
+                .setHeader("mqtt_receivedTopic", topic)
+                .build();
+    }
+
+    private Message<byte[]> binaryMessage(String topic, String payload) {
+        return MessageBuilder.withPayload(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8))
                 .setHeader("mqtt_receivedTopic", topic)
                 .build();
     }

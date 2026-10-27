@@ -14,6 +14,8 @@ import com.nexaiot.server.device.DeviceRepository;
 
 import tools.jackson.databind.json.JsonMapper;
 
+import java.nio.charset.StandardCharsets;
+
 @Component
 @ConditionalOnProperty(name = "mqtt.startup.enabled", havingValue = "true", matchIfMissing = true)
 public class MqttStateHandler {
@@ -36,7 +38,10 @@ public class MqttStateHandler {
         try {
             Object topicHeader = message.getHeaders().get("mqtt_receivedTopic");
 
-            String payload = message.getPayload().toString();
+            Object rawPayload = message.getPayload();
+            String payload = rawPayload instanceof byte[] bytes
+                    ? new String(bytes, StandardCharsets.UTF_8)
+                    : String.valueOf(rawPayload);
 
             if (!(topicHeader instanceof String topic)) {
                 log.warn("Rejected MQTT state message with no valid topic.");

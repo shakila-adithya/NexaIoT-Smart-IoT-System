@@ -5,6 +5,7 @@ import com.nexaiot.server.device.DeviceRepository;
 import com.nexaiot.server.enrollment.DeviceEnrollmentOperation;
 import com.nexaiot.server.enrollment.DeviceEnrollmentOperationRepository;
 import com.nexaiot.server.enrollment.CredentialDeliveryService;
+import com.nexaiot.server.enrollment.BrokerActivationService;
 import com.nexaiot.server.enrollment.EnrollmentRecoveryService;
 import com.nexaiot.server.enrollment.EnrollmentState;
 import com.nexaiot.server.enrollment.RecoveryAssessment;
@@ -64,6 +65,8 @@ class ProvisioningApiSecurityIntegrationTest {
     private EnrollmentRecoveryService recoveryService;
     @MockitoBean
     private CredentialDeliveryService credentialDeliveryService;
+    @MockitoBean
+    private BrokerActivationService brokerActivationService;
 
     private User owner;
     private String ownerToken;
@@ -155,6 +158,22 @@ class ProvisioningApiSecurityIntegrationTest {
                         .header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isOk());
         verify(recoveryService, times(1)).reconcile("operation-1", "owner@example.com");
+    }
+
+    @Test
+    void authenticatedOwnerCanRequestActivationChallenge() throws Exception {
+        mockMvc.perform(post("/api/devices/device-1/enrollment-operations/operation-1/activation/challenge")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk());
+
+        verify(brokerActivationService).issueChallenge(
+                "device-1", "operation-1", "owner@example.com");
+    }
+
+    @Test
+    void activationChallengeRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/devices/device-1/enrollment-operations/operation-1/activation/challenge"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
