@@ -81,6 +81,10 @@ public class SecurityConfig {
                                 HttpMethod.POST,
                                 "/api/provisioning/pairing-sessions/*/claim"
                         ).permitAll()
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/devices/*/enrollment-operations/*/credential-delivery"
+                        ).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 );

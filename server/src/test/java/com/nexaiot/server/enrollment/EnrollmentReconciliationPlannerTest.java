@@ -39,6 +39,17 @@ class EnrollmentReconciliationPlannerTest {
         assertEquals(ReconciliationOutcome.CONSISTENT, plan.outcome());
     }
 
+    @Test
+    void recognizesEscrowedCredentialAsSafeToContinue() {
+        DeviceEnrollmentOperation operation = operation(EnrollmentState.CREDENTIAL_DELIVERY_PENDING);
+        operation.setCredentialEscrowCiphertext("encrypted");
+        ReconciliationPlan plan = planner.classify(
+                operation,
+                new BrokerEnrollmentSnapshot(true, true, true, true, false));
+
+        assertEquals(ReconciliationOutcome.SAFE_TO_CONTINUE, plan.outcome());
+    }
+
     private DeviceEnrollmentOperation operation(EnrollmentState state) {
         DeviceEnrollmentOperation operation = new DeviceEnrollmentOperation();
         operation.setState(state);

@@ -39,6 +39,7 @@ import com.nexaiot.server.device.Device;
 import com.nexaiot.server.device.DeviceRepository;
 import com.nexaiot.server.enrollment.DeviceEnrollmentOperation;
 import com.nexaiot.server.enrollment.DeviceProvisioningOrchestrator;
+import com.nexaiot.server.enrollment.CredentialEscrowService;
 import com.nexaiot.server.enrollment.EnrollmentConcurrencyException;
 import com.nexaiot.server.enrollment.EnrollmentOperationService;
 import com.nexaiot.server.enrollment.EnrollmentReconciliationPlanner;
@@ -121,6 +122,7 @@ class B54EnrollmentLifecycleIntegrationTest {
         DeviceRepository devices = mock(DeviceRepository.class);
         EnrollmentOperationService operations = mock(EnrollmentOperationService.class);
         BrokerManagementClient broker = mock(BrokerManagementClient.class);
+        CredentialEscrowService escrow = mock(CredentialEscrowService.class);
         Device device = new Device();
         device.setId("device-id");
         device.setDeviceKey(DEVICE_KEY);
@@ -141,6 +143,8 @@ class B54EnrollmentLifecycleIntegrationTest {
         when(operations.transition(OPERATION_ID, EnrollmentState.ACL_PENDING,
                 EnrollmentState.ACL_ASSIGNED, OWNER)).thenReturn(aclAssigned);
         when(operations.markBrokerVerified(OPERATION_ID, OWNER)).thenReturn(verified);
+        when(escrow.escrow(eq(verified), eq(OWNER), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(verified);
         when(operations.transition(OPERATION_ID, EnrollmentState.BROKER_VERIFIED,
                 EnrollmentState.CREDENTIAL_DELIVERY_PENDING, OWNER)).thenReturn(delivery);
         when(broker.createDeviceIdentity(anyString(), anyString(), anyString()))
@@ -153,7 +157,7 @@ class B54EnrollmentLifecycleIntegrationTest {
                         "nexaiot-device-" + DEVICE_KEY, 10, 10, true, true));
 
         DeviceEnrollmentOperation result = new DeviceProvisioningOrchestrator(
-                devices, operations, broker, new DeviceCredentialGenerator())
+                devices, operations, broker, new DeviceCredentialGenerator(), escrow)
                 .provision(requested, OWNER);
 
         assertEquals(EnrollmentState.CREDENTIAL_DELIVERY_PENDING, result.getState());

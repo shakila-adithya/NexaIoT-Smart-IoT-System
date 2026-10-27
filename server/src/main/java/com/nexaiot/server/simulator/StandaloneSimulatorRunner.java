@@ -8,7 +8,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nexaiot.server.device.CapabilityManifest;
 import com.nexaiot.server.mqtt.management.DeviceCredentialGenerator;
 import com.nexaiot.server.mqtt.management.GeneratedDeviceCredential;
 

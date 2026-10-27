@@ -102,7 +102,7 @@ class BrokerVerificationSafetyTest {
         BrokerDeviceProvisioningStatus status = BrokerProvisioningVerifier.verify(
                 clientResponse, roleResponse, DEVICE_KEY);
         assertTrue(status.verified());
-        assertEquals(11, status.verifiedAclCount());
+        assertEquals(14, status.verifiedAclCount());
         assertTrue(status.noUnexpectedAllowRules());
     }
 
@@ -221,6 +221,9 @@ class BrokerVerificationSafetyTest {
         acl(acls, "publishClientSend", "nexaiot/devices/" + DEVICE_KEY + "/command-results", true, 100);
         acl(acls, "subscribeLiteral", "nexaiot/devices/" + DEVICE_KEY + "/commands", true, 100);
         acl(acls, "publishClientReceive", "nexaiot/devices/" + DEVICE_KEY + "/commands", true, 100);
+        acl(acls, "publishClientSend", "nexaiot/devices/" + DEVICE_KEY + "/activation-responses", true, 100);
+        acl(acls, "subscribeLiteral", "nexaiot/devices/" + DEVICE_KEY + "/activation-challenges", true, 100);
+        acl(acls, "publishClientReceive", "nexaiot/devices/" + DEVICE_KEY + "/activation-challenges", true, 100);
         for (String topic : List.of("#", "$CONTROL/dynamic-security/#", "$SYS/#")) {
             acl(acls, "publishClientSend", topic, false, 1);
             acl(acls, "publishClientReceive", topic, false, 1);

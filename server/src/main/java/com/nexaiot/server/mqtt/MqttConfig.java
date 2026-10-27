@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.nexaiot.server.mqtt.management.MqttManagementTls;
+import com.nexaiot.server.enrollment.BrokerActivationService;
 
 import java.nio.charset.StandardCharsets;
 
@@ -217,6 +218,45 @@ public class MqttConfig {
         adapter.setOutputChannel(mqttCommandResultInputChannel());
 
         return adapter;
+    }
+
+    @Bean
+    public MessageChannel mqttActivationInputChannel() {
+        return new DirectChannel();
+    }
+
+    @Bean
+    public MessageProducer mqttActivationInbound(
+            Mqttv3ClientManager mqttClientManager
+    ) {
+        MqttPahoMessageDrivenChannelAdapter adapter =
+                new MqttPahoMessageDrivenChannelAdapter(
+                        mqttClientManager,
+                        MqttTopicSecurity.activationResponseSubscription());
+        adapter.setQos(qos);
+        adapter.setOutputChannel(mqttActivationInputChannel());
+        return adapter;
+    }
+
+    @Bean
+    @ServiceActivator(inputChannel = "mqttActivationInputChannel")
+    public MessageHandler mqttActivationHandler(BrokerActivationService activationService) {
+        return message -> {
+            Object topicHeader = message.getHeaders().get("mqtt_receivedTopic");
+            Object retainedHeader = message.getHeaders().get("mqtt_receivedRetained");
+            if (!(topicHeader instanceof String topic)) {
+                log.warn("Rejected activation response without a valid topic.");
+                return;
+            }
+            boolean retained = Boolean.TRUE.equals(retainedHeader)
+                    || "true".equalsIgnoreCase(String.valueOf(retainedHeader));
+            Object payload = message.getPayload();
+            byte[] bytes = payload instanceof byte[] raw
+                    ? raw : payload.toString().getBytes(StandardCharsets.UTF_8);
+            if (!activationService.consumeResponse(topic, bytes, retained)) {
+                log.warn("Rejected MQTT activation response.");
+            }
+        };
     }
 
     @Bean

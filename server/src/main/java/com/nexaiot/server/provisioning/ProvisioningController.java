@@ -19,6 +19,14 @@ import com.nexaiot.server.provisioning.dto.PairingClaimResponse;
 import com.nexaiot.server.provisioning.dto.PairingSessionResponse;
 import com.nexaiot.server.provisioning.dto.PairingSessionStartResponse;
 import com.nexaiot.server.provisioning.dto.ProvisioningMetadataResponse;
+import com.nexaiot.server.enrollment.DeviceTrustAnchorService;
+import com.nexaiot.server.enrollment.CredentialDeliveryService;
+import com.nexaiot.server.enrollment.dto.CredentialDeliveryChallengeResponse;
+import com.nexaiot.server.enrollment.dto.CredentialDeliveryRequest;
+import com.nexaiot.server.enrollment.dto.CredentialDeliveryResponse;
+import com.nexaiot.server.enrollment.dto.TrustAnchorChallengeResponse;
+import com.nexaiot.server.enrollment.dto.TrustAnchorRegistrationRequest;
+import com.nexaiot.server.enrollment.dto.TrustAnchorRegistrationResponse;
 
 import jakarta.validation.Valid;
 import com.nexaiot.server.security.RateLimitProperties;
@@ -31,15 +39,21 @@ public class ProvisioningController {
     private final ProvisioningApiService provisioningApiService;
     private final RateLimitService rateLimitService;
     private final RateLimitProperties rateLimitProperties;
+    private final DeviceTrustAnchorService trustAnchorService;
+    private final CredentialDeliveryService credentialDeliveryService;
 
     public ProvisioningController(
             ProvisioningApiService provisioningApiService,
             RateLimitService rateLimitService,
-            RateLimitProperties rateLimitProperties
+            RateLimitProperties rateLimitProperties,
+            DeviceTrustAnchorService trustAnchorService,
+            CredentialDeliveryService credentialDeliveryService
     ) {
         this.provisioningApiService = provisioningApiService;
         this.rateLimitService = rateLimitService;
         this.rateLimitProperties = rateLimitProperties;
+        this.trustAnchorService = trustAnchorService;
+        this.credentialDeliveryService = credentialDeliveryService;
     }
 
     @PostMapping("/devices/{deviceId}/pairing-sessions")
@@ -129,5 +143,54 @@ public class ProvisioningController {
     ) {
         return provisioningApiService.reconcileOperation(
                 deviceId, operationId, authentication.getName());
+    }
+
+    @PostMapping("/devices/{deviceId}/enrollment-operations/{operationId}/trust-anchor/challenge")
+    public TrustAnchorChallengeResponse issueTrustAnchorChallenge(
+            @PathVariable String deviceId,
+            @PathVariable String operationId,
+            Authentication authentication
+    ) {
+        return trustAnchorService.issueChallenge(deviceId, operationId, authentication.getName());
+    }
+
+    @PostMapping("/devices/{deviceId}/enrollment-operations/{operationId}/trust-anchor")
+    public TrustAnchorRegistrationResponse registerTrustAnchor(
+            @PathVariable String deviceId,
+            @PathVariable String operationId,
+            @Valid @RequestBody TrustAnchorRegistrationRequest request,
+            Authentication authentication
+    ) {
+        return trustAnchorService.register(
+                deviceId, operationId, authentication.getName(), request);
+    }
+
+    @PostMapping("/devices/{deviceId}/enrollment-operations/{operationId}/credential-delivery/challenge")
+    public CredentialDeliveryChallengeResponse issueCredentialDeliveryChallenge(
+            @PathVariable String deviceId,
+            @PathVariable String operationId,
+            Authentication authentication
+    ) {
+        return credentialDeliveryService.issueChallenge(
+                deviceId, operationId, authentication.getName());
+    }
+
+    @PostMapping("/devices/{deviceId}/enrollment-operations/{operationId}/credential-delivery")
+    public ResponseEntity<CredentialDeliveryResponse> deliverCredential(
+            @PathVariable String deviceId,
+            @PathVariable String operationId,
+            @Valid @RequestBody CredentialDeliveryRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        if (!httpRequest.isSecure()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        CredentialDeliveryResponse response = credentialDeliveryService.deliver(
+                deviceId, operationId, request);
+        return ResponseEntity.ok()
+                .header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+                .header("Pragma", "no-cache")
+                .header("Expires", "0")
+                .body(response);
     }
 }

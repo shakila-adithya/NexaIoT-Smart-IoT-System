@@ -53,9 +53,14 @@ public class EnrollmentReconciliationPlanner {
         }
         if (operation.getState() == EnrollmentState.CREDENTIAL_DELIVERY_PENDING
                 && !operation.isCredentialDelivered()) {
+            if (operation.getCredentialEscrowCiphertext() != null) {
+                return new ReconciliationPlan(
+                        ReconciliationOutcome.SAFE_TO_CONTINUE,
+                        "Encrypted credential escrow is available for the authorized delivery flow.");
+            }
             return new ReconciliationPlan(
                     ReconciliationOutcome.CREDENTIAL_REISSUANCE_REQUIRED,
-                    "Broker identity is provisioned but the device password is unavailable.");
+                    "Encrypted credential escrow is unavailable; explicit recovery is required.");
         }
         if (operation.getState() == EnrollmentState.COMPLETED
                 && broker.clientExists()

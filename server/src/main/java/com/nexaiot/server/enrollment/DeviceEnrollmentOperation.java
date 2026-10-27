@@ -39,6 +39,20 @@ public class DeviceEnrollmentOperation {
     private boolean brokerIdentityVerified;
     private boolean credentialDelivered;
     private boolean deviceVerified;
+    private String trustAnchorPublicKey;
+    private String trustAnchorFingerprint;
+    private Instant trustAnchorRegisteredAt;
+    private String trustAnchorChallenge;
+    private Instant trustAnchorChallengeExpiresAt;
+    private String credentialEscrowNonce;
+    private String credentialEscrowCiphertext;
+    private String credentialEscrowKeyVersion;
+    private Instant credentialEscrowCreatedAt;
+    private Instant credentialEscrowExpiresAt;
+    private String credentialDeliveryChallenge;
+    private Instant credentialDeliveryChallengeExpiresAt;
+    private String activationChallenge;
+    private Instant activationChallengeExpiresAt;
     private String lastRecoveryDisposition;
     private String lastRecoveryReason;
 
@@ -90,6 +104,34 @@ public class DeviceEnrollmentOperation {
     public void setCredentialDelivered(boolean delivered) { this.credentialDelivered = delivered; }
     public boolean isDeviceVerified() { return deviceVerified; }
     public void setDeviceVerified(boolean verified) { this.deviceVerified = verified; }
+    public String getTrustAnchorPublicKey() { return trustAnchorPublicKey; }
+    public void setTrustAnchorPublicKey(String publicKey) { this.trustAnchorPublicKey = publicKey; }
+    public String getTrustAnchorFingerprint() { return trustAnchorFingerprint; }
+    public void setTrustAnchorFingerprint(String fingerprint) { this.trustAnchorFingerprint = fingerprint; }
+    public Instant getTrustAnchorRegisteredAt() { return trustAnchorRegisteredAt; }
+    public void setTrustAnchorRegisteredAt(Instant registeredAt) { this.trustAnchorRegisteredAt = registeredAt; }
+    public String getTrustAnchorChallenge() { return trustAnchorChallenge; }
+    public void setTrustAnchorChallenge(String challenge) { this.trustAnchorChallenge = challenge; }
+    public Instant getTrustAnchorChallengeExpiresAt() { return trustAnchorChallengeExpiresAt; }
+    public void setTrustAnchorChallengeExpiresAt(Instant expiresAt) { this.trustAnchorChallengeExpiresAt = expiresAt; }
+    public String getCredentialEscrowNonce() { return credentialEscrowNonce; }
+    public void setCredentialEscrowNonce(String nonce) { this.credentialEscrowNonce = nonce; }
+    public String getCredentialEscrowCiphertext() { return credentialEscrowCiphertext; }
+    public void setCredentialEscrowCiphertext(String ciphertext) { this.credentialEscrowCiphertext = ciphertext; }
+    public String getCredentialEscrowKeyVersion() { return credentialEscrowKeyVersion; }
+    public void setCredentialEscrowKeyVersion(String keyVersion) { this.credentialEscrowKeyVersion = keyVersion; }
+    public Instant getCredentialEscrowCreatedAt() { return credentialEscrowCreatedAt; }
+    public void setCredentialEscrowCreatedAt(Instant createdAt) { this.credentialEscrowCreatedAt = createdAt; }
+    public Instant getCredentialEscrowExpiresAt() { return credentialEscrowExpiresAt; }
+    public void setCredentialEscrowExpiresAt(Instant expiresAt) { this.credentialEscrowExpiresAt = expiresAt; }
+    public String getCredentialDeliveryChallenge() { return credentialDeliveryChallenge; }
+    public void setCredentialDeliveryChallenge(String challenge) { this.credentialDeliveryChallenge = challenge; }
+    public Instant getCredentialDeliveryChallengeExpiresAt() { return credentialDeliveryChallengeExpiresAt; }
+    public void setCredentialDeliveryChallengeExpiresAt(Instant expiresAt) { this.credentialDeliveryChallengeExpiresAt = expiresAt; }
+    public String getActivationChallenge() { return activationChallenge; }
+    public void setActivationChallenge(String challenge) { this.activationChallenge = challenge; }
+    public Instant getActivationChallengeExpiresAt() { return activationChallengeExpiresAt; }
+    public void setActivationChallengeExpiresAt(Instant expiresAt) { this.activationChallengeExpiresAt = expiresAt; }
     public String getLastRecoveryDisposition() { return lastRecoveryDisposition; }
     public void setLastRecoveryDisposition(String disposition) { this.lastRecoveryDisposition = disposition; }
     public String getLastRecoveryReason() { return lastRecoveryReason; }

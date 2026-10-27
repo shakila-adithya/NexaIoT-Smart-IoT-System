@@ -34,6 +34,20 @@ public final class MqttTopicSecurity {
         return ROOT + "/" + DEVICES + "/" + deviceKey + "/commands";
     }
 
+    public static String activationChallengeTopic(String deviceKey) {
+        validateDeviceKey(deviceKey);
+        return ROOT + "/" + DEVICES + "/" + deviceKey + "/activation-challenges";
+    }
+
+    public static String activationResponseTopic(String deviceKey) {
+        validateDeviceKey(deviceKey);
+        return ROOT + "/" + DEVICES + "/" + deviceKey + "/activation-responses";
+    }
+
+    public static String activationResponseSubscription() {
+        return ROOT + "/" + DEVICES + "/+/activation-responses";
+    }
+
     public static void validateDeviceKey(String deviceKey) {
         if (deviceKey == null || !SAFE_DEVICE_KEY.matcher(deviceKey).matches()) {
             throw new IllegalArgumentException("MQTT device key is invalid.");

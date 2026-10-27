@@ -35,13 +35,16 @@ class DeviceProvisioningOrchestratorTest {
     private EnrollmentOperationService operationService;
     @Mock
     private BrokerManagementClient broker;
+    @Mock
+    private CredentialEscrowService credentialEscrowService;
 
     private DeviceProvisioningOrchestrator orchestrator;
 
     @BeforeEach
     void setUp() {
         orchestrator = new DeviceProvisioningOrchestrator(
-                deviceRepository, operationService, broker, new DeviceCredentialGenerator());
+                deviceRepository, operationService, broker, new DeviceCredentialGenerator(),
+                credentialEscrowService);
     }
 
     @Test
@@ -67,6 +70,8 @@ class DeviceProvisioningOrchestratorTest {
         when(operationService.transition("operation-1", EnrollmentState.ACL_PENDING,
                 EnrollmentState.ACL_ASSIGNED, "owner@example.com")).thenReturn(aclAssigned);
         when(operationService.markBrokerVerified("operation-1", "owner@example.com"))
+                .thenReturn(verified);
+        when(credentialEscrowService.escrow(eq(verified), eq("owner@example.com"), any()))
                 .thenReturn(verified);
         when(operationService.transition("operation-1", EnrollmentState.BROKER_VERIFIED,
                 EnrollmentState.CREDENTIAL_DELIVERY_PENDING, "owner@example.com"))

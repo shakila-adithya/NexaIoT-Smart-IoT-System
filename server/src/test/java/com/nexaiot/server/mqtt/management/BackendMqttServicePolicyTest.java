@@ -19,7 +19,7 @@ class BackendMqttServicePolicyTest {
     void definesOnlyRequiredBackendAclEntries() {
         List<ObjectNode> commands = BackendMqttServicePolicy.roleCommands(new ObjectMapper());
 
-        assertEquals(11, commands.size());
+        assertEquals(15, commands.size());
         assertEquals("createRole", commands.get(0).path("command").asText());
         assertEquals(BackendMqttServicePolicy.ROLE_NAME,
                 commands.get(0).path("rolename").asText());

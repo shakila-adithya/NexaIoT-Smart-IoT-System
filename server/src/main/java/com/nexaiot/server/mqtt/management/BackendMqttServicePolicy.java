@@ -15,6 +15,8 @@ public final class BackendMqttServicePolicy {
     public static final String STATE_TOPIC = "nexaiot/devices/+/state";
     public static final String COMMAND_RESULT_TOPIC = "nexaiot/devices/+/command-results";
     public static final String COMMAND_TOPIC = "nexaiot/devices/+/commands";
+    public static final String ACTIVATION_CHALLENGE_TOPIC = "nexaiot/devices/+/activation-challenges";
+    public static final String ACTIVATION_RESPONSE_TOPIC = "nexaiot/devices/+/activation-responses";
 
     private BackendMqttServicePolicy() {
     }
@@ -35,6 +37,10 @@ public final class BackendMqttServicePolicy {
         commands.add(acl(mapper, "unsubscribePattern", STATE_TOPIC));
         commands.add(acl(mapper, "unsubscribePattern", COMMAND_RESULT_TOPIC));
         commands.add(acl(mapper, "publishClientSend", COMMAND_TOPIC));
+        commands.add(acl(mapper, "publishClientSend", ACTIVATION_CHALLENGE_TOPIC));
+        commands.add(acl(mapper, "subscribePattern", ACTIVATION_RESPONSE_TOPIC));
+        commands.add(acl(mapper, "publishClientReceive", ACTIVATION_RESPONSE_TOPIC));
+        commands.add(acl(mapper, "unsubscribePattern", ACTIVATION_RESPONSE_TOPIC));
         return commands;
     }
 

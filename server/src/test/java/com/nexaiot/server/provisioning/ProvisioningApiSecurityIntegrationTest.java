@@ -4,6 +4,7 @@ import com.nexaiot.server.TestRepositoryConfiguration;
 import com.nexaiot.server.device.DeviceRepository;
 import com.nexaiot.server.enrollment.DeviceEnrollmentOperation;
 import com.nexaiot.server.enrollment.DeviceEnrollmentOperationRepository;
+import com.nexaiot.server.enrollment.CredentialDeliveryService;
 import com.nexaiot.server.enrollment.EnrollmentRecoveryService;
 import com.nexaiot.server.enrollment.EnrollmentState;
 import com.nexaiot.server.enrollment.RecoveryAssessment;
@@ -61,6 +62,8 @@ class ProvisioningApiSecurityIntegrationTest {
     private DeviceEnrollmentOperationRepository operationRepository;
     @MockitoBean
     private EnrollmentRecoveryService recoveryService;
+    @MockitoBean
+    private CredentialDeliveryService credentialDeliveryService;
 
     private User owner;
     private String ownerToken;
@@ -77,6 +80,15 @@ class ProvisioningApiSecurityIntegrationTest {
     void protectedEnrollmentStatusRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/devices/device-1/enrollment-operations/operation-1"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void credentialDeliveryRejectsPlainHttpBeforeProofProcessing() throws Exception {
+        mockMvc.perform(post("/api/devices/device-1/enrollment-operations/operation-1/credential-delivery")
+                        .secure(false)
+                        .contentType("application/json")
+                        .content("{\"mqttClientId\":\"nexaiot-device-NEXA-1\",\"challenge\":\"c\",\"signature\":\"s\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

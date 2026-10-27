@@ -23,17 +23,20 @@ public class DeviceProvisioningOrchestrator {
     private final EnrollmentOperationService operationService;
     private final BrokerManagementClient broker;
     private final DeviceCredentialGenerator credentialGenerator;
+    private final CredentialEscrowService credentialEscrowService;
 
     public DeviceProvisioningOrchestrator(
             DeviceRepository deviceRepository,
             EnrollmentOperationService operationService,
             BrokerManagementClient broker,
-            DeviceCredentialGenerator credentialGenerator
+            DeviceCredentialGenerator credentialGenerator,
+            CredentialEscrowService credentialEscrowService
     ) {
         this.deviceRepository = deviceRepository;
         this.operationService = operationService;
         this.broker = broker;
         this.credentialGenerator = credentialGenerator;
+        this.credentialEscrowService = credentialEscrowService;
     }
 
     public DeviceEnrollmentOperation provision(
@@ -88,6 +91,7 @@ public class DeviceProvisioningOrchestrator {
             }
 
             current = operationService.markBrokerVerified(current.getId(), ownerEmail);
+            current = credentialEscrowService.escrow(current, ownerEmail, credential);
             return operationService.transition(
                     current.getId(), EnrollmentState.BROKER_VERIFIED,
                     EnrollmentState.CREDENTIAL_DELIVERY_PENDING, ownerEmail);

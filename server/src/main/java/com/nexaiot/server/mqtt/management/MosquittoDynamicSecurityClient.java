@@ -204,6 +204,12 @@ public class MosquittoDynamicSecurityClient implements BrokerManagementClient {
                 MqttTopicSecurity.commandTopic(deviceKey), "allow", 100));
         commands.add(acl(roleName, "publishClientReceive",
                 MqttTopicSecurity.commandTopic(deviceKey), "allow", 100));
+        commands.add(acl(roleName, "publishClientSend",
+                MqttTopicSecurity.activationResponseTopic(deviceKey), "allow", 100));
+        commands.add(acl(roleName, "subscribeLiteral",
+                MqttTopicSecurity.activationChallengeTopic(deviceKey), "allow", 100));
+        commands.add(acl(roleName, "publishClientReceive",
+                MqttTopicSecurity.activationChallengeTopic(deviceKey), "allow", 100));
 
         // Publish denies are safe because the exact publish allows have higher
         // priority. MQTT wildcard matching does not include $-topics, so those

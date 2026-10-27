@@ -7,3 +7,9 @@ client/.env
 
 __pycache__/
 *.py[cod]
+simulator/.device-keys/
+simulator/.device-credentials/
+simulator/.venv/
+*.device-key.pem
+
+tools/disposable-integration/.runtime/
