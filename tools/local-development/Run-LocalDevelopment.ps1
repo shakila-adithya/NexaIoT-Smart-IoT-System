@@ -1,6 +1,6 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
-    [ValidateSet('Start', 'Stop', 'Status', 'Initialize', 'Clean', 'Help')]
+    [ValidateSet('Start', 'RestartBackend', 'Stop', 'Status', 'Initialize', 'Clean', 'Help')]
     [string]$Action = 'Start',
     [switch]$Initialize
 )
@@ -188,7 +188,7 @@ function Start-Application {
         CREDENTIAL_DELIVERY_CHALLENGE_LIFETIME_SECONDS = '120'
         ACTIVATION_CHALLENGE_LIFETIME_SECONDS = '120'
         JWT_SECRET = $values.NEXAIOT_B46_JWT_SECRET
-        CORS_ALLOWED_ORIGINS = 'http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:5174,http://localhost:5174'
+        CORS_ALLOWED_ORIGINS = 'http://127.0.0.1:4173,http://localhost:4173,http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:5174,http://localhost:5174'
         SERVER_SSL_KEY_STORE = (Join-Path $runtime 'certs\app.p12')
         SERVER_SSL_KEY_STORE_PASSWORD = $values.NEXAIOT_LOCAL_KEYSTORE_PASSWORD
         SERVER_PORT = '8443'
@@ -286,6 +286,26 @@ function Start-Local {
     if ($Initialize) { Initialize-Owner }
 }
 
+function Restart-Backend {
+    Require-Command java
+    Assert-ApplicationAlive | Out-Null
+    Stop-Application
+    try {
+        Start-Application
+        $deadline = (Get-Date).AddSeconds(180)
+        do {
+            $process = Get-Process -Id $javaProcess.Id -ErrorAction SilentlyContinue
+            if (-not $process) { throw 'Local Spring Boot exited during restart.' }
+            try { Test-Health; break } catch { Start-Sleep -Seconds 2 }
+        } while ((Get-Date) -lt $deadline)
+        Test-Health
+    } catch {
+        Save-ApplicationLogs
+        throw
+    }
+    Write-Output 'LOCAL_BACKEND_READY: https://127.0.0.1:8443'
+}
+
 function Show-Status {
     if (Test-Path -LiteralPath $envFile -PathType Leaf) {
         docker compose --env-file $envFile -p $project -f $compose ps
@@ -311,6 +331,7 @@ if ($Action -eq 'Status') { Show-Status; exit 0 }
 if (-not $PSCmdlet.ShouldProcess($project, "$Action local development resources")) { exit 0 }
 if ($Action -eq 'Initialize') { Test-Health; Initialize-Owner; exit 0 }
 if ($Action -eq 'Start') { Start-Local; exit 0 }
+if ($Action -eq 'RestartBackend') { Restart-Backend; exit 0 }
 if ($Action -eq 'Stop') { Stop-Application; if (Test-Path -LiteralPath $envFile) { Invoke-Compose @('down', '--remove-orphans') }; exit 0 }
 if ($Action -eq 'Clean') {
     Stop-Application

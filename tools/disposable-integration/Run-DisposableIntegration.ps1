@@ -260,6 +260,20 @@ function Verify-EnrollmentLifecycle {
     Write-Output 'ENROLLMENT_VERIFIED: registration, pairing, escrow delivery, MQTT activation, and rejection checks passed.'
 }
 
+function Verify-AdminAuthorization {
+    $python = Join-Path $repo 'simulator\.venv\bin\python.exe'
+    if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { $python = Join-Path $repo 'simulator\.venv\Scripts\python.exe' }
+    if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'The project-local Python environment is required for live admin authorization verification.' }
+    $driver = Join-Path $fixture 'verify_admin_authorization.py'
+    $result = Invoke-ProcessCapture $python @(
+        $driver, '--base-url', "https://127.0.0.1:$httpsPort", '--ca', (Join-Path $runtime 'certs\ca.crt'), '--mongo-port', "$mongoPort"
+    )
+    if ($result.ExitCode -ne 0 -or $result.Stdout -notmatch 'MONGODB_ADMIN_AUTHORIZATION_VERIFIED') {
+        throw "MongoDB-backed admin authorization verification failed: $($result.Stdout.Trim()) $($result.Stderr.Trim())"
+    }
+    Write-Output 'ADMIN_AUTHORIZATION_VERIFIED: persisted user roles and missing-user handling passed.'
+}
+
 function Wait-HostApplicationReady {
     $deadline = (Get-Date).AddSeconds(180)
     $caCertificate = Join-Path $runtime 'certs\ca.crt'
@@ -308,6 +322,43 @@ function Write-SanitizedDiagnostics {
     } catch { Write-Warning 'Disposable diagnostics were unavailable.' }
 }
 
+function Remove-DisposableRuntime {
+    if ($KeepResources) { return $false }
+    if (Test-Path -LiteralPath $runtime) {
+        Remove-Item -LiteralPath $runtime -Recurse -Force
+    }
+    if (Test-Path -LiteralPath $runtime) {
+        throw "Disposable runtime cleanup failed: $runtime still exists."
+    }
+    return $true
+}
+
+function Invoke-DisposableComposeCleanup {
+    param(
+        [bool]$Started,
+        [bool]$KeepResources,
+        [string]$ProjectName,
+        [string]$ComposeFile
+    )
+
+    if (-not $Started -or $KeepResources) {
+        return $null
+    }
+
+    try {
+        & docker compose -p $ProjectName -f $ComposeFile down -v --remove-orphans
+        $composeExitCode = $LASTEXITCODE
+
+        if ($composeExitCode -ne 0) {
+            return "Disposable Compose cleanup failed with exit code $composeExitCode."
+        }
+    } catch {
+        return "Disposable Compose cleanup threw an error: $($_.Exception.Message)"
+    }
+
+    return $null
+}
+
 Require-Command docker
 if (-not $RunLive) {
     if ((Get-Content -LiteralPath $compose -Raw) -notmatch 'eclipse-mosquitto:2') { throw 'Compose must use the cached eclipse-mosquitto:2 image.' }
@@ -322,35 +373,129 @@ if (-not $PSCmdlet.ShouldProcess($project, "start disposable B4.6 Compose projec
 $env:NEXAIOT_B46_NETWORK = $network; $env:NEXAIOT_B46_MONGO_VOLUME = $mongoVolume; $env:NEXAIOT_B46_MOSQUITTO_VOLUME = $mosquittoVolume; $env:NEXAIOT_B46_RUNTIME_NAME = $project; $env:NEXAIOT_B46_MONGO_PORT = "$mongoPort"; $env:NEXAIOT_B46_MQTT_TLS_PORT = "$mqttTlsPort"; $env:NEXAIOT_B46_HTTPS_PORT = "$httpsPort"
 $env:NEXAIOT_TEST_ADMIN_USERNAME = 'nexaiot-b46-admin'; $env:NEXAIOT_TEST_ADMIN_PASSWORD = New-RandomBase64; $env:NEXAIOT_TEST_BACKEND_USERNAME = 'nexaiot-backend-lab'; $env:NEXAIOT_TEST_BACKEND_CLIENT_ID = 'nexaiot-backend-lab'; $env:NEXAIOT_TEST_BACKEND_PASSWORD = New-RandomBase64; $env:NEXAIOT_TEST_MANAGEMENT_USERNAME = 'nexaiot-b46-management'; $env:NEXAIOT_TEST_MANAGEMENT_CLIENT_ID = 'nexaiot-b46-management'; $env:NEXAIOT_TEST_MANAGEMENT_PASSWORD = New-RandomBase64; $env:NEXAIOT_TEST_MANAGEMENT_ENABLED = 'true'; $env:NEXAIOT_B46_PAIRING_EXPIRY_SECONDS = '2'; $env:NEXAIOT_B46_DELIVERY_CHALLENGE_LIFETIME_SECONDS = '120'; $env:NEXAIOT_B46_ACTIVATION_CHALLENGE_LIFETIME_SECONDS = '120'; $env:NEXAIOT_CREDENTIAL_ESCROW_KEY = New-RandomBase64; $env:NEXAIOT_B46_JWT_SECRET = New-RandomBase64; $env:NEXAIOT_B46_APP_KEYSTORE_PASSWORD = New-RandomBase64
 $started = $false
+$appProcess = $null
+$runFailure = $null
+$cleanupFailures = @()
+$runCompleted = $false
+
 try {
     New-Item -ItemType Directory -Force -Path $runtime | Out-Null
     New-RuntimeCertificate
+
     docker image inspect eclipse-mosquitto:2 *> $null
-    if ($LASTEXITCODE -ne 0) { throw 'The cached eclipse-mosquitto:2 image is unavailable; no live test was run.' }
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The cached eclipse-mosquitto:2 image is unavailable; no live test was run.'
+    }
+
     docker run --rm --pull=never --entrypoint /bin/sh eclipse-mosquitto:2 -c 'test -f /usr/lib/mosquitto_dynamic_security.so && command -v mosquitto_ctrl'
-    if ($LASTEXITCODE -ne 0) { throw 'The cached Mosquitto image lacks the required Dynamic Security plugin.' }
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The cached Mosquitto image lacks the required Dynamic Security plugin.'
+    }
+
     docker info *> $null
-    if ($LASTEXITCODE -ne 0) { throw 'Docker Engine is unavailable; no live test was run.' }
-    docker compose -p $project -f $compose up -d mongo mosquitto
-    if ($LASTEXITCODE -ne 0) { throw 'Disposable MongoDB/Mosquitto startup failed.' }
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Docker Engine is unavailable; no live test was run.'
+    }
+
     $started = $true
+
+    docker compose -p $project -f $compose up -d mongo mosquitto
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Disposable MongoDB/Mosquitto startup failed.'
+    }
+
     Wait-Healthy 'mongo' 60 'Disposable MongoDB did not become healthy.'
     Wait-Healthy 'mosquitto' 60 'Disposable Mosquitto Dynamic Security bootstrap did not become healthy.'
+
     Verify-BrokerBootstrap
     Verify-MqttAccess
-    if ($ApplicationMode -eq 'Host') { $appProcess = Start-HostApplication } else { docker compose -p $project -f $compose --profile application up -d app; if ($LASTEXITCODE -ne 0) { throw 'Disposable container application startup failed.' } }
-    Verify-Application
-    Verify-EnrollmentLifecycle
-    Write-Output "ISOLATED_INTEGRATION_VERIFIED: $ApplicationMode application; enrollment and activation flow passed."
-} catch {
-    $originalError = $_
-    try { Stop-HostApplication } catch { Write-Warning 'The disposable Java process could not be safely stopped.' }
-    if ($RunLive) {
-        try { Write-SanitizedDiagnostics } catch { Write-Warning 'Disposable diagnostics were unavailable.' }
+
+    if ($ApplicationMode -eq 'Host') {
+        $appProcess = Start-HostApplication
+    } else {
+        docker compose -p $project -f $compose --profile application up -d app
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Disposable container application startup failed.'
+        }
     }
-    throw $originalError
+
+    Verify-Application
+    Verify-AdminAuthorization
+    Verify-EnrollmentLifecycle
+
+    $runCompleted = $true
+} catch {
+    $runFailure = $_
+
+    if ($RunLive) {
+        try {
+            Write-SanitizedDiagnostics
+        } catch {
+            Write-Warning 'Disposable diagnostics were unavailable.'
+        }
+    }
 } finally {
-    if ($appProcess -and -not $appProcess.HasExited) { try { Stop-HostApplication } catch { Write-Error $_ -ErrorAction Continue } }
-    if ($started -and -not $KeepResources) { docker compose -p $project -f $compose down -v --remove-orphans }
-    if (-not $KeepResources -and (Test-Path -LiteralPath $runtime)) { Remove-Item -LiteralPath $runtime -Recurse -Force }
+    $hostProcessStopped = $true
+
+    if ($appProcess) {
+        try {
+            Stop-HostApplication
+        } catch {
+            $cleanupFailures += "Disposable Java process cleanup failed: $($_.Exception.Message)"
+        }
+
+        try {
+            $appProcess.Refresh()
+
+            if (-not $appProcess.HasExited) {
+                $hostProcessStopped = $false
+                $cleanupFailures += 'Disposable Java process remains active; runtime files were retained.'
+            }
+        } catch {
+            $hostProcessStopped = $false
+            $cleanupFailures += "Could not verify disposable Java process state: $($_.Exception.Message)"
+        }
+    }
+
+    $composeFailure = Invoke-DisposableComposeCleanup `
+        -Started $started `
+        -KeepResources $KeepResources `
+        -ProjectName $project `
+        -ComposeFile $compose
+
+    if ($composeFailure) {
+        $cleanupFailures += $composeFailure
+    }
+
+    if (-not $KeepResources -and $hostProcessStopped) {
+        try {
+            [void](Remove-DisposableRuntime)
+        } catch {
+            $cleanupFailures += $_.Exception.Message
+        }
+    } elseif (-not $KeepResources) {
+        $cleanupFailures += 'Disposable runtime cleanup skipped because the host application process may still be running.'
+    }
 }
+
+if ($runFailure -and $cleanupFailures.Count) {
+    throw "Disposable integration failed: $($runFailure.Exception.Message) Cleanup also failed: $($cleanupFailures -join ' ')"
+}
+
+if ($runFailure) {
+    throw $runFailure
+}
+
+if ($cleanupFailures.Count) {
+    throw ($cleanupFailures -join ' ')
+}
+
+if (-not $runCompleted) {
+    throw 'Disposable integration did not complete.'
+}
+
+if ($KeepResources) {
+    throw 'Disposable integration passed, but cleanup was intentionally skipped with -KeepResources.'
+}
+
+Write-Output 'Restart:    Run-LocalDevelopment.ps1 -Action RestartBackend'
