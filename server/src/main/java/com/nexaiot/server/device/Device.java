@@ -1,6 +1,7 @@
 package com.nexaiot.server.device;
 
 import java.time.Instant;
+import java.util.Map;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -17,15 +18,22 @@ public class Device {
 
     @Indexed
     private String ownerEmail;
+    private String ownerUserId;
 
     private String name;
     private String type;
     private String location;
     private String status;
     private boolean powerOn;
+    private Map<String, Object> reportedStates;
     private DeviceConnectivity connectivity;
     private DeviceCapabilities capabilities;
     private CapabilityManifest capabilityManifest;
+    private DeviceHardwareIdentity hardwareIdentity;
+    private DeviceTransportInfo transportInfo;
+    private DeviceProvisioningInfo provisioningInfo;
+    private DeviceRuntimeInfo runtimeInfo;
+    private DeviceMqttCredentialInfo mqttCredentialInfo;
 
     private Instant createdAt;
     private Instant updatedAt;
@@ -56,6 +64,14 @@ public class Device {
 
     public void setOwnerEmail(String ownerEmail) {
         this.ownerEmail = ownerEmail;
+    }
+
+    public String getOwnerUserId() {
+        return ownerUserId;
+    }
+
+    public void setOwnerUserId(String ownerUserId) {
+        this.ownerUserId = ownerUserId;
     }
 
     public String getName() {
@@ -98,6 +114,14 @@ public class Device {
         this.powerOn = powerOn;
     }
 
+    public Map<String, Object> getReportedStates() {
+        return reportedStates;
+    }
+
+    public void setReportedStates(Map<String, Object> reportedStates) {
+        this.reportedStates = reportedStates;
+    }
+
     public DeviceConnectivity getConnectivity() {
         return connectivity;
     }
@@ -120,6 +144,46 @@ public class Device {
 
     public void setCapabilityManifest(CapabilityManifest capabilityManifest) {
         this.capabilityManifest = capabilityManifest;
+    }
+
+    public DeviceHardwareIdentity getHardwareIdentity() {
+        return hardwareIdentity;
+    }
+
+    public void setHardwareIdentity(DeviceHardwareIdentity hardwareIdentity) {
+        this.hardwareIdentity = hardwareIdentity;
+    }
+
+    public DeviceTransportInfo getTransportInfo() {
+        return transportInfo;
+    }
+
+    public void setTransportInfo(DeviceTransportInfo transportInfo) {
+        this.transportInfo = transportInfo;
+    }
+
+    public DeviceProvisioningInfo getProvisioningInfo() {
+        return provisioningInfo;
+    }
+
+    public void setProvisioningInfo(DeviceProvisioningInfo provisioningInfo) {
+        this.provisioningInfo = provisioningInfo;
+    }
+
+    public DeviceRuntimeInfo getRuntimeInfo() {
+        return runtimeInfo;
+    }
+
+    public void setRuntimeInfo(DeviceRuntimeInfo runtimeInfo) {
+        this.runtimeInfo = runtimeInfo;
+    }
+
+    public DeviceMqttCredentialInfo getMqttCredentialInfo() {
+        return mqttCredentialInfo;
+    }
+
+    public void setMqttCredentialInfo(DeviceMqttCredentialInfo mqttCredentialInfo) {
+        this.mqttCredentialInfo = mqttCredentialInfo;
     }
 
     public Instant getCreatedAt() {

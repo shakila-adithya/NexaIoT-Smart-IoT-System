@@ -15,13 +15,17 @@ import com.nexaiot.server.report.GeneratedReportService;
 import com.nexaiot.server.report.dto.GenerateReportRequest;
 import com.nexaiot.server.report.dto.GeneratedReportResponse;
 import com.nexaiot.server.mqtt.MqttCommandPublisher;
-import com.nexaiot.server.device.diagnostics.DeviceDiagnosticsService;
+import com.nexaiot.server.mqtt.MqttCommandResultStatus;
+import com.nexaiot.server.mqtt.MqttCommandStatusStore;
+import com.nexaiot.server.mqtt.MqttPendingCommand;
 import com.nexaiot.server.dto.ForgotPasswordRequest;
 import com.nexaiot.server.dto.LoginRequest;
 import com.nexaiot.server.dto.RegisterRequest;
 import com.nexaiot.server.dto.ResetPasswordRequest;
 import com.nexaiot.server.dto.UserResponse;
 import com.nexaiot.server.service.AuthService;
+
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -64,7 +68,7 @@ class RateLimitControllerTest {
         commandChannel.subscribe(message -> { });
         DeviceController controller = new DeviceController(
                 new StubDeviceService(),
-                new MqttCommandPublisher(commandChannel),
+                new MqttCommandPublisher(commandChannel, new NoopCommandStatusStore()),
                 null,
                 new RateLimitService(),
                 properties
@@ -156,6 +160,18 @@ class RateLimitControllerTest {
                     deviceId, "NEXA-123", "Device", "Switch", "Lab", "ONLINE",
                     false, null, null, null, null, null, null
             );
+        }
+    }
+
+    private static final class NoopCommandStatusStore implements MqttCommandStatusStore {
+        @Override
+        public Optional<MqttPendingCommand> findPending(String deviceKey, String commandId) {
+            return Optional.empty();
+        }
+
+        @Override
+        public boolean recordResult(MqttCommandResultStatus result) {
+            return false;
         }
     }
 

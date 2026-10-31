@@ -1,0 +1,11 @@
+#define NEXA_WIFI_SSID ""
+#define NEXA_WIFI_PASSWORD ""
+#define NEXA_DEVICE_KEY "NEXA-REPLACE"
+#define NEXA_MQTT_HOST ""
+#define NEXA_MQTT_PORT 8883
+#define NEXA_MQTT_USERNAME ""
+#define NEXA_MQTT_PASSWORD ""
+#define NEXA_MQTT_CLIENT_ID "nexaiot-device-NEXA-REPLACE"
+#define NEXA_MQTT_ROOT_CA ""
+#define NEXA_DHT_PIN 4
+#define NEXA_RELAY_PIN 25

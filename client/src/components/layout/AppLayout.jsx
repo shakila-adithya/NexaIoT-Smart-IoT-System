@@ -12,6 +12,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Settings2,
   Satellite,
   TriangleAlert,
   UserRound,
@@ -65,7 +66,10 @@ function IconButton({ label, className = "", children, ...props }) {
   );
 }
 
-function SidebarContent({ onNavigate, unresolvedAlertCount }) {
+function SidebarContent({ onNavigate, unresolvedAlertCount, isAdmin }) {
+  const groups = isAdmin
+    ? [...navigationGroups, { label: "Administration", items: [{ name: "Admin console", path: "/admin", icon: ShieldCheck, end: true }, { name: "Firmware", path: "/admin/firmware", icon: Settings2, end: true }] }]
+    : navigationGroups;
   return (
     <div className="flex min-h-full flex-col">
       <div className="px-5 pt-7">
@@ -77,10 +81,10 @@ function SidebarContent({ onNavigate, unresolvedAlertCount }) {
         </Link>
 
         <nav className="mt-9 space-y-7" aria-label="Application navigation">
-          {navigationGroups.map((group) => (
+          {groups.map((group) => (
             <div key={group.label}>
               <div className="px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#668b9e]">{group.label}</div>
-              <div className="mt-2 space-y-1">
+              <div className={`mt-2 space-y-1 ${group.label === "Administration" ? "pb-6" : ""}`}>
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -380,12 +384,12 @@ export default function AppLayout() {
   };
 
   const displayName = user?.fullName || "NexaIoT User";
-  const role = user?.role && user.role !== "USER" ? user.role : "System Administrator";
+  const role = user?.role === "ADMIN" ? "Administrator" : "User";
 
   return (
     <div className="authenticated-app-shell app-glass-background min-h-screen w-full max-w-full overflow-x-hidden text-[var(--color-text-primary)]">
       <aside className="app-sidebar-scroll fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col overflow-y-auto bg-[var(--color-sidebar)] lg:flex">
-        <SidebarContent unresolvedAlertCount={unresolvedAlertCount} />
+        <SidebarContent unresolvedAlertCount={unresolvedAlertCount} isAdmin={user?.role === "ADMIN"} />
       </aside>
 
       {mobileOpen ? (
@@ -393,7 +397,7 @@ export default function AppLayout() {
           <button type="button" aria-label="Close navigation" className="absolute inset-0 bg-[var(--color-overlay)] backdrop-blur-[2px]" onClick={() => setMobileOpen(false)} />
           <aside role="dialog" aria-label="Mobile navigation" className="app-sidebar-scroll relative flex h-full w-[280px] max-w-[86vw] flex-col overflow-y-auto bg-[var(--color-sidebar)] shadow-[var(--shadow-dialog)]">
             <IconButton label="Close navigation" onClick={() => setMobileOpen(false)} className="absolute right-4 top-4 z-10 text-white hover:bg-white/10 hover:text-white"><X size={19} /></IconButton>
-            <SidebarContent onNavigate={() => setMobileOpen(false)} unresolvedAlertCount={unresolvedAlertCount} />
+            <SidebarContent onNavigate={() => setMobileOpen(false)} unresolvedAlertCount={unresolvedAlertCount} isAdmin={user?.role === "ADMIN"} />
           </aside>
         </div>
       ) : null}

@@ -10,6 +10,7 @@ import {
   Pencil,
   Power,
   RadioTower,
+  RefreshCw,
   Save,
   Settings2,
   ShieldCheck,
@@ -34,20 +35,24 @@ import {
   getLatestDeviceReading,
   updateDevice,
   controlDevice,
+  sendDeviceCommand,
   getDeviceDiagnostics,
   getDeviceActivity,
+  getDeviceCommandStatus,
 } from "../../api/devicesApi.js";
 import { getAlerts } from "../../api/alertsApi.js";
 import { useAuth } from "../../hooks/useAuth.js";
 import useReducedMotion from "../../hooks/useReducedMotion.js";
 import CapabilitySelector from "../../components/device/CapabilitySelector.jsx";
 import CustomCapabilityBuilder from "../../components/device/CustomCapabilityBuilder.jsx";
+import ProvisioningPanel from "../../components/device/ProvisioningPanel.jsx";
 import Button from "../../components/ui/Button.jsx";
 import PageHeader from "../../components/ui/PageHeader.jsx";
 import Select from "../../components/ui/Select.jsx";
 import {
   isManifestDevice,
   normalizeCapabilityManifest,
+  getDeviceControls,
 } from "../../config/capabilityManifest.js";
 import {
   getMetricDefinitionForCapability,
@@ -60,6 +65,10 @@ import {
   deviceConnectivityLabels,
   formatConnectivityType,
 } from "../../config/deviceConnectivity.js";
+import {
+  canSendPowerCommand,
+  getDeviceStatusPresentation,
+} from "../../config/deviceStatus.js";
 
 const alertSeverityStyles = {
   CRITICAL: "bg-[#fdecee] text-[#d83f4d]",
@@ -225,12 +234,22 @@ export default function DeviceDetails() {
   const [deviceActivityError, setDeviceActivityError] = useState("");
 
   const [latestReading, setLatestReading] = useState(null);
+  const [latestReadingLoading, setLatestReadingLoading] = useState(true);
+  const [latestReadingError, setLatestReadingError] = useState("");
   const [readings, setReadings] = useState([]);
+  const [readingsLoading, setReadingsLoading] = useState(true);
+  const [readingsError, setReadingsError] = useState("");
+  const [telemetryRefreshKey, setTelemetryRefreshKey] = useState(0);
   const [selectedRange, setSelectedRange] = useState("1h");
   const [selectedMetric, setSelectedMetric] = useState("");
   const [chartWindowEnd, setChartWindowEnd] = useState(0);
   const [controlLoading, setControlLoading] = useState(false);
   const [controlError, setControlError] = useState("");
+  const [controlAwaitingConfirmation, setControlAwaitingConfirmation] = useState(false);
+  const [pendingPowerTarget, setPendingPowerTarget] = useState(null);
+  const [controlValues, setControlValues] = useState({});
+  const [controlStatuses, setControlStatuses] = useState({});
+  const [controlMessages, setControlMessages] = useState({});
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -266,6 +285,11 @@ export default function DeviceDetails() {
 
         if (!cancelled) {
           setDevice(data);
+          if (pendingPowerTarget !== null && data.powerOn === pendingPowerTarget) {
+            setPendingPowerTarget(null);
+            setControlAwaitingConfirmation(false);
+            setControlError("");
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -288,7 +312,7 @@ export default function DeviceDetails() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [id]);
+  }, [id, pendingPowerTarget]);
 
   useEffect(() => {
     let cancelled = false;
@@ -366,13 +390,17 @@ export default function DeviceDetails() {
 
     async function loadLatestReading() {
       try {
+        setLatestReadingLoading(true);
         const data = await getLatestDeviceReading(id);
 
         if (!cancelled) {
           setLatestReading(data);
+          setLatestReadingError("");
         }
       } catch (err) {
-        console.error("Unable to load latest telemetry:", err);
+        if (!cancelled) setLatestReadingError(err.message || "Unable to load latest telemetry.");
+      } finally {
+        if (!cancelled) setLatestReadingLoading(false);
       }
     }
 
@@ -386,7 +414,7 @@ export default function DeviceDetails() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [id]);
+  }, [id, telemetryRefreshKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -398,18 +426,21 @@ export default function DeviceDetails() {
       requestInFlight = true;
 
       try {
+        setReadingsLoading(true);
         setChartWindowEnd(Date.now());
         const data = await getDeviceReadings(id, selectedRange);
 
         if (!cancelled) {
           setReadings(Array.isArray(data) ? data : []);
+          setReadingsError("");
         }
       } catch (err) {
         if (!cancelled) {
-          console.error("Unable to load telemetry history:", err);
+          setReadingsError(err.message || "Unable to load telemetry history.");
         }
       } finally {
         requestInFlight = false;
+        if (!cancelled) setReadingsLoading(false);
       }
     }
 
@@ -423,7 +454,7 @@ export default function DeviceDetails() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [id, selectedRange]);
+  }, [id, selectedRange, telemetryRefreshKey]);
 
   const openEditModal = () => {
     setEditForm({
@@ -548,27 +579,117 @@ export default function DeviceDetails() {
       setDiagnosticsLoading(false);
     }
   };
+
+  const handleRefreshTelemetry = () => {
+    setTelemetryRefreshKey((current) => current + 1);
+  };
 async function handlePowerToggle() {
-    if (!device || controlLoading || !isOnline) {
+    if (!canSendPowerCommand(device, controlLoading)) {
       return;
     }
     const targetPower = !device.powerOn;
     try {
       setControlLoading(true);
       setControlError("");
-      await controlDevice(id, targetPower);
+      setControlAwaitingConfirmation(false);
+      setPendingPowerTarget(null);
+      const accepted = await controlDevice(id, targetPower);
+      const commandId = accepted?.commandId;
+      if (!commandId) throw new Error("The backend did not return a command identifier.");
+      let commandStatus = "PENDING";
+      let commandReason = "";
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const response = await getDeviceCommandStatus(id, commandId);
+        commandStatus = response?.status || "PENDING";
+        commandReason = response?.reason || "";
+        if (commandStatus !== "PENDING") break;
+      }
+      if (!["ACCEPTED", "DUPLICATE"].includes(commandStatus)) {
+        throw new Error(commandReason || `Power command ${commandStatus.toLowerCase()}.`);
+      }
+      let confirmed = false;
       for (let attempt = 0; attempt < 8; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 250));
         const updatedDevice = await getDeviceById(id);
         setDevice(updatedDevice);
         if (updatedDevice.powerOn === targetPower) {
+          confirmed = true;
           break;
         }
+      }
+      if (!confirmed) {
+        setPendingPowerTarget(targetPower);
+        setControlAwaitingConfirmation(true);
+        setControlError("Command accepted, but the backend has not confirmed the device state yet.");
       }
     } catch (err) {
       setControlError(
         err.message || "Unable to send device command."
       );
+      setControlAwaitingConfirmation(false);
+    } finally {
+      setControlLoading(false);
+    }
+  }
+
+  async function handleCapabilityCommand(capability, value) {
+    if (!isOnline || controlLoading) return;
+    const previousValue = controlValues[capability.key]
+      ?? device.reportedStates?.[capability.key]
+      ?? (capability.control?.type === "SELECT" ? capability.options?.[0]?.value || "" : capability.constraints?.min ?? 0);
+    try {
+      setControlLoading(true);
+      setControlError("");
+      setControlMessages((current) => ({ ...current, [capability.key]: "" }));
+      setControlValues((current) => ({ ...current, [capability.key]: value }));
+      setControlStatuses((current) => ({ ...current, [capability.key]: "pending" }));
+      const accepted = await sendDeviceCommand(id, capability.key, value);
+      const commandId = accepted?.commandId;
+      if (!commandId) throw new Error("The backend did not return a command identifier.");
+      let status = "PENDING";
+      let reason = "";
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const response = await getDeviceCommandStatus(id, commandId);
+        status = response?.status || "PENDING";
+        reason = response?.reason || "";
+        if (status !== "PENDING") break;
+      }
+      const normalizedStatus = status.toUpperCase();
+      if (!["ACCEPTED", "DUPLICATE"].includes(normalizedStatus)) {
+        setControlValues((current) => ({ ...current, [capability.key]: previousValue }));
+        setControlStatuses((current) => ({ ...current, [capability.key]: normalizedStatus.toLowerCase() }));
+        setControlMessages((current) => ({
+          ...current,
+          [capability.key]: reason || `Command ${normalizedStatus.toLowerCase()}.`,
+        }));
+        return;
+      }
+      let confirmed = false;
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const updatedDevice = await getDeviceById(id);
+        setDevice(updatedDevice);
+        if (Object.is(updatedDevice.reportedStates?.[capability.key], value)) {
+          confirmed = true;
+          break;
+        }
+      }
+      setControlStatuses((current) => ({
+        ...current,
+        [capability.key]: confirmed ? "confirmed" : "accepted",
+      }));
+      if (!confirmed) {
+        setControlMessages((current) => ({
+          ...current,
+          [capability.key]: "Command accepted; awaiting reported device state.",
+        }));
+      }
+    } catch (err) {
+      setControlValues((current) => ({ ...current, [capability.key]: previousValue }));
+      setControlStatuses((current) => ({ ...current, [capability.key]: "failed" }));
+      setControlMessages((current) => ({ ...current, [capability.key]: err.message || "Unable to send device command." }));
     } finally {
       setControlLoading(false);
     }
@@ -595,8 +716,28 @@ async function handlePowerToggle() {
       </div>
     );
   }
-  const isOnline = device.status === "ONLINE";
-  const isMaintenance = device.status === "MAINTENANCE";
+  const statusPresentation = getDeviceStatusPresentation(device.status);
+  const isOnline = statusPresentation.value === "ONLINE";
+  const isMaintenance = statusPresentation.value === "MAINTENANCE";
+  const statusBadgeClass = statusPresentation.tone === "success"
+    ? "bg-[#e9f8f2] text-[#16a57a]"
+    : statusPresentation.tone === "warning"
+      ? "bg-[#fff6e6] text-[#d49a24]"
+      : statusPresentation.tone === "neutral"
+        ? "bg-[#eef4f6] text-[#6b8290]"
+        : "bg-red-50 text-red-500";
+  const statusDotClass = statusPresentation.tone === "success"
+    ? "bg-[#16a57a]"
+    : statusPresentation.tone === "warning"
+      ? "bg-[#d49a24]"
+      : statusPresentation.tone === "neutral"
+        ? "bg-[#9aadb6]"
+        : "bg-red-500";
+  const telemetryAvailability = isOnline
+    ? "Telemetry reporting"
+    : statusPresentation.value === "OFFLINE"
+      ? "Telemetry unavailable while offline"
+      : "Telemetry status unavailable";
   const createdDate = device.createdAt
     ? new Date(device.createdAt).toLocaleDateString("en-US", {
         month: "short",
@@ -633,11 +774,9 @@ async function handlePowerToggle() {
   const configuredControls = configuredManifest.filter(
     (capability) => capability.category === "CONTROL",
   );
-  const supportsDigitalOutput = configuredControls.some(
-    (capability) => ["digitalOutput", "power"].includes(capability.key)
-      || ["digitalOutput", "power"].includes(capability.semanticType),
-  );
-  const hasConfiguredControl = supportsDigitalOutput;
+  const { power: powerControl, others: otherControls } = getDeviceControls(configuredControls);
+  const supportsDigitalOutput = Boolean(powerControl);
+  const hasConfiguredControl = configuredControls.length > 0;
   const effectiveSelectedMetric = supportedCapabilities.some(
     (definition) => definition.key === selectedMetric,
   )
@@ -690,6 +829,7 @@ async function handlePowerToggle() {
             </>
           )}
         />
+        <ProvisioningPanel deviceId={id} />
         {diagnostics || diagnosticsError ? (
           <section className="mt-6 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -747,29 +887,21 @@ async function handlePowerToggle() {
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] font-medium ${
-                    isOnline
-                      ? "bg-[#e9f8f2] text-[#16a57a]"
-                      : isMaintenance
-                        ? "bg-[#fff6e6] text-[#d49a24]"
-                        : "bg-red-50 text-red-500"
+                    statusBadgeClass
                   }`}
                 >
                   <span
                     className={`h-1.5 w-1.5 rounded-full ${
-                      isOnline
-                        ? "bg-[#16a57a]"
-                        : isMaintenance
-                          ? "bg-[#d49a24]"
-                          : "bg-red-500"
+                      statusDotClass
                     }`}
                   />
-                  {device.status}
+                  {statusPresentation.label}
                 </span>
                 <span className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[9px] font-medium text-[#4d7ee8]">
                   {device.type}
                 </span>
                 <span className="text-[9px] text-[#9aaeba]">
-                  {isOnline ? "Telemetry reporting" : "Telemetry unavailable while offline"}
+                  {telemetryAvailability}
                 </span>
               </div>
               <p className="mt-2 max-w-[660px] text-[10px] leading-[17px] text-[#6b8290] sm:text-[11px] sm:leading-5">
@@ -783,7 +915,7 @@ async function handlePowerToggle() {
                 </span>
                 <span className="flex items-center gap-1.5">
                   <RadioTower size={12} />
-                  {isOnline ? "Telemetry reporting" : "Awaiting telemetry"}
+                  {telemetryAvailability}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CalendarDays size={12} />
@@ -846,10 +978,13 @@ async function handlePowerToggle() {
                     <RadioTower size={16} className="text-[#08a9c4]" />
                     <h2 className={`topic-heading text-[15px] font-semibold text-[#102a3a] ${telemetryCapabilities.length ? "topic-telemetry" : "topic-health"}`}>{telemetryCapabilities.length ? "Live telemetry" : "Device health"}</h2>
                   </div>
-                  <p className="mt-1 text-[10px] text-[#6b8290]">{isOnline ? "Latest reported measurements from this device" : "Telemetry unavailable while offline"}</p>
+                  <p className="mt-1 text-[10px] text-[#6b8290]">{isOnline ? "Latest reported measurements from this device" : telemetryAvailability}</p>
                 </div>
-                <span className={`text-[9px] font-medium ${isOnline ? "text-[#16815f]" : "text-[#d83f4d]"}`}>{isOnline ? "Reporting now" : "Offline"}</span>
+                <span className={`text-[9px] font-medium ${isOnline ? "text-[#16815f]" : statusPresentation.tone === "neutral" ? "text-[#6b8290]" : "text-[#d83f4d]"}`}>{isOnline ? "Reporting now" : statusPresentation.label}</span>
               </div>
+
+              {latestReadingError ? <p className="mt-3 rounded-[9px] border border-red-200 bg-red-50 px-3 py-2.5 text-[9px] text-red-600" role="alert">{latestReadingError}</p> : null}
+              {latestReadingLoading && !latestReading ? <p className="mt-3 text-[9px] text-[#7d929e]" aria-busy="true">Loading latest backend reading...</p> : null}
 
               {telemetryCapabilities.length ? (
                 <div className="mt-4">
@@ -892,6 +1027,9 @@ async function handlePowerToggle() {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={handleRefreshTelemetry} loading={latestReadingLoading || readingsLoading} icon={RefreshCw}>
+                  Refresh telemetry
+                </Button>
                 {supportedCapabilities.length > 0 ? (
                   <div className="metric-filter" aria-label="Telemetry metric">
                     <span className="metric-filter-label">Metric</span>
@@ -948,7 +1086,13 @@ async function handlePowerToggle() {
               </div>
             </div>
             <div className="relative mt-4 h-[220px] overflow-hidden rounded-[12px] border border-[#edf2f4] bg-[#fcfefe] p-2 sm:h-[235px]">
-              {!metricDefinition ? (
+              {readingsError ? (
+                <div className="flex h-full items-center justify-center px-4">
+                  <p className="max-w-[320px] rounded-[9px] border border-red-200 bg-red-50 p-3 text-center text-[10px] text-red-600" role="alert">{readingsError}</p>
+                </div>
+              ) : readingsLoading && readings.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-[10px] text-[#7d929e]" aria-busy="true">Loading telemetry history...</div>
+              ) : !metricDefinition ? (
                 <div className="flex h-full items-center justify-center px-4">
                   <div className="max-w-[300px] text-center">
                     <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#eef9fb]">
@@ -1070,10 +1214,12 @@ async function handlePowerToggle() {
                 className={`rounded-full px-2.5 py-1 text-[8px] font-medium ${
                   isOnline
                     ? "bg-[#eaf8f3] text-[#16a57a]"
-                    : "bg-red-50 text-red-500"
+                    : statusPresentation.tone === "neutral"
+                      ? "bg-[#eef4f6] text-[#6b8290]"
+                      : "bg-red-50 text-red-500"
                 }`}
               >
-                {isOnline ? "MQTT connected" : "Device offline"}
+                {isOnline ? "Backend reports connected" : statusPresentation.label}
               </span>
             </div>
             {hasConfiguredControl ? (
@@ -1087,12 +1233,14 @@ async function handlePowerToggle() {
                         </div>
                         <div className="min-w-0">
                           <p className="text-[10px] font-semibold text-[#425c6b]">
-                            Device output
+                            Power
                           </p>
                           <p className="mt-1 text-[8px] leading-3 text-[#8da1ac]">
                             {controlLoading
-                              ? "Sending MQTT command..."
-                              : "Confirmed device power state"}
+                              ? "Sending command..."
+                              : controlAwaitingConfirmation
+                                ? "Awaiting backend/device confirmation"
+                                : "Confirmed device power state"}
                           </p>
                         </div>
                       </div>
@@ -1109,7 +1257,7 @@ async function handlePowerToggle() {
                         }`}
                         title={
                           !isOnline
-                            ? "Device must be online"
+                            ? statusPresentation.description
                             : controlLoading
                               ? "Sending command..."
                               : device.powerOn
@@ -1134,9 +1282,11 @@ async function handlePowerToggle() {
                       <RadioTower size={14} className={isOnline ? "text-[#16a57a]" : "text-[#9aadb6]"} />
                       {controlLoading
                         ? "Sending power command..."
-                        : isOnline
-                          ? "Manual power control ready"
-                          : "Connect device to enable control"}
+                        : controlAwaitingConfirmation
+                          ? "Command pending confirmation"
+                          : isOnline
+                            ? "Manual power control ready"
+                            : statusPresentation.description}
                     </div>
                     <p className="mt-2 text-center text-[8px] leading-4 text-[#9aadb6]">
                       Power commands are sent through MQTT and the UI reflects the
@@ -1144,14 +1294,42 @@ async function handlePowerToggle() {
                     </p>
                   </>
                 ) : null}
+                    {otherControls.map((capability) => {
+                      const controlType = capability.control?.type;
+                      const constraints = capability.constraints || {};
+                      const currentValue = controlValues[capability.key]
+                        ?? device.reportedStates?.[capability.key]
+                        ?? (controlType === "SELECT" ? capability.options?.[0]?.value || "" : constraints.min ?? 0);
+                      const status = controlStatuses[capability.key];
+                      return (
+                        <div key={capability.key} className="mt-3 rounded-[14px] border border-[#e0edf1] bg-[#f8fbfd] p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-[10px] font-semibold text-[#425c6b]">{capability.name || capability.key}</p>
+                              <p className="mt-1 text-[8px] text-[#8da1ac]">{capability.unit ? `${capability.unit} · ` : ""}{controlType || "Control"}</p>
+                            </div>
+                            {controlType === "SELECT" ? (
+                              <select disabled={!isOnline || controlLoading} value={currentValue} onChange={(event) => handleCapabilityCommand(capability, event.target.value)} aria-label={capability.name || capability.key} className="h-8 max-w-[132px] rounded-[8px] border border-[#dce8ee] bg-white px-2 text-[10px] text-[#6b8290] disabled:opacity-60">
+                                {(capability.options || []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                              </select>
+                            ) : controlType === "SLIDER" ? (
+                              <input disabled={!isOnline || controlLoading} type="range" min={constraints.min ?? 0} max={constraints.max ?? 100} step={constraints.step ?? 1} value={currentValue} onChange={(event) => setControlValues((current) => ({ ...current, [capability.key]: Number(event.target.value) }))} onMouseUp={(event) => handleCapabilityCommand(capability, Number(event.currentTarget.value))} aria-label={capability.name || capability.key} className="w-28 accent-[#08a9c4] disabled:opacity-60" />
+                            ) : (
+                              <input disabled={!isOnline || controlLoading} type="number" min={constraints.min} max={constraints.max} step={constraints.step} value={currentValue} onChange={(event) => setControlValues((current) => ({ ...current, [capability.key]: Number(event.target.value) }))} onBlur={(event) => handleCapabilityCommand(capability, Number(event.target.value))} aria-label={capability.name || capability.key} className="h-8 w-28 rounded-[8px] border border-[#dce8ee] bg-white px-2 text-[10px] text-[#6b8290] disabled:opacity-60" />
+                            )}
+                          </div>
+                          <p className="mt-2 text-[8px] leading-3 text-[#9aadb6]">{status === "pending" ? "Command pending device acknowledgement." : status === "confirmed" ? "Confirmed device state." : status === "accepted" ? (controlMessages[capability.key] || "Command accepted; awaiting reported state.") : status === "rejected" ? (controlMessages[capability.key] || "Command rejected.") : status === "timeout" ? (controlMessages[capability.key] || "Device acknowledgement timed out.") : status === "failed" ? (controlMessages[capability.key] || "Unable to send device command.") : isOnline ? "Device acknowledgement is required for confirmation." : statusPresentation.description}</p>
+                        </div>
+                      );
+                    })}
               </>
             ) : (
               <div className="mt-4 rounded-[11px] border border-[#edf2f4] bg-[#f8fbfd] p-5 text-center">
                 <p className="text-[11px] font-medium text-[#102a3a]">
-                  No control capabilities configured for this device.
+                  {configuredControls.length > 0 ? "Configured controls are not supported by the current backend command contract." : "No control capabilities configured for this device."}
                 </p>
                 <p className="mt-1 text-[9px] text-[#6b8290]">
-                  Edit the device to select supported controls.
+                  {configuredControls.length > 0 ? "No unsupported control action has been rendered." : "Edit the device to select supported controls."}
                 </p>
               </div>
             )}

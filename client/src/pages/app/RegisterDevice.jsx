@@ -200,9 +200,13 @@ export default function RegisterDevice() {
         };
       }
 
-      await createDevice(payload);
+      const createdDevice = await createDevice(payload);
 
-      navigate("/devices");
+      if (!createdDevice?.id) {
+        throw new Error("The backend did not return the registered device.");
+      }
+
+      navigate(`/devices/${createdDevice.id}`);
     } catch (err) {
       setError(err.message || "Unable to register device.");
     } finally {
@@ -288,7 +292,7 @@ export default function RegisterDevice() {
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="text-[10px] font-medium text-[#526b79]">
+                  <label htmlFor="register-device-name" className="text-[10px] font-medium text-[#526b79]">
                     Device name
                   </label>
 
@@ -300,6 +304,7 @@ export default function RegisterDevice() {
 
                     <input
                       type="text"
+                      id="register-device-name"
                       name="name"
                       value={form.name}
                       onChange={handleChange}
@@ -311,7 +316,7 @@ export default function RegisterDevice() {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-medium text-[#526b79]">
+                  <label htmlFor="register-device-type" className="text-[10px] font-medium text-[#526b79]">
                     Device type
                   </label>
 
@@ -323,6 +328,7 @@ export default function RegisterDevice() {
 
                     <input
                       type="text"
+                      id="register-device-type"
                       name="type"
                       value={form.type}
                       onChange={handleChange}
@@ -334,7 +340,7 @@ export default function RegisterDevice() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="text-[10px] font-medium text-[#526b79]">
+                  <label htmlFor="register-device-location" className="text-[10px] font-medium text-[#526b79]">
                     Location
                   </label>
 
@@ -346,6 +352,7 @@ export default function RegisterDevice() {
 
                     <input
                       type="text"
+                      id="register-device-location"
                       name="location"
                       value={form.location}
                       onChange={handleChange}
@@ -377,6 +384,7 @@ export default function RegisterDevice() {
                     key={mode}
                     type="button"
                     onClick={() => handleModeChange(mode)}
+                    aria-pressed={registrationMode === mode}
                     className={`rounded-[10px] border px-3 py-3 text-left transition ${
                       registrationMode === mode
                         ? "border-[#08a9c4] bg-[#eef9fb]"
@@ -456,6 +464,7 @@ export default function RegisterDevice() {
                       type="button"
                       key={option.id}
                       onClick={() => setConnectivity(option.id)}
+                      aria-pressed={selected}
                       className={`relative rounded-[12px] border p-3 text-left transition ${
                         selected
                           ? "border-[#08a9c4] bg-[#eef9fb]"
@@ -509,7 +518,7 @@ export default function RegisterDevice() {
                     </p>
 
                     <p className="mt-0.5 text-[9px] text-[#6b8290]">
-                      Physical-device provisioning will be handled in a later integration stage.
+                      After registration, open the device details to start secure owner-authorized pairing.
                     </p>
                   </div>
                 </div>
@@ -555,7 +564,7 @@ export default function RegisterDevice() {
             </section>
 
             {error ? (
-              <div className="rounded-[10px] border border-red-200 bg-red-50 p-3 text-[11px] text-red-600">
+              <div className="rounded-[10px] border border-red-200 bg-red-50 p-3 text-[11px] text-red-600" role="alert" aria-live="assertive">
                 {error}
               </div>
             ) : null}

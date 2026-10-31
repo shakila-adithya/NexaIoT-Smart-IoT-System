@@ -1,6 +1,7 @@
 package com.nexaiot.server.device.dto;
 
 import java.time.Instant;
+import java.util.Map;
 
 import com.nexaiot.server.device.DeviceCapabilities;
 import com.nexaiot.server.device.CapabilityManifest;
@@ -15,6 +16,7 @@ public class DeviceResponse {
     private String location;
     private String status;
     private boolean powerOn;
+    private Map<String, Object> reportedStates;
     private Instant createdAt;
     private Instant updatedAt;
     private Instant lastSeenAt;
@@ -99,6 +101,14 @@ public class DeviceResponse {
 
     public boolean isPowerOn() {
         return powerOn;
+    }
+
+    public Map<String, Object> getReportedStates() {
+        return reportedStates;
+    }
+
+    public void setReportedStates(Map<String, Object> reportedStates) {
+        this.reportedStates = reportedStates;
     }
 
     public Instant getCreatedAt() {

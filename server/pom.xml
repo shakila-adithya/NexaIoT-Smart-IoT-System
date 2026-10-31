@@ -28,6 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<nexaiot.surefire.reportsDirectory>${project.build.directory}/surefire-reports</nexaiot.surefire.reportsDirectory>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -98,10 +99,23 @@
 			<artifactId>org.eclipse.paho.client.mqttv3</artifactId>
 			<version>1.2.5</version>
 		</dependency>
+
+		<!-- Required to parse the Mosquitto Dynamic Security JSON control API. -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+		</dependency>
 	</dependencies>
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<reportsDirectory>${nexaiot.surefire.reportsDirectory}</reportsDirectory>
+				</configuration>
+			</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>

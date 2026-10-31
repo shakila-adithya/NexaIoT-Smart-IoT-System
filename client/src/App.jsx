@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import PublicLayout from "./components/layout/PublicLayout.jsx";
 import ProtectedRoute from "./components/auth/ProtectedRoute.jsx";
+import AdminRoute from "./components/auth/AdminRoute.jsx";
 
 import AppLayout from "./components/layout/AppLayout.jsx";
 
@@ -27,6 +28,8 @@ const Profile = lazy(() => import("./pages/app/Profile.jsx"));
 const SettingsPage = lazy(() => import("./pages/app/Settings.jsx"));
 const Tasks = lazy(() => import("./pages/app/Tasks.jsx"));
 const ReportDetails = lazy(() => import("./pages/app/ReportDetails.jsx"));
+const AdminConsole = lazy(() => import("./pages/app/AdminConsole.jsx"));
+const FirmwareManagement = lazy(() => import("./pages/app/FirmwareManagement.jsx"));
 
 export default function App() {
   const { pathname } = useLocation();
@@ -60,6 +63,10 @@ export default function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/tasks" element={<Tasks />} />
+          <Route element={<AdminRoute />}>
+            <Route path="/admin" element={<AdminConsole />} />
+            <Route path="/admin/firmware" element={<FirmwareManagement />} />
+          </Route>
           </Route>
         </Route>
 

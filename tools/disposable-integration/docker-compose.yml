@@ -1,0 +1,98 @@
+services:
+  mongo:
+    image: mongo:8.0
+    restart: "no"
+    command: ["mongod", "--bind_ip_all"]
+    networks: [b46]
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "127.0.0.1:${NEXAIOT_B46_MONGO_PORT}:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--host", "127.0.0.1", "--port", "27017", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: "no"
+    entrypoint: ["/usr/local/bin/nexaiot-b46-entrypoint.sh"]
+    environment:
+      NEXAIOT_TEST_ADMIN_USERNAME: ${NEXAIOT_TEST_ADMIN_USERNAME}
+      NEXAIOT_TEST_ADMIN_PASSWORD: ${NEXAIOT_TEST_ADMIN_PASSWORD}
+      NEXAIOT_TEST_BACKEND_USERNAME: ${NEXAIOT_TEST_BACKEND_USERNAME}
+      NEXAIOT_TEST_BACKEND_CLIENT_ID: ${NEXAIOT_TEST_BACKEND_CLIENT_ID}
+      NEXAIOT_TEST_BACKEND_PASSWORD: ${NEXAIOT_TEST_BACKEND_PASSWORD}
+      NEXAIOT_TEST_MANAGEMENT_USERNAME: ${NEXAIOT_TEST_MANAGEMENT_USERNAME}
+      NEXAIOT_TEST_MANAGEMENT_CLIENT_ID: ${NEXAIOT_TEST_MANAGEMENT_CLIENT_ID}
+      NEXAIOT_TEST_MANAGEMENT_PASSWORD: ${NEXAIOT_TEST_MANAGEMENT_PASSWORD}
+    networks: [b46]
+    ports:
+      - "127.0.0.1:${NEXAIOT_B46_MQTT_TLS_PORT}:8883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/entrypoint.sh:/usr/local/bin/nexaiot-b46-entrypoint.sh:ro
+      - ./.runtime/${NEXAIOT_B46_RUNTIME_NAME}/certs:/mosquitto/certs:ro
+      - mosquitto-data:/mosquitto/data
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /mosquitto/data/bootstrap-complete && mosquitto_ctrl -u $$NEXAIOT_TEST_ADMIN_USERNAME -P $$NEXAIOT_TEST_ADMIN_PASSWORD -h localhost -p 8883 --cafile /mosquitto/certs/ca.crt dynsec getDefaultACLAccess >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  app:
+    profiles: [application]
+    build:
+      context: ../..
+      dockerfile: tools/b46-disposable-integration/App.Dockerfile
+    restart: "no"
+    networks: [b46]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${NEXAIOT_B46_HTTPS_PORT}:8443"
+    environment:
+      SPRING_PROFILES_ACTIVE: b46-disposable
+      MONGODB_URI: mongodb://mongo:27017/nexaiot_b46
+      MQTT_BROKER_URL: ssl://mosquitto:8883
+      MQTT_CLIENT_ID: ${NEXAIOT_TEST_BACKEND_CLIENT_ID}
+      MQTT_USERNAME: ${NEXAIOT_TEST_BACKEND_USERNAME}
+      MQTT_PASSWORD: ${NEXAIOT_TEST_BACKEND_PASSWORD}
+      MQTT_CA_CERTIFICATE: /run/b46/certs/ca.crt
+      MQTT_MANAGEMENT_ENABLED: ${NEXAIOT_TEST_MANAGEMENT_ENABLED}
+      MQTT_MANAGEMENT_BROKER_URL: ssl://mosquitto:8883
+      MQTT_MANAGEMENT_CLIENT_ID: ${NEXAIOT_TEST_MANAGEMENT_CLIENT_ID}
+      MQTT_MANAGEMENT_USERNAME: ${NEXAIOT_TEST_MANAGEMENT_USERNAME}
+      MQTT_MANAGEMENT_PASSWORD: ${NEXAIOT_TEST_MANAGEMENT_PASSWORD}
+      MQTT_MANAGEMENT_TLS_REQUIRED: "true"
+      MQTT_MANAGEMENT_CA_CERTIFICATE: /run/b46/certs/ca.crt
+      PROVISIONING_PAIRING_EXPIRY_SECONDS: ${NEXAIOT_B46_PAIRING_EXPIRY_SECONDS}
+      PROVISIONING_CREDENTIAL_DELIVERY_CHALLENGE_LIFETIME_SECONDS: ${NEXAIOT_B46_DELIVERY_CHALLENGE_LIFETIME_SECONDS}
+      PROVISIONING_ACTIVATION_CHALLENGE_LIFETIME_SECONDS: ${NEXAIOT_B46_ACTIVATION_CHALLENGE_LIFETIME_SECONDS}
+      NEXAIOT_CREDENTIAL_ESCROW_KEY: ${NEXAIOT_CREDENTIAL_ESCROW_KEY}
+      NEXAIOT_CREDENTIAL_ESCROW_KEY_VERSION: b46-test-v1
+      JWT_SECRET: ${NEXAIOT_B46_JWT_SECRET}
+      SERVER_SSL_KEY_STORE: /run/b46/certs/app.p12
+      SERVER_SSL_KEY_STORE_PASSWORD: ${NEXAIOT_B46_APP_KEYSTORE_PASSWORD}
+    volumes:
+      - ./.runtime/${NEXAIOT_B46_RUNTIME_NAME}/certs:/run/b46/certs:ro
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--cacert", "/run/b46/certs/ca.crt", "https://localhost:8443/api/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 45
+
+networks:
+  b46:
+    name: ${NEXAIOT_B46_NETWORK}
+    driver: bridge
+
+volumes:
+  mongo-data:
+    name: ${NEXAIOT_B46_MONGO_VOLUME}
+  mosquitto-data:
+    name: ${NEXAIOT_B46_MOSQUITTO_VOLUME}

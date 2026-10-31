@@ -1,0 +1,16 @@
+package com.nexaiot.server.mqtt.management;
+
+public enum BrokerManagementFailure {
+    DISABLED,
+    INVALID_CONFIGURATION,
+    CONNECTION_FAILED,
+    AUTHENTICATION_FAILED,
+    COMMAND_REJECTED,
+    UNAUTHORIZED,
+    DUPLICATE_CLIENT,
+    DUPLICATE_ROLE,
+    RESOURCE_NOT_FOUND,
+    TIMEOUT,
+    INVALID_RESPONSE,
+    UNKNOWN_STATE
+}

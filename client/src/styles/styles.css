@@ -289,7 +289,7 @@
 .network-overview-insight-chip.insight-success { border-color: #bfe9d8; background: rgba(237, 251, 245, 0.88); color: #16815f; }
 .network-overview-insight-chip.insight-danger { border-color: #f4cbd0; background: rgba(255, 244, 246, 0.9); color: #d83f4d; }
 .network-overview-insight-chip.insight-neutral { border-color: #cfe3f0; background: rgba(241, 249, 253, 0.9); color: #087f98; }
-.network-overview-metrics { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #dceff5; }
+.network-overview-metrics { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #dceff5; }
 .network-overview-metric { display: flex; width: 100%; min-width: 0; min-height: 72px; align-items: center; gap: 10px; border: 1px solid #cfe8f0; border-radius: 14px; background: rgba(250, 254, 255, 0.9); padding: 10px 11px; }
 .network-overview-metric-icon { display: flex; height: 34px; width: 34px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 50%; }
 .network-overview-metric strong { display: block; color: #17324d; font-size: 21px; font-weight: 750; line-height: 1; letter-spacing: -.04em; }
