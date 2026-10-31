@@ -1,6 +1,6 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
-    [ValidateSet('Start', 'RestartBackend', 'Stop', 'Status', 'Initialize', 'Clean', 'Help')]
+    [ValidateSet('Start', 'StartBackend', 'StopBackend', 'RestartBackend', 'Stop', 'Status', 'Initialize', 'Clean', 'Help')]
     [string]$Action = 'Start',
     [switch]$Initialize
 )
@@ -306,6 +306,31 @@ function Restart-Backend {
     Write-Output 'LOCAL_BACKEND_READY: https://127.0.0.1:8443'
 }
 
+function Start-BackendOnly {
+    Require-Command java
+    if (Test-Path -LiteralPath $stateFile) {
+        $state = Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json
+        $process = Get-Process -Id ([int]$state.Pid) -ErrorAction SilentlyContinue
+        if ($process) { throw 'Local backend process is already running.' }
+    }
+    if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) { throw 'Local development environment is not initialized.' }
+    if (-not (Test-KeyStore)) { throw 'Local HTTPS certificate keystore is unavailable.' }
+    try {
+        Start-Application
+        $deadline = (Get-Date).AddSeconds(180)
+        do {
+            $process = Get-Process -Id $javaProcess.Id -ErrorAction SilentlyContinue
+            if (-not $process) { throw 'Local Spring Boot exited during startup.' }
+            try { Test-Health; break } catch { Start-Sleep -Seconds 2 }
+        } while ((Get-Date) -lt $deadline)
+        Test-Health
+    } catch {
+        Save-ApplicationLogs
+        throw
+    }
+    Write-Output 'LOCAL_BACKEND_READY: https://127.0.0.1:8443'
+}
+
 function Show-Status {
     if (Test-Path -LiteralPath $envFile -PathType Leaf) {
         docker compose --env-file $envFile -p $project -f $compose ps
@@ -319,6 +344,7 @@ function Show-Status {
 
 function Show-Help {
     Write-Output 'Start:      Run-LocalDevelopment.ps1 -Action Start [-Initialize]'
+    Write-Output 'StartBackend: Run-LocalDevelopment.ps1 -Action StartBackend'
     Write-Output 'Status:     Run-LocalDevelopment.ps1 -Action Status'
     Write-Output 'Initialize: Run-LocalDevelopment.ps1 -Action Initialize'
     Write-Output 'Stop:       Run-LocalDevelopment.ps1 -Action Stop'
@@ -331,6 +357,8 @@ if ($Action -eq 'Status') { Show-Status; exit 0 }
 if (-not $PSCmdlet.ShouldProcess($project, "$Action local development resources")) { exit 0 }
 if ($Action -eq 'Initialize') { Test-Health; Initialize-Owner; exit 0 }
 if ($Action -eq 'Start') { Start-Local; exit 0 }
+if ($Action -eq 'StartBackend') { Start-BackendOnly; exit 0 }
+if ($Action -eq 'StopBackend') { Stop-Application; exit 0 }
 if ($Action -eq 'RestartBackend') { Restart-Backend; exit 0 }
 if ($Action -eq 'Stop') { Stop-Application; if (Test-Path -LiteralPath $envFile) { Invoke-Compose @('down', '--remove-orphans') }; exit 0 }
 if ($Action -eq 'Clean') {

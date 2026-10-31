@@ -498,4 +498,4 @@ if ($KeepResources) {
     throw 'Disposable integration passed, but cleanup was intentionally skipped with -KeepResources.'
 }
 
-Write-Output 'Restart:    Run-LocalDevelopment.ps1 -Action RestartBackend'
+Write-Output "ISOLATED_INTEGRATION_VERIFIED: $ApplicationMode application; enrollment and activation flow passed; disposable cleanup verified."

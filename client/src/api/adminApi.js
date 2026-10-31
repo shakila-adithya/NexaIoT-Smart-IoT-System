@@ -11,3 +11,12 @@ export function getAdminDevices(search = "") {
 export function getAdminStats() {
   return apiClient.get("/api/admin/stats", { cache: "no-store" });
 }
+
+export function deleteAdminUser(id) {
+  return apiClient.delete(`/api/admin/users/${id}`);
+}
+
+export function deleteAdminDevice(id) {
+  return apiClient.delete(`/api/admin/devices/${id}`);
+}
+

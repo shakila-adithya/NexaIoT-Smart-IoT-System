@@ -8,6 +8,7 @@ import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.jackson.core.type.TypeReference;
 
 import com.nexaiot.server.device.Device;
 import com.nexaiot.server.device.DeviceRepository;
@@ -54,7 +55,10 @@ public class MqttStateHandler {
 
             String deviceKey = MqttTopicSecurity.parseInboundDeviceKey(topic, "state");
 
-            Map<String, Object> state = jsonMapper.readValue(payload, Map.class);
+            Map<String, Object> state = jsonMapper.readValue(
+                    payload,
+                    new TypeReference<Map<String, Object>>() {}
+            );
             if (state == null || state.isEmpty()) return;
 
             Device device = deviceRepository

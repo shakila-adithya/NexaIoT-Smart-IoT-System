@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.lang.reflect.Proxy;
 import java.util.List;
+import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
 
@@ -29,6 +30,24 @@ class AdminServiceTest {
         assertEquals(2, stats.devices());
         assertEquals(1, stats.onlineDevices());
         assertEquals(1, stats.offlineDevices());
+    }
+
+    @Test
+    void listsUsersAndDevicesNewestFirst() {
+        User olderUser = user("older@example.com", "USER");
+        olderUser.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        User newerUser = user("newer@example.com", "USER");
+        newerUser.setCreatedAt(Instant.parse("2026-01-02T00:00:00Z"));
+        Device olderDevice = device("older-device", "older", "owner@example.com", "OFFLINE");
+        olderDevice.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        Device newerDevice = device("newer-device", "newer", "owner@example.com", "OFFLINE");
+        newerDevice.setCreatedAt(Instant.parse("2026-01-02T00:00:00Z"));
+        AdminService service = new AdminService(
+                userRepository(List.of(olderUser, newerUser)),
+                deviceRepository(List.of(olderDevice, newerDevice)));
+
+        assertEquals("newer@example.com", service.users("").get(0).email());
+        assertEquals("newer-device", service.devices("").get(0).deviceKey());
     }
 
     private User user(String email, String role) {

@@ -15,7 +15,7 @@ import com.nexaiot.server.model.User;
 import com.nexaiot.server.repository.UserRepository;
 
 @Component
-@Profile("local")
+@Profile({"local", "b46-disposable"})
 @ConditionalOnProperty(name = "admin.bootstrap.enabled", havingValue = "true")
 public class LocalAdminBootstrapRunner implements CommandLineRunner {
 

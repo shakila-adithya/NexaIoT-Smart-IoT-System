@@ -2,6 +2,8 @@ package com.nexaiot.server.admin;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Comparator;
+import java.time.Instant;
 
 import org.springframework.stereotype.Service;
 
@@ -15,6 +17,7 @@ import com.nexaiot.server.repository.UserRepository;
 
 @Service
 public class AdminService {
+    private static final Comparator<Instant> NEWEST_FIRST = Comparator.nullsLast(Comparator.reverseOrder());
     private final UserRepository userRepository;
     private final DeviceRepository deviceRepository;
 
@@ -27,6 +30,7 @@ public class AdminService {
         String query = normalizeSearch(search);
         return userRepository.findAll().stream()
                 .filter(user -> query.isBlank() || contains(user.getEmail(), query) || contains(user.getFullName(), query) || contains(user.getRole(), query))
+                .sorted(Comparator.comparing(User::getCreatedAt, NEWEST_FIRST))
                 .map(this::userResponse)
                 .toList();
     }
@@ -35,6 +39,7 @@ public class AdminService {
         String query = normalizeSearch(search);
         return deviceRepository.findAll().stream()
                 .filter(device -> query.isBlank() || contains(device.getName(), query) || contains(device.getDeviceKey(), query) || contains(device.getType(), query) || contains(device.getStatus(), query) || contains(device.getOwnerEmail(), query))
+                .sorted(Comparator.comparing(Device::getCreatedAt, NEWEST_FIRST))
                 .map(this::deviceResponse)
                 .toList();
     }

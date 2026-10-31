@@ -34,8 +34,11 @@ try {
     $harness = Get-Content -LiteralPath $sourcePath -Raw
     Assert-True ($harness -match 'Disposable Compose cleanup failed') 'Compose teardown failure is not reported.'
     Assert-True ($harness -match '\$runFailure -and \$cleanupFailures\.Count') 'Combined lifecycle and cleanup failures are not preserved.'
-    Assert-True ($harness -match 'runtime cleanup verified') 'Success marker does not identify verified cleanup.'
-    Assert-True ($harness.IndexOf('runtime cleanup verified') -gt $harness.IndexOf('Remove-DisposableRuntime')) 'Success marker appears before cleanup verification.'
+    $marker = 'ISOLATED_INTEGRATION_VERIFIED:'
+    Assert-True (($harness -split [Environment]::NewLine | Where-Object { $_ -match [regex]::Escape($marker) }).Count -eq 1) 'Success marker is not emitted exactly once.'
+    Assert-True ($harness.IndexOf($marker) -gt $harness.IndexOf('Remove-DisposableRuntime')) 'Success marker appears before cleanup verification.'
+    Assert-True ($harness.IndexOf($marker) -gt $harness.IndexOf('if ($cleanupFailures.Count)')) 'Success marker can bypass cleanup failure handling.'
+    Assert-True ($harness -match '\$result\.ExitCode -ne 0' -and $harness -match 'LIVE_ENROLLMENT_VERIFIED') 'Enrollment driver failure is not gated.'
     Write-Output 'CLEANUP_BEHAVIOR_TESTS_PASSED'
 } finally {
     if ([IO.Directory]::Exists($root)) { [IO.Directory]::Delete($root, $true) }
