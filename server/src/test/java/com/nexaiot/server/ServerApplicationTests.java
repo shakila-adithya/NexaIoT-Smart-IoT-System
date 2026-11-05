@@ -3,6 +3,7 @@ package com.nexaiot.server;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest(properties = {
@@ -14,6 +15,7 @@ import org.springframework.test.context.ActiveProfiles;
 })
 @ActiveProfiles("test")
 @Import(TestRepositoryConfiguration.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ServerApplicationTests {
 
 	@Test

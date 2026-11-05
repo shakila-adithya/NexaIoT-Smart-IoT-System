@@ -16,8 +16,15 @@ const legacyDefinitions = {
 
 export function normalizeCapabilityManifest(device) {
   const manifest = device?.capabilityManifest;
-  if (manifest?.version === 1 && Array.isArray(manifest.capabilities)) {
-    return manifest.capabilities;
+  if ((manifest?.version === 1 || manifest?.version === "1") && Array.isArray(manifest.capabilities)) {
+    return manifest.capabilities.map((capability) => ({
+      ...capability,
+      category: capability.category?.toUpperCase?.() || capability.category,
+      dataType: capability.dataType?.toUpperCase?.() || capability.dataType,
+      control: capability.control
+        ? { ...capability.control, type: capability.control.type?.toUpperCase?.() || capability.control.type }
+        : capability.control,
+    }));
   }
 
   const legacy = device?.capabilities;
@@ -33,4 +40,12 @@ export function normalizeCapabilityManifest(device) {
 export function isManifestDevice(device) {
   return device?.capabilityManifest?.version === 1
     && Array.isArray(device.capabilityManifest.capabilities);
+}
+
+export function getDeviceControls(capabilities) {
+  const power = capabilities.find((capability) => capability.dataType === "BOOLEAN"
+    && capability.control?.type === "SWITCH"
+    && (["digitalOutput", "power"].includes(capability.key)
+      || ["digitalOutput", "power"].includes(capability.semanticType)));
+  return { power, others: capabilities.filter((capability) => capability !== power) };
 }

@@ -2,6 +2,7 @@ package com.nexaiot.server.device;
 
 import java.util.List;
 import java.util.Map;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -123,10 +124,19 @@ public class DeviceController {
             @Valid @RequestBody ControlDeviceRequest request,
             Authentication authentication
     ) {
-        DeviceResponse device = deviceService.getControllableDevice(
-                id,
-                authentication.getName()
-        );
+        String capabilityKey = request.capabilityKey();
+        JsonNode value = request.value();
+        boolean legacyPower = capabilityKey == null || capabilityKey.isBlank();
+        if (legacyPower) {
+            capabilityKey = "power";
+            if (request.power() == null) {
+                throw new IllegalArgumentException("Power value is required.");
+            }
+            value = new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(request.power());
+        }
+        DeviceResponse device = legacyPower
+                ? deviceService.getControllableDevice(id, authentication.getName())
+                : deviceService.getControllableDevice(id, authentication.getName(), capabilityKey, value);
 
         rateLimitService.requireAllowed(
                 "device-command-user-device",
@@ -134,10 +144,14 @@ public class DeviceController {
                 rateLimitProperties.getDeviceCommandMax(),
                 rateLimitProperties.getDeviceCommandWindowSeconds());
 
-        String payload =
-                "{\"power\":" + request.power() + "}";
+        String payload = legacyPower
+                ? "{\"power\":" + request.power() + "}"
+                : new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode()
+                    .put("capabilityKey", capabilityKey)
+                    .set("value", value)
+                    .toString();
 
-        mqttCommandPublisher.publishCommand(
+        com.nexaiot.server.mqtt.MqttPendingCommand pending = mqttCommandPublisher.publishCommand(
                 device.getDeviceKey(),
                 payload
         );
@@ -148,7 +162,9 @@ public class DeviceController {
                         "message", "Device command published",
                         "deviceId", device.getId(),
                         "deviceKey", device.getDeviceKey(),
-                        "power", request.power()
+                        "capabilityKey", capabilityKey,
+                        "commandId", pending.commandId(),
+                        "correlationId", pending.correlationId()
                 ));
     }
 

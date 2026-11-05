@@ -1,4 +1,16 @@
 
 client/.env
+firmware/esp32-smart-fan/.pio/
+firmware/esp32-smart-fan/include/device_config.h
 
 client/.env
+
+__pycache__/
+*.py[cod]
+simulator/.device-keys/
+simulator/.device-credentials/
+simulator/.venv/
+tools/local-development/.runtime/
+*.device-key.pem
+
+tools/disposable-integration/.runtime/

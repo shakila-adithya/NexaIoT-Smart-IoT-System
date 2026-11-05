@@ -1,8 +1,13 @@
 package com.nexaiot.server.device.dto;
 
-import jakarta.validation.constraints.NotNull;
+import com.fasterxml.jackson.databind.JsonNode;
 
 public record ControlDeviceRequest(
-        @NotNull Boolean power
+        Boolean power,
+        String capabilityKey,
+        JsonNode value
 ) {
+    public ControlDeviceRequest(Boolean power) {
+        this(power, null, null);
+    }
 }

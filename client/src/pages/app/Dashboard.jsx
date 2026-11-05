@@ -6,6 +6,7 @@ import {
   Cpu,
   Plus,
   RadioTower,
+  RefreshCw,
   TriangleAlert,
   Wifi,
   WifiOff,
@@ -26,23 +27,14 @@ import { useAuth } from "../../hooks/useAuth.js";
 import { normalizeCapabilityManifest } from "../../config/capabilityManifest.js";
 import {
   getMetricDefinitionForCapability,
-  getMetricValue,
 } from "../../config/deviceMetricDefinitions.js";
-
-function formatTelemetryTime(value) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "—";
-
-  return date.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+import { normalizeUserPreferences } from "../../config/userPreferences.js";
+import {
+  formatDisplayDate,
+  getDisplayMetricUnit,
+  getDisplayMetricValue,
+  isStaleReading,
+} from "../../config/displayPreferences.js";
 
 function TelemetryMetric({ icon: Icon, label, value, unit, note, tone }) {
   const tones = {
@@ -79,11 +71,13 @@ export default function Dashboard() {
   const alerts = outletContext.alerts || [];
   const alertsLoading = outletContext.alertsLoading ?? true;
   const alertsError = outletContext.alertsError || "";
+  const preferences = normalizeUserPreferences(user);
 
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [telemetry, setTelemetry] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const pollingInFlight = useRef(false);
 
   const firstName =
@@ -179,7 +173,7 @@ export default function Dashboard() {
       if (intervalId) window.clearInterval(intervalId);
       pollingInFlight.current = false;
     };
-  }, [user?.dashboardAutoRefresh]);
+  }, [user?.dashboardAutoRefresh, refreshKey]);
 
   const activeAlertCount = alertsLoading || alertsError
     ? null
@@ -199,6 +193,9 @@ export default function Dashboard() {
     const maintenance = devices.filter(
       (device) => device.status === "MAINTENANCE",
     ).length;
+    const unknown = devices.filter(
+      (device) => !["ONLINE", "OFFLINE", "MAINTENANCE"].includes(device.status),
+    ).length;
 
     const onlinePercentage =
       total > 0 ? Math.round((online / total) * 100) : 0;
@@ -208,6 +205,7 @@ export default function Dashboard() {
       online,
       offline,
       maintenance,
+      unknown,
       onlinePercentage,
     };
   }, [devices]);
@@ -215,7 +213,7 @@ export default function Dashboard() {
   const networkTitle =
     stats.total === 0
       ? "Start building your IoT network."
-      : stats.offline === 0 && stats.maintenance === 0
+      : stats.offline === 0 && stats.maintenance === 0 && stats.unknown === 0
         ? "Your registered devices are online."
         : "Your IoT network needs attention.";
 
@@ -225,17 +223,19 @@ export default function Dashboard() {
       ? "Unavailable"
       : stats.total === 0
         ? "No devices"
-        : stats.offline === 0 && stats.maintenance === 0
+        : stats.offline === 0 && stats.maintenance === 0 && stats.unknown === 0
           ? "Healthy"
           : "Needs attention";
-  const networkStatusTone = loading || stats.total === 0 ? "neutral" : error ? "danger" : stats.offline === 0 && stats.maintenance === 0 ? "success" : "warning";
+  const networkStatusTone = loading || stats.total === 0 ? "neutral" : error ? "danger" : stats.offline === 0 && stats.maintenance === 0 && stats.unknown === 0 ? "success" : "warning";
   const networkInsightMessage = stats.maintenance > 0
     ? `${stats.maintenance} device${stats.maintenance === 1 ? " is" : "s are"} currently under maintenance.`
     : stats.offline > 0
       ? `${stats.offline} device${stats.offline === 1 ? "" : "s"} currently needs attention.`
       : stats.total > 0 && stats.online === stats.total
         ? "All registered devices are currently online."
-        : "No registered devices yet.";
+        : stats.unknown > 0
+          ? `${stats.unknown} device${stats.unknown === 1 ? " has" : "s have"} an unavailable status.`
+          : "No registered devices yet.";
 
   const dashboardMetricDefinitions = normalizeCapabilityManifest(telemetry?.device)
     .filter((capability) => capability.category !== "CONTROL")
@@ -243,7 +243,7 @@ export default function Dashboard() {
     .filter(Boolean);
 
   return (
-    <div className="min-w-0 max-w-full px-4 pb-9 pt-7 md:px-8 lg:px-[30px]">
+    <div className={`min-w-0 max-w-full px-4 pb-9 ${preferences.compactMode ? "pt-5" : "pt-7"} md:px-8 lg:px-[30px]`}>
       <div className="mx-auto min-w-0 w-full max-w-[1240px]">
         <PageHeader
           title={<><span>{greeting}, </span><span className="text-[var(--topic-telemetry)]">{firstName}</span></>}
@@ -252,6 +252,7 @@ export default function Dashboard() {
             <>
               <Button type="button" onClick={() => navigate("/devices/register")} icon={Plus}>Add device</Button>
               <Button type="button" variant="secondary" onClick={() => navigate("/reports")} icon={ChartNoAxesCombined}>View reports</Button>
+              <Button type="button" variant="secondary" onClick={() => setRefreshKey((current) => current + 1)} loading={loading} icon={RefreshCw}>Refresh</Button>
             </>
           )}
         />
@@ -287,7 +288,7 @@ export default function Dashboard() {
                 <span className="network-overview-insight-chip insight-neutral insight-updated">
                   <Clock3 size={14} aria-hidden="true" />
                   <strong>Updated</strong>
-                  <span>{loading || error ? "—" : formatTelemetryTime(telemetry?.reading?.receivedAt)}</span>
+                  <span>{loading || error ? "—" : formatDisplayDate(telemetry?.reading?.receivedAt, preferences.dateFormat)}</span>
                 </span>
               </div>
             </div>
@@ -309,6 +310,10 @@ export default function Dashboard() {
                 <span className="network-overview-metric-icon" aria-hidden="true"><Wrench size={16} /></span>
                 <div><strong>{loading || error ? "—" : stats.maintenance}</strong><span>Maintenance</span></div>
               </div>
+            <div className="network-overview-metric metric-unknown">
+              <span className="network-overview-metric-icon" aria-hidden="true"><WifiOff size={16} /></span>
+              <div><strong>{loading || error ? "—" : stats.unknown}</strong><span>Unknown</span></div>
+            </div>
             </div>
           </div>
           <div className="network-overview-image">
@@ -323,8 +328,8 @@ export default function Dashboard() {
           </div>
         ) : null}
 
-        <section className="mt-6 min-w-0">
-          <BentoCard icon={RadioTower} title="Live telemetry" description="Latest reading from your most recently reporting device." action={<StatusBadge tone={telemetry ? "success" : "neutral"}>{telemetry ? "Latest reading" : "Waiting"}</StatusBadge>} className="min-w-0">
+        <section className={preferences.compactMode ? "mt-4 min-w-0" : "mt-6 min-w-0"}>
+          <BentoCard icon={RadioTower} title="Latest telemetry" description="Latest reading from your most recently reporting device." action={<StatusBadge tone={telemetry && !isStaleReading(telemetry.reading.receivedAt) ? "success" : telemetry ? "warning" : "neutral"}>{telemetry ? (isStaleReading(telemetry.reading.receivedAt) ? "Stale" : "Current") : "Waiting"}</StatusBadge>} className="min-w-0">
             <div className="pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full bg-[#dff6fa]/60 blur-2xl" />
             {loading ? (
               <div className="mt-5 grid min-h-[180px] animate-pulse grid-cols-2 gap-3 rounded-[12px] border border-dashed border-[#dce8ee] bg-[#f8fbfd] p-4 sm:grid-cols-4">
@@ -357,8 +362,8 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5 text-[9px] text-[#6b8290] sm:text-right">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#16a57a]" />
-                    <span>Updated {formatTelemetryTime(telemetry.reading.receivedAt)}</span>
+                    <span className={`h-1.5 w-1.5 rounded-full ${isStaleReading(telemetry.reading.receivedAt) ? "bg-[#e99a12]" : "bg-[#16a57a]"}`} />
+                    <span>{isStaleReading(telemetry.reading.receivedAt) ? "Stale reading" : "Updated"} {formatDisplayDate(telemetry.reading.receivedAt, preferences.dateFormat)}</span>
                   </div>
                 </div>
 
@@ -378,8 +383,8 @@ export default function Dashboard() {
                         key={definition.key}
                         icon={definition.icon}
                         label={definition.label}
-                        value={getMetricValue(definition, telemetry.reading)}
-                        unit={definition.unit}
+                        value={getDisplayMetricValue(definition, telemetry.reading, preferences)}
+                        unit={getDisplayMetricUnit(definition, preferences)}
                         tone={definition.tone === "cyan" ? "orange" : definition.tone}
                       />
                     ))}

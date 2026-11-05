@@ -32,3 +32,8 @@ export function getProfileImage() {
 export function deleteProfileImage() {
   return apiClient.delete("/api/user/me/profile-image");
 }
+
+export function deleteAccount(password) {
+  return apiClient.delete("/api/user/me", { body: { password } });
+}
+

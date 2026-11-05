@@ -3,6 +3,7 @@ package com.nexaiot.server.device;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import org.springframework.stereotype.Service;
 
@@ -17,7 +18,7 @@ public class DeviceService {
 
     private final DeviceRepository deviceRepository;
     private final DeviceTemplateService deviceTemplateService;
-    private static final long ONLINE_TIMEOUT_SECONDS = 5;
+    private static final long ONLINE_TIMEOUT_SECONDS = 15;
 
     public DeviceService(
             DeviceRepository deviceRepository,
@@ -41,6 +42,9 @@ public class DeviceService {
         device.setLocation(request.getLocation().trim());
         device.setConnectivity(normalizeConnectivity(request.getConnectivity()));
         device.setCapabilities(request.getCapabilities());
+        DeviceProvisioningInfo provisioningInfo = new DeviceProvisioningInfo();
+        provisioningInfo.setStatus(DeviceProvisioningStatus.REGISTERED);
+        device.setProvisioningInfo(provisioningInfo);
         boolean hasTemplateId = request.getTemplateId() != null
                 && !request.getTemplateId().isBlank();
         boolean hasCustomManifest = request.getCapabilityManifest() != null;
@@ -192,6 +196,65 @@ public class DeviceService {
         return toResponse(device);
     }
 
+    public DeviceResponse getControllableDevice(
+            String deviceId,
+            String ownerEmail,
+            String capabilityKey,
+            JsonNode value
+    ) {
+        Device device = findOwnedDevice(deviceId, ownerEmail);
+        if (!"ONLINE".equals(getEffectiveStatus(device))) {
+            throw new IllegalStateException("Device must be online before a command can be sent.");
+        }
+        CapabilityDefinition definition = CapabilityManifestAdapter.effectiveManifest(device)
+                .getCapabilities().stream()
+                .filter(candidate -> capabilityKey.equals(candidate.getKey()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unsupported device capability."));
+        if (definition.getCategory() != CapabilityCategory.CONTROL || definition.isReadOnly()) {
+            throw new IllegalArgumentException("Capability is not writable.");
+        }
+        validateControlValue(definition, value);
+        return toResponse(device);
+    }
+
+    private void validateControlValue(CapabilityDefinition definition, JsonNode value) {
+        if (value == null || value.isNull() || value.isContainerNode()) {
+            throw new IllegalArgumentException("Control value is required.");
+        }
+        switch (definition.getDataType()) {
+            case BOOLEAN -> {
+                if (!value.isBoolean()) throw new IllegalArgumentException("Control value must be boolean.");
+            }
+            case NUMBER -> {
+                if (!value.isNumber() || !Double.isFinite(value.asDouble())) {
+                    throw new IllegalArgumentException("Control value must be numeric.");
+                }
+                double number = value.asDouble();
+                if (definition.getConstraints() != null) {
+                    var constraints = definition.getConstraints();
+                    if (constraints.getMin() != null && number < constraints.getMin()
+                            || constraints.getMax() != null && number > constraints.getMax()) {
+                        throw new IllegalArgumentException("Control value is outside its allowed range.");
+                    }
+                    if (constraints.getStep() != null && constraints.getMin() != null) {
+                        double steps = (number - constraints.getMin()) / constraints.getStep();
+                        if (Math.abs(steps - Math.rint(steps)) > 1e-9) {
+                            throw new IllegalArgumentException("Control value does not match its allowed step.");
+                        }
+                    }
+                }
+            }
+            case ENUM, STRING -> {
+                if (!value.isTextual()) throw new IllegalArgumentException("Control value must be text.");
+                if (definition.getDataType() == CapabilityDataType.ENUM
+                        && definition.getOptions().stream().noneMatch(option -> option.getValue().equals(value.asText()))) {
+                    throw new IllegalArgumentException("Control value is not an allowed option.");
+                }
+            }
+        }
+    }
+
     private Device findOwnedDevice(
             String deviceId,
             String ownerEmail
@@ -230,7 +293,7 @@ public class DeviceService {
     private DeviceResponse toResponse(Device device) {
         String effectiveStatus = getEffectiveStatus(device);
 
-        return new DeviceResponse(
+        DeviceResponse response = new DeviceResponse(
                 device.getId(),
                 device.getDeviceKey(),
                 device.getName(),
@@ -245,6 +308,8 @@ public class DeviceService {
                 device.getCapabilities(),
                 CapabilityManifestAdapter.effectiveManifest(device)
         );
+        response.setReportedStates(device.getReportedStates());
+        return response;
     }
 
     private DeviceConnectivity normalizeConnectivity(DeviceConnectivity requested) {

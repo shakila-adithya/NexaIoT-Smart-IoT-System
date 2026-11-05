@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "source": "CUSTOM",
+  "capabilities": [
+    {
+      "key": "testCounter",
+      "name": "Test Counter",
+      "category": "MEASUREMENT",
+      "dataType": "NUMBER",
+      "readOnly": true,
+      "chartable": true
+    }
+  ]
+}

@@ -9,7 +9,6 @@ import com.nexaiot.server.repository.UserRepository;
 import com.nexaiot.server.security.JwtService;
 import org.junit.jupiter.api.Test;
 import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.lang.reflect.Proxy;

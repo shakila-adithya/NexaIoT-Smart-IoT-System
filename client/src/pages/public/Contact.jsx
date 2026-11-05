@@ -25,8 +25,7 @@ export default function Contact() {
     if (!form.message) errs.message = "Message is required.";
     setErrors(errs);
     if (Object.keys(errs).length === 0) {
-      showToast("Message sent successfully");
-      setForm({ name: "", email: "", subject: "", message: "" });
+      showToast("Form validated. Message delivery is not configured.", "info");
     }
   };
 

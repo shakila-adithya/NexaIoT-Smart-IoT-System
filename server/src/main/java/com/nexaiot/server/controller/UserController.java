@@ -4,7 +4,9 @@ import com.nexaiot.server.dto.ChangePasswordRequest;
 import com.nexaiot.server.dto.UpdatePreferencesRequest;
 import com.nexaiot.server.dto.UpdateProfileRequest;
 import com.nexaiot.server.dto.UserResponse;
+import com.nexaiot.server.dto.DeleteAccountRequest;
 import com.nexaiot.server.service.UserService;
+import com.nexaiot.server.service.AccountDeletionService;
 import com.nexaiot.server.service.ProfileImageService;
 import jakarta.validation.Valid;
 import org.springframework.core.io.Resource;
@@ -21,10 +23,12 @@ public class UserController {
 
     private final UserService userService;
     private final ProfileImageService profileImageService;
+    private final AccountDeletionService accountDeletionService;
 
-    public UserController(UserService userService, ProfileImageService profileImageService) {
+    public UserController(UserService userService, ProfileImageService profileImageService, AccountDeletionService accountDeletionService) {
         this.userService = userService;
         this.profileImageService = profileImageService;
+        this.accountDeletionService = accountDeletionService;
     }
 
     @GetMapping("/me")
@@ -81,5 +85,11 @@ public class UserController {
     @DeleteMapping("/me/profile-image")
     public UserResponse deleteProfileImage(Authentication authentication) {
         return profileImageService.delete(authentication.getName());
+    }
+
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> deleteAccount(Authentication authentication, @Valid @RequestBody DeleteAccountRequest request) {
+        accountDeletionService.deleteSelf(authentication.getName(), request.getPassword());
+        return ResponseEntity.noContent().build();
     }
 }

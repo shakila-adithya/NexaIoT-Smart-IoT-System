@@ -245,6 +245,7 @@ export default function Devices() {
                   : "text-[#9aaeba] hover:text-[#6b8290]"
               }`}
               aria-label="Grid view"
+              aria-pressed={view === "grid"}
             >
               <Grid2X2 size={15} />
             </button>
@@ -258,6 +259,7 @@ export default function Devices() {
                   : "text-[#9aaeba] hover:text-[#6b8290]"
               }`}
               aria-label="List view"
+              aria-pressed={view === "list"}
             >
               <List size={15} />
             </button>
