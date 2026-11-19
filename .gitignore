@@ -14,3 +14,29 @@ tools/local-development/.runtime/
 *.device-key.pem
 
 tools/disposable-integration/.runtime/
+
+# Private local notes and backups (may contain credentials).
+/.runtime/
+/MQTT administrator account.txt
+/Run Server.txt
+
+# Local environment values; keep placeholder examples shareable.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Private keys, certificate stores, and generated certificates.
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.crt
+*.csr
+*.srl
+
+# Generated Python environments and logs.
+.venv/
+*.log
