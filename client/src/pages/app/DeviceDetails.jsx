@@ -1,3 +1,4 @@
+import { waitForCommandResult } from "../../utils/commandPolling.js";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -38,7 +39,6 @@ import {
   sendDeviceCommand,
   getDeviceDiagnostics,
   getDeviceActivity,
-  getDeviceCommandStatus,
 } from "../../api/devicesApi.js";
 import { getAlerts } from "../../api/alertsApi.js";
 import { useAuth } from "../../hooks/useAuth.js";
@@ -594,17 +594,9 @@ async function handlePowerToggle() {
       setControlAwaitingConfirmation(false);
       setPendingPowerTarget(null);
       const accepted = await controlDevice(id, targetPower);
-      const commandId = accepted?.commandId;
-      if (!commandId) throw new Error("The backend did not return a command identifier.");
-      let commandStatus = "PENDING";
-      let commandReason = "";
-      for (let attempt = 0; attempt < 10; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        const response = await getDeviceCommandStatus(id, commandId);
-        commandStatus = response?.status || "PENDING";
-        commandReason = response?.reason || "";
-        if (commandStatus !== "PENDING") break;
-      }
+      const response = await waitForCommandResult(id, accepted);
+      const commandStatus = response.status;
+      const commandReason = response.reason || "";
       if (!["ACCEPTED", "DUPLICATE"].includes(commandStatus)) {
         throw new Error(commandReason || `Power command ${commandStatus.toLowerCase()}.`);
       }
@@ -645,17 +637,9 @@ async function handlePowerToggle() {
       setControlValues((current) => ({ ...current, [capability.key]: value }));
       setControlStatuses((current) => ({ ...current, [capability.key]: "pending" }));
       const accepted = await sendDeviceCommand(id, capability.key, value);
-      const commandId = accepted?.commandId;
-      if (!commandId) throw new Error("The backend did not return a command identifier.");
-      let status = "PENDING";
-      let reason = "";
-      for (let attempt = 0; attempt < 10; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        const response = await getDeviceCommandStatus(id, commandId);
-        status = response?.status || "PENDING";
-        reason = response?.reason || "";
-        if (status !== "PENDING") break;
-      }
+      const response = await waitForCommandResult(id, accepted);
+      const status = response.status;
+      const reason = response.reason || "";
       const normalizedStatus = status.toUpperCase();
       if (!["ACCEPTED", "DUPLICATE"].includes(normalizedStatus)) {
         setControlValues((current) => ({ ...current, [capability.key]: previousValue }));
@@ -1318,7 +1302,7 @@ async function handlePowerToggle() {
                               <input disabled={!isOnline || controlLoading} type="number" min={constraints.min} max={constraints.max} step={constraints.step} value={currentValue} onChange={(event) => setControlValues((current) => ({ ...current, [capability.key]: Number(event.target.value) }))} onBlur={(event) => handleCapabilityCommand(capability, Number(event.target.value))} aria-label={capability.name || capability.key} className="h-8 w-28 rounded-[8px] border border-[#dce8ee] bg-white px-2 text-[10px] text-[#6b8290] disabled:opacity-60" />
                             )}
                           </div>
-                          <p className="mt-2 text-[8px] leading-3 text-[#9aadb6]">{status === "pending" ? "Command pending device acknowledgement." : status === "confirmed" ? "Confirmed device state." : status === "accepted" ? (controlMessages[capability.key] || "Command accepted; awaiting reported state.") : status === "rejected" ? (controlMessages[capability.key] || "Command rejected.") : status === "timeout" ? (controlMessages[capability.key] || "Device acknowledgement timed out.") : status === "failed" ? (controlMessages[capability.key] || "Unable to send device command.") : isOnline ? "Device acknowledgement is required for confirmation." : statusPresentation.description}</p>
+                          <p className="mt-2 text-[8px] leading-3 text-[#9aadb6]">{status === "pending" ? "Command pending device acknowledgement." : status === "confirmed" ? "Confirmed device state." : status === "accepted" ? (controlMessages[capability.key] || "Command accepted; awaiting reported state.") : status === "rejected" ? (controlMessages[capability.key] || "Command rejected.") : status === "timeout" ? (controlMessages[capability.key] || "Device acknowledgement timed out.") : ["unknown", "unconfirmed"].includes(status) ? (controlMessages[capability.key] || "Command outcome is unconfirmed.") : status === "failed" ? (controlMessages[capability.key] || "Unable to send device command.") : isOnline ? "Device acknowledgement is required for confirmation." : statusPresentation.description}</p>
                         </div>
                       );
                     })}

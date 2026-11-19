@@ -164,7 +164,9 @@ public class DeviceController {
                         "deviceKey", device.getDeviceKey(),
                         "capabilityKey", capabilityKey,
                         "commandId", pending.commandId(),
-                        "correlationId", pending.correlationId()
+                        "correlationId", pending.correlationId(),
+                        "issuedAt", pending.issuedAt(),
+                        "expiresAt", pending.expiresAt()
                 ));
     }
 

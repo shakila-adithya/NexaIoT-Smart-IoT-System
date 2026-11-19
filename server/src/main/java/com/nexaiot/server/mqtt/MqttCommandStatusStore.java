@@ -18,4 +18,9 @@ public interface MqttCommandStatusStore {
     }
 
     boolean recordResult(MqttCommandResultStatus result);
+
+    default Optional<MqttCommandStatusSnapshot> findStatus(String deviceKey, String commandId) {
+        return findPending(deviceKey, commandId).map(command -> new MqttCommandStatusSnapshot(
+                command, findResult(deviceKey, commandId).orElse(null), java.time.Instant.now()));
+    }
 }

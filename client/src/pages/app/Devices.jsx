@@ -1,3 +1,4 @@
+import { waitForCommandResult } from "../../utils/commandPolling.js";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -144,16 +145,25 @@ export default function Devices() {
     setControlLoadingId(device.id);
     setPendingPower(targetPower);
     try {
-      await controlDevice(device.id, targetPower);
+      const accepted = await controlDevice(device.id, targetPower);
+      const result = await waitForCommandResult(device.id, accepted);
+      if (!["ACCEPTED", "DUPLICATE"].includes(result.status)) {
+        throw new Error(result.reason || `Power command ${result.status.toLowerCase()}.`);
+      }
+      let confirmed = false;
       for (let attempt = 0; attempt < 8; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 250));
         const updatedDevices = await getDevices();
         const updatedDevice = updatedDevices.find((item) => item.id === device.id);
         if (updatedDevice) {
           setDevices(updatedDevices);
-          if (updatedDevice.powerOn === targetPower) break;
+          if (updatedDevice.powerOn === targetPower) {
+            confirmed = true;
+            break;
+          }
         }
       }
+      if (!confirmed) showToast("Command accepted; awaiting reported device state.", "info");
     } catch (requestError) {
       showToast(requestError.message || "Unable to send device command.", "error");
     } finally {

@@ -31,18 +31,25 @@ public class DeviceCommandStatusController {
             Authentication authentication
     ) {
         DeviceResponse device = deviceService.getDevice(id, authentication.getName());
-        var result = statusStore.findResult(device.getDeviceKey(), commandId);
-        if (result.isPresent()) {
-            var value = result.get();
-            return ResponseEntity.ok(Map.of(
-                    "status", value.status(),
-                    "commandId", value.commandId(),
-                    "reason", value.reasonOrEmpty(),
-                    "confirmedAt", value.processedAt()
-            ));
+        var retained = statusStore.findStatus(device.getDeviceKey(), commandId);
+        if (retained.isEmpty()) {
+            return ResponseEntity.ok(Map.of("status", "UNKNOWN", "commandId", commandId,
+                    "reason", "This command is unknown or no longer retained. Its outcome cannot be confirmed."));
         }
-        return statusStore.findPending(device.getDeviceKey(), commandId).isPresent()
-                ? ResponseEntity.ok(Map.of("status", "PENDING", "commandId", commandId))
-                : ResponseEntity.ok(Map.of("status", "TIMEOUT", "commandId", commandId));
+        var snapshot = retained.get();
+        var response = new java.util.LinkedHashMap<String, Object>();
+        response.put("status", snapshot.status());
+        response.put("commandId", snapshot.command().commandId());
+        response.put("issuedAt", snapshot.command().issuedAt());
+        response.put("expiresAt", snapshot.command().expiresAt());
+        response.put("remainingMs", Math.max(0, java.time.Duration.between(
+                snapshot.observedAt(), snapshot.command().expiresAt()).toMillis()));
+        if (snapshot.result() != null) {
+            response.put("reason", snapshot.result().reasonOrEmpty());
+            if (!"TIMEOUT".equals(snapshot.status())) {
+                response.put("confirmedAt", snapshot.result().processedAt());
+            }
+        }
+        return ResponseEntity.ok(response);
     }
 }

@@ -41,8 +41,8 @@ export function sendDeviceCommand(id, capabilityKey, value) {
   });
 }
 
-export function getDeviceCommandStatus(id, commandId) {
-  return apiClient.get(`/api/devices/${id}/commands/${commandId}`, { cache: "no-store" });
+export function getDeviceCommandStatus(id, commandId, options = {}) {
+  return apiClient.get(`/api/devices/${id}/commands/${commandId}`, { ...options, cache: "no-store" });
 }
 
 export function getDeviceDiagnostics(id) {

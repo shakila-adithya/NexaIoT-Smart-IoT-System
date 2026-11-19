@@ -144,6 +144,27 @@ The frontend uses React Router with public pages, authentication pages, protecte
 
 ## MQTT communication
 
+### Command acknowledgement deadlines
+
+Command submission returns `commandId`, `correlationId`, `issuedAt`, and
+`expiresAt`. `MQTT_COMMAND_TIMEOUT_SECONDS` controls the server acknowledgement
+deadline (default 30 seconds; supported range 1-300 seconds). The existing
+`MQTT_COMMAND_RESULT_MAX_AGE_SECONDS` separately limits device timestamp freshness.
+
+`GET /api/devices/{id}/commands/{commandId}` returns `PENDING`, `ACCEPTED`,
+`DUPLICATE`, `REJECTED`, `TIMEOUT`, or `UNKNOWN`. Known entries include the
+deadline and `remainingMs`; unknown, evicted, or restart-lost entries are
+`UNKNOWN`, not evidence of timeout. Deadlines use the server clock. A reply
+received at or after the deadline cannot replace a timeout or another terminal
+result. Timeout does not mean the device cancelled or never executed the command.
+
+The web controls poll until the server decides or the bounded status request
+cannot be completed, in which case the UI reports an unconfirmed outcome.
+Acknowledgement remains separate from confirmation of reported physical state.
+Commands are not automatically resent. Tracking is process-local and bounded
+to 4096 entries; terminal entries can be evicted, while a full store of pending
+commands rejects new submissions with `503` before publishing them.
+
 The default broker URL is `tcp://localhost:1883`. TLS uses an `ssl://` URL, CA certificate, and `MQTT_TLS_REQUIRED=true`.
 
 For `<deviceKey>`, the topic shapes are:

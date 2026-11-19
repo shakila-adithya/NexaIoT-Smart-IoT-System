@@ -23,13 +23,14 @@ function handleUnauthorized() {
 
 async function request(
   path,
-  { method = "GET", body, headers = {}, cache, responseType } = {},
+  { method = "GET", body, headers = {}, cache, responseType, signal } = {},
 ) {
   const token = getToken();
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
 
   const res = await fetch(`${API_URL}${path}`, {
     method,
+    ...(signal ? { signal } : {}),
     headers: {
       ...(!isFormData ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

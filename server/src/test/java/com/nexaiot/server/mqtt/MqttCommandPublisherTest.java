@@ -18,6 +18,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 class MqttCommandPublisherTest {
 
     @Test
+    void publisherSetsAuthoritativeTimesAndConfiguredDeadline() throws Exception {
+        var now = java.time.Instant.parse("2026-01-01T00:00:00Z");
+        RecordingChannel channel = new RecordingChannel(true);
+        RecordingStore store = new RecordingStore();
+        var pending = new MqttCommandPublisher(channel, store, 12,
+                java.time.Clock.fixed(now, java.time.ZoneOffset.UTC))
+                .publishCommand("NEXA-PUBLISH-1",
+                        "{\"capabilityKey\":\"power\",\"value\":true,\"issuedAt\":\"2099-01-01T00:00:00Z\"}");
+        assertEquals(now, pending.issuedAt());
+        assertEquals(now.plusSeconds(12), pending.expiresAt());
+        assertEquals(now.toString(), new ObjectMapper().readTree(channel.message.getPayload().toString()).path("issuedAt").asText());
+        assertThrows(IllegalArgumentException.class, () -> new MqttCommandPublisher(channel, store, 0));
+    }
+
+    @Test
     void legacyPowerCommandBecomesCorrelatableStructuredCommand() throws Exception {
         RecordingChannel channel = new RecordingChannel(true);
         RecordingStore store = new RecordingStore();

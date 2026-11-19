@@ -28,6 +28,12 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(com.nexaiot.server.mqtt.CommandTrackingCapacityException.class)
+    public ResponseEntity<Map<String, String>> handleCommandCapacity(
+            com.nexaiot.server.mqtt.CommandTrackingCapacityException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("message", ex.getMessage()));
+    }
+
     @ExceptionHandler(DeletionBlockedException.class)
     public ResponseEntity<Map<String, String>> handleDeletionBlocked(DeletionBlockedException ex) {
         return ResponseEntity.status(ex.getStatus()).body(Map.of("message", ex.getMessage()));
