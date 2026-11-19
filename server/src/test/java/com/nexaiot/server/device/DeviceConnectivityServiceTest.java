@@ -95,7 +95,7 @@ class DeviceConnectivityServiceTest {
     }
 
     private DeviceService service(DeviceRepository repository) {
-        return new DeviceService(repository, (DeviceTemplateService) null);
+        return new DeviceService(repository, (DeviceTemplateService) null, org.mockito.Mockito.mock(com.nexaiot.server.service.AccountDeletionService.class));
     }
 
     private DeviceRepository repository() {

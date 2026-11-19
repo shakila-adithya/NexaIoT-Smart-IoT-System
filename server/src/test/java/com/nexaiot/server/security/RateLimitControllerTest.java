@@ -151,7 +151,7 @@ class RateLimitControllerTest {
 
     private static final class StubDeviceService extends DeviceService {
         private StubDeviceService() {
-            super(null, null);
+            super(null, null, null);
         }
 
         @Override

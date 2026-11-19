@@ -28,6 +28,11 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(DeletionBlockedException.class)
+    public ResponseEntity<Map<String, String>> handleDeletionBlocked(DeletionBlockedException ex) {
+        return ResponseEntity.status(ex.getStatus()).body(Map.of("message", ex.getMessage()));
+    }
+
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<Map<String, String>> handleRateLimit(
             RateLimitExceededException ex

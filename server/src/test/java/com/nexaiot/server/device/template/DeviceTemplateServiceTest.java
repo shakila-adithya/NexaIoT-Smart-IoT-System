@@ -94,7 +94,7 @@ class DeviceTemplateServiceTest {
         DeviceRepository repository = repositoryStub();
 
         DeviceTemplate template = templateService.getTemplate("smart-fan");
-        DeviceService deviceService = new DeviceService(repository, templateService);
+        DeviceService deviceService = new DeviceService(repository, templateService, org.mockito.Mockito.mock(com.nexaiot.server.service.AccountDeletionService.class));
 
         CreateDeviceRequest templatedRequest = request("smart-fan");
         DeviceResponse templatedResponse = deviceService.createDevice(templatedRequest, "owner@example.com");
@@ -133,7 +133,7 @@ class DeviceTemplateServiceTest {
 
     @Test
     void customCreationForcesCustomSourceClearsTemplateIdAndSnapshotsManifest() {
-        DeviceService deviceService = new DeviceService(repositoryStub(), templateService);
+        DeviceService deviceService = new DeviceService(repositoryStub(), templateService, org.mockito.Mockito.mock(com.nexaiot.server.service.AccountDeletionService.class));
         CreateDeviceRequest request = request(null);
         CapabilityManifest clientManifest = customManifest();
         request.setCapabilityManifest(clientManifest);
@@ -160,7 +160,7 @@ class DeviceTemplateServiceTest {
 
     @Test
     void invalidCustomManifestIsRejected() {
-        DeviceService deviceService = new DeviceService(repositoryStub(), templateService);
+        DeviceService deviceService = new DeviceService(repositoryStub(), templateService, org.mockito.Mockito.mock(com.nexaiot.server.service.AccountDeletionService.class));
         CreateDeviceRequest request = request(null);
         CapabilityManifest manifest = customManifest();
         manifest.getCapabilities().add(manifest.getCapabilities().get(0));
@@ -176,7 +176,7 @@ class DeviceTemplateServiceTest {
 
     @Test
     void emptyCustomManifestIsRejected() {
-        DeviceService deviceService = new DeviceService(repositoryStub(), templateService);
+        DeviceService deviceService = new DeviceService(repositoryStub(), templateService, org.mockito.Mockito.mock(com.nexaiot.server.service.AccountDeletionService.class));
         CreateDeviceRequest request = request(null);
         CapabilityManifest manifest = new CapabilityManifest(CapabilityManifestSource.TEMPLATE);
         manifest.setTemplateId("client-template");
@@ -190,7 +190,7 @@ class DeviceTemplateServiceTest {
 
     @Test
     void templateAndCustomManifestTogetherAreRejected() {
-        DeviceService deviceService = new DeviceService(repositoryStub(), templateService);
+        DeviceService deviceService = new DeviceService(repositoryStub(), templateService, org.mockito.Mockito.mock(com.nexaiot.server.service.AccountDeletionService.class));
         CreateDeviceRequest request = request("smart-fan");
         request.setCapabilityManifest(customManifest());
 

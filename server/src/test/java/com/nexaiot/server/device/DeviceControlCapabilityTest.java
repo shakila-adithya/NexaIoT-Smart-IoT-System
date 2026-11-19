@@ -35,7 +35,7 @@ class DeviceControlCapabilityTest {
         DeviceTemplateService templateService = new DeviceTemplateService(
                 JsonMapper.builder().build()
         );
-        deviceService = new DeviceService(repository, templateService);
+        deviceService = new DeviceService(repository, templateService, org.mockito.Mockito.mock(com.nexaiot.server.service.AccountDeletionService.class));
     }
 
     @Test

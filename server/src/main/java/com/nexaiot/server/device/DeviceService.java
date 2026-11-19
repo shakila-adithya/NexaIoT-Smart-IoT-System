@@ -12,20 +12,24 @@ import com.nexaiot.server.device.dto.DeviceResponse;
 import com.nexaiot.server.device.dto.UpdateDeviceRequest;
 import com.nexaiot.server.device.template.DeviceTemplate;
 import com.nexaiot.server.device.template.DeviceTemplateService;
+import com.nexaiot.server.service.AccountDeletionService;
 
 @Service
 public class DeviceService {
 
     private final DeviceRepository deviceRepository;
     private final DeviceTemplateService deviceTemplateService;
+    private final AccountDeletionService accountDeletionService;
     private static final long ONLINE_TIMEOUT_SECONDS = 15;
 
     public DeviceService(
             DeviceRepository deviceRepository,
-            DeviceTemplateService deviceTemplateService
+            DeviceTemplateService deviceTemplateService,
+            AccountDeletionService accountDeletionService
     ) {
         this.deviceRepository = deviceRepository;
         this.deviceTemplateService = deviceTemplateService;
+        this.accountDeletionService = accountDeletionService;
     }
 
     public DeviceResponse createDevice(
@@ -168,7 +172,7 @@ public class DeviceService {
     ) {
         Device device = findOwnedDevice(deviceId, ownerEmail);
 
-        deviceRepository.delete(device);
+        accountDeletionService.deleteDevice(device.getId());
     }
 
     public DeviceResponse getControllableDevice(

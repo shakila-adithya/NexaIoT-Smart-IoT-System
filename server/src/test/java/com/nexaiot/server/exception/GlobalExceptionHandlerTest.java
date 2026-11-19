@@ -10,6 +10,14 @@ class GlobalExceptionHandlerTest {
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
     @Test
+    void blockedDeletionReturnsActionableServiceUnavailableResponse() {
+        var response = handler.handleDeletionBlocked(new DeletionBlockedException(
+                HttpStatus.SERVICE_UNAVAILABLE, "Device access could not be revoked. Please retry later."));
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
+        assertEquals("Device access could not be revoked. Please retry later.", response.getBody().get("message"));
+    }
+
+    @Test
     void unexpectedExceptionUsesGenericServerResponse() {
         var response = handler.handleUnexpected(new RuntimeException("internal implementation detail"));
 

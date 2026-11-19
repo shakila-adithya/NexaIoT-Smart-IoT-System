@@ -359,6 +359,28 @@ The following paths are verified from the Spring controllers. Protected routes r
 
 ## Limitations and future work
 
+### Device and account deletion
+
+User and administrator device deletion share the same related-data cleanup.
+For devices with enrollment or credential metadata, deletion first verifies
+the device-scoped broker identity, disables it, and revokes it. Broker management
+must be configured and reachable. A failed broker operation returns `503` and
+leaves database records available for retry; some broker identities may already
+have been disabled or revoked. Already absent broker resources are safe to retry.
+Never-provisioned devices without enrollment evidence can be removed locally.
+
+Deletion returns `409` when broker identity/ownership cannot be verified or an
+enrollment is currently mutating broker resources. Finish or reconcile that
+operation before retrying. Roles with other client/group references are retained.
+Credentials managed outside NexaIoT must be revoked by their administrator.
+
+Device cleanup removes readings, alerts, rules, tasks, reports, pairing sessions,
+and enrollment records before deleting the device. Account cleanup also removes
+password-reset tokens and owned profile images, with the account removed last.
+MongoDB and the broker are not a single transaction: cleanup after a database
+failure may be partial and should be retried. Live broker/database deletion and
+concurrent enrollment/deletion still require integration validation.
+
 Current limitations include:
 
 - The ESP32 firmware expects credentials in a local header and does not perform the complete HTTP pairing/credential-delivery workflow.
